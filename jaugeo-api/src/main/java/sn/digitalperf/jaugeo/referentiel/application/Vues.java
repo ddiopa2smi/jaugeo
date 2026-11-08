@@ -1,10 +1,12 @@
 package sn.digitalperf.jaugeo.referentiel.application;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import sn.digitalperf.jaugeo.referentiel.domaine.Cuve;
+import sn.digitalperf.jaugeo.referentiel.domaine.EvenementEquipement;
 import sn.digitalperf.jaugeo.referentiel.domaine.Pistolet;
 import sn.digitalperf.jaugeo.referentiel.domaine.Pompe;
 import sn.digitalperf.jaugeo.referentiel.domaine.Produit;
@@ -44,10 +46,48 @@ public final class Vues {
     }
 
     public record CuveVue(UUID id, String code, String produitCode, String produitLibelle,
-                          BigDecimal capaciteLitres, BigDecimal creuxSecuriteLitres, boolean actif, Integer version) {
-        public static CuveVue de(Cuve c) {
+                          BigDecimal capaciteLitres, BigDecimal creuxSecuriteLitres, boolean actif, Integer version,
+                          int baremePoints, String baremeCertificat, LocalDate baremeDate) {
+        public static CuveVue de(Cuve c, long baremePoints) {
             return new CuveVue(c.getUuid(), c.getCode(), c.getProduit().getCode(), c.getProduit().getLibelle(),
-                    c.getCapaciteLitres(), c.getCreuxSecuriteLitres(), c.isActif(), c.getVersion());
+                    c.getCapaciteLitres(), c.getCreuxSecuriteLitres(), c.isActif(), c.getVersion(),
+                    (int) baremePoints, c.getBaremeCertificat(), c.getBaremeDate());
+        }
+    }
+
+    public record PointBaremeVue(int hauteurMm, BigDecimal volumeLitres) {
+    }
+
+    public record BaremeVue(UUID cuveId, String cuveCode, String produitLibelle, BigDecimal capaciteLitres,
+                            String certificat, LocalDate dateCertificat, Integer cuveVersion,
+                            List<PointBaremeVue> points) {
+    }
+
+    /** Evenement d'equipement ; equipement = libelle lisible (« Pistolet G1 · pompe P1 »). */
+    public record EvenementVue(UUID id, String cible, UUID equipementId, String equipement, String type,
+                               Instant date, BigDecimal indexAvant, BigDecimal indexApres, String referenceScelles,
+                               String intervenant, LocalDate prochaineVerification, String commentaire,
+                               String creePar) {
+        public static EvenementVue de(EvenementEquipement e) {
+            String cible;
+            UUID equipementId;
+            String libelle;
+            if (e.getPistolet() != null) {
+                cible = "PISTOLET";
+                equipementId = e.getPistolet().getUuid();
+                libelle = "Pistolet " + e.getPistolet().getCode() + " · pompe " + e.getPistolet().getPompe().getCode();
+            } else if (e.getPompe() != null) {
+                cible = "POMPE";
+                equipementId = e.getPompe().getUuid();
+                libelle = "Pompe " + e.getPompe().getCode();
+            } else {
+                cible = "CUVE";
+                equipementId = e.getCuve().getUuid();
+                libelle = "Cuve " + e.getCuve().getCode() + " · " + e.getCuve().getProduit().getLibelle();
+            }
+            return new EvenementVue(e.getUuid(), cible, equipementId, libelle, e.getType().name(), e.getDate(),
+                    e.getIndexAvant(), e.getIndexApres(), e.getReferenceScelles(), e.getIntervenant(),
+                    e.getProchaineVerification(), e.getCommentaire(), e.getCreePar());
         }
     }
 

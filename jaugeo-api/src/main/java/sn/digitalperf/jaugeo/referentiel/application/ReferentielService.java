@@ -21,6 +21,7 @@ import sn.digitalperf.jaugeo.referentiel.domaine.Cuve;
 import sn.digitalperf.jaugeo.referentiel.domaine.CuveDepot;
 import sn.digitalperf.jaugeo.referentiel.domaine.Pistolet;
 import sn.digitalperf.jaugeo.referentiel.domaine.PistoletDepot;
+import sn.digitalperf.jaugeo.referentiel.domaine.PointBaremeDepot;
 import sn.digitalperf.jaugeo.referentiel.domaine.Pompe;
 import sn.digitalperf.jaugeo.referentiel.domaine.PompeDepot;
 import sn.digitalperf.jaugeo.referentiel.domaine.Produit;
@@ -51,16 +52,19 @@ public class ReferentielService {
     private final CuveDepot cuves;
     private final PompeDepot pompes;
     private final PistoletDepot pistolets;
+    private final PointBaremeDepot baremes;
     private final PerimetreCourant perimetre;
 
     public ReferentielService(StationDepot stations, RegionDepot regions, ProduitDepot produits, CuveDepot cuves,
-                              PompeDepot pompes, PistoletDepot pistolets, PerimetreCourant perimetre) {
+                              PompeDepot pompes, PistoletDepot pistolets, PointBaremeDepot baremes,
+                              PerimetreCourant perimetre) {
         this.stations = stations;
         this.regions = regions;
         this.produits = produits;
         this.cuves = cuves;
         this.pompes = pompes;
         this.pistolets = pistolets;
+        this.baremes = baremes;
         this.perimetre = perimetre;
     }
 
@@ -138,7 +142,11 @@ public class ReferentielService {
 
     public EquipementsVue equipements(UUID stationId) {
         Station s = stationAccessible(stationId);
-        List<CuveVue> listeCuves = cuves.findByStationIdOrderByCodeAsc(s.getId()).stream().map(CuveVue::de).toList();
+        List<Cuve> cuvesStation = cuves.findByStationIdOrderByCodeAsc(s.getId());
+        Map<Long, Long> points = cuvesStation.isEmpty() ? Map.of()
+                : baremes.compterParCuve(cuvesStation.stream().map(Cuve::getId).toList()).stream()
+                .collect(Collectors.toMap(PointBaremeDepot.NombreParCuve::getCuveId, PointBaremeDepot.NombreParCuve::getNombre));
+        List<CuveVue> listeCuves = cuvesStation.stream().map(c -> CuveVue.de(c, points.getOrDefault(c.getId(), 0L))).toList();
         Map<Long, List<PistoletVue>> parPompe = pistolets.parStation(s.getId()).stream()
                 .sorted(Comparator.comparing(Pistolet::getCode))
                 .collect(Collectors.groupingBy(p -> p.getPompe().getId(),
@@ -160,7 +168,7 @@ public class ReferentielService {
                 .orElseThrow(() -> ErreurMetier.regle("PRODUIT_INCONNU", "Produit inconnu : " + produitCode));
         Cuve cuve = new Cuve(s, c, produit);
         cuve.modifier(capacite, creux, true);
-        return CuveVue.de(cuves.saveAndFlush(cuve));
+        return CuveVue.de(cuves.saveAndFlush(cuve), 0);
     }
 
     @Transactional
@@ -169,7 +177,7 @@ public class ReferentielService {
         perimetre.exigerStation(cuve.getStation().getId());
         cuve.verifierVersion(version);
         cuve.modifier(capacite, creux, actif);
-        return CuveVue.de(cuves.saveAndFlush(cuve));
+        return CuveVue.de(cuves.saveAndFlush(cuve), baremes.findByCuveIdOrderByHauteurMmAsc(cuve.getId()).size());
     }
 
     @Transactional

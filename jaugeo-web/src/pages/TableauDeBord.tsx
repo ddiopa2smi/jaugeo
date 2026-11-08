@@ -5,10 +5,10 @@ import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import { useNavigate } from 'react-router'
-import { useProduits, useStations } from '../api/requetes'
+import { useGrillePrix, useProduits, useStations } from '../api/requetes'
 import { usePermission, useSession } from '../auth/session'
 import { AlerteErreur, Chargement } from '../shared/composants'
-import { TYPES_STATION } from '../shared/libelles'
+import { formaterDateHeureCourte, formaterPrix, TYPES_STATION } from '../shared/libelles'
 
 function Indicateur({ libelle, valeur, detail }: { libelle: string; valeur: string | number; detail?: string }) {
   return (
@@ -24,6 +24,48 @@ function Indicateur({ libelle, valeur, detail }: { libelle: string; valeur: stri
           {detail}
         </Typography>
       )}
+    </Paper>
+  )
+}
+
+/** Prix en vigueur par produit (fourchette sur le périmètre) et prochains changements. */
+function PrixEnVigueur() {
+  const grille = useGrillePrix()
+  const navigate = useNavigate()
+  if (!grille.data || grille.data.length === 0) return null
+  const parProduit = new Map<string, { libelle: string; prix: number[]; manquants: number; prochain: string | null }>()
+  for (const l of grille.data) {
+    const p = parProduit.get(l.produitCode) ?? { libelle: l.produitLibelle, prix: [], manquants: 0, prochain: null }
+    if (l.prix === null) p.manquants++
+    else p.prix.push(l.prix)
+    if (l.prochainDebut && (!p.prochain || l.prochainDebut < p.prochain)) p.prochain = l.prochainDebut
+    parProduit.set(l.produitCode, p)
+  }
+  return (
+    <Paper sx={{ p: 2, mb: 3, cursor: 'pointer' }} onClick={() => navigate('/prix')} aria-label="Prix en vigueur">
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+        Prix en vigueur
+      </Typography>
+      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' } }}>
+        {[...parProduit.entries()].map(([code, p]) => {
+          const min = Math.min(...p.prix)
+          const max = Math.max(...p.prix)
+          return (
+            <Box key={code}>
+              <Typography variant="subtitle2">{p.libelle}</Typography>
+              <Typography variant="h6" component="p">
+                {p.prix.length === 0 ? '—' : min === max ? formaterPrix(min) : `${formaterPrix(min)} – ${formaterPrix(max)}`}
+              </Typography>
+              {p.manquants > 0 && <Chip size="small" color="warning" variant="outlined" label={`${p.manquants} manquant(s)`} />}
+              {p.prochain && (
+                <Typography variant="caption" color="info.main" sx={{ display: 'block' }}>
+                  Changement le {formaterDateHeureCourte(p.prochain)}
+                </Typography>
+              )}
+            </Box>
+          )
+        })}
+      </Box>
     </Paper>
   )
 }
@@ -47,6 +89,7 @@ function SyntheseReferentiel() {
         <Indicateur libelle="Régions couvertes" valeur={regions.size} />
         <Indicateur libelle="Carburants commercialisés" valeur={carburants.length} detail={carburants.map((p) => p.libelle).join(' · ')} />
       </Box>
+      <PrixEnVigueur />
       <Typography variant="h6" component="h2" sx={{ mb: 1.5 }}>
         Vos stations
       </Typography>

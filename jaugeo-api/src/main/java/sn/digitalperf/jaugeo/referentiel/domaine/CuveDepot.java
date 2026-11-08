@@ -9,6 +9,8 @@ public interface CuveDepot extends JpaRepository<Cuve, Long> {
 
     Optional<Cuve> findByUuid(UUID uuid);
 
+    List<Cuve> findByActifTrue();
+
     List<Cuve> findByStationIdOrderByCodeAsc(Long stationId);
 
     boolean existsByStationIdAndCodeIgnoreCase(Long stationId, String code);

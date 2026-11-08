@@ -31,9 +31,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 @AutoConfigureMockMvc
 class ParcoursSecuriteEtReferentielTest {
 
-    private static final String MDP_INITIAL = "Initial-Test-2026";
-    private static final String MDP_ADMIN = "Siege-Jaugeo-2026";
-    private static volatile boolean adminInitialise;
+    private static final String MDP_ADMIN = OutilsApi.MDP_ADMIN;
 
     @Autowired
     MockMvc mvc;
@@ -57,16 +55,8 @@ class ParcoursSecuriteEtReferentielTest {
         return req.header("Authorization", "Bearer " + jeton).contentType(MediaType.APPLICATION_JSON);
     }
 
-    private synchronized String jetonAdmin() throws Exception {
-        if (!adminInitialise) {
-            MvcResult r = connexion("admin", MDP_INITIAL);
-            assertThat(r.getResponse().getStatus()).isEqualTo(200);
-            mvc.perform(avec(post("/api/v1/auth/mot-de-passe"), jeton(r))
-                            .content("{\"ancienMotDePasse\":\"%s\",\"nouveauMotDePasse\":\"%s\"}".formatted(MDP_INITIAL, MDP_ADMIN)))
-                    .andExpect(status().isOk());
-            adminInitialise = true;
-        }
-        return jeton(connexion("admin", MDP_ADMIN));
+    private String jetonAdmin() throws Exception {
+        return OutilsApi.jetonAdmin(mvc, jdbc);
     }
 
     /** Cree un utilisateur, change son mot de passe provisoire et renvoie son jeton. */

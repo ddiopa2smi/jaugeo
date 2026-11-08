@@ -56,6 +56,8 @@ class SecuriteConfig {
                         .requestMatchers("/api/v1/utilisateurs", "/api/v1/utilisateurs/**", "/api/v1/roles")
                         .hasAuthority("UTILISATEUR_GERER")
                         .requestMatchers("/api/v1/audit", "/api/v1/audit/**").hasAuthority("AUDIT_CONSULTER")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/prix/**").hasAuthority("PRIX_MODIFIER")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/prix/**").hasAuthority("REFERENTIEL_CONSULTER")
                         .requestMatchers(HttpMethod.POST, REFERENTIEL).hasAuthority("REFERENTIEL_GERER")
                         .requestMatchers(HttpMethod.PUT, REFERENTIEL).hasAuthority("REFERENTIEL_GERER")
                         .requestMatchers(HttpMethod.GET, REFERENTIEL).hasAuthority("REFERENTIEL_CONSULTER")

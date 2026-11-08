@@ -34,6 +34,12 @@ public class Cuve extends EntiteAuditee {
     @Column(nullable = false)
     private boolean actif = true;
 
+    @Column(name = "bareme_certificat")
+    private String baremeCertificat;
+
+    @Column(name = "bareme_date")
+    private java.time.LocalDate baremeDate;
+
     protected Cuve() {
     }
 
@@ -55,6 +61,34 @@ public class Cuve extends EntiteAuditee {
         this.capaciteLitres = capaciteLitres;
         this.creuxSecuriteLitres = creux;
         this.actif = actif;
+    }
+
+    /**
+     * Rattache un nouveau bareme : renseigne la capacite si elle etait inconnue, refuse un bareme
+     * dont le volume maximal depasse nettement la capacite nominale (mauvaise cuve ou mauvaise unite).
+     */
+    public void appliquerBareme(Bareme bareme, String certificat, java.time.LocalDate dateCertificat) {
+        BigDecimal volumeMax = bareme.volumeMax();
+        if (capaciteLitres == null) {
+            capaciteLitres = volumeMax.setScale(0, java.math.RoundingMode.DOWN);
+        } else if (volumeMax.compareTo(capaciteLitres.multiply(new BigDecimal("1.10"))) > 0) {
+            throw ErreurMetier.regle("BAREME_INCOHERENT", "Le barème atteint " + volumeMax.stripTrailingZeros().toPlainString()
+                    + " L alors que la capacité de la cuve est de " + capaciteLitres.stripTrailingZeros().toPlainString()
+                    + " L. Vérifiez la cuve, l'unité des hauteurs (cm ou mm) ou la capacité.");
+        }
+        if (creuxSecuriteLitres.compareTo(capaciteLitres) >= 0) {
+            throw ErreurMetier.regle("CREUX_SUPERIEUR_CAPACITE", "Le creux de sécurité doit être inférieur à la capacité.");
+        }
+        this.baremeCertificat = certificat;
+        this.baremeDate = dateCertificat;
+    }
+
+    public String getBaremeCertificat() {
+        return baremeCertificat;
+    }
+
+    public java.time.LocalDate getBaremeDate() {
+        return baremeDate;
     }
 
     public Station getStation() {

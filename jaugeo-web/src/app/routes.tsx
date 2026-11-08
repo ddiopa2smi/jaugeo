@@ -16,6 +16,7 @@ const differe = <K extends string>(charger: () => Promise<Record<K, ComponentTyp
 
 const PageStations = differe(() => import('../pages/stations/PageStations'), 'PageStations')
 const PageStation = differe(() => import('../pages/stations/PageStation'), 'PageStation')
+const PagePrix = differe(() => import('../pages/prix/PagePrix'), 'PagePrix')
 const PageProduits = differe(() => import('../pages/PageProduits'), 'PageProduits')
 const PageUtilisateurs = differe(() => import('../pages/utilisateurs/PageUtilisateurs'), 'PageUtilisateurs')
 const PageAudit = differe(() => import('../pages/PageAudit'), 'PageAudit')
@@ -40,6 +41,7 @@ export const routes: RouteObject[] = [
           { index: true, element: <TableauDeBord /> },
           { path: 'stations', element: protegee('REFERENTIEL_CONSULTER', <PageStations />) },
           { path: 'stations/:id', element: protegee('REFERENTIEL_CONSULTER', <PageStation />) },
+          { path: 'prix', element: protegee('REFERENTIEL_CONSULTER', <PagePrix />) },
           { path: 'produits', element: protegee('REFERENTIEL_CONSULTER', <PageProduits />) },
           { path: 'utilisateurs', element: protegee('UTILISATEUR_GERER', <PageUtilisateurs />) },
           { path: 'audit', element: protegee('AUDIT_CONSULTER', <PageAudit />) },

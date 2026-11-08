@@ -9,7 +9,7 @@ Plateforme de gestion d'un réseau de stations-service (carburants, lubrifiants)
 | `scripts/` | Environnement de dev, démarrage, vérification de l'API |
 | `docker-compose.yml` | PostgreSQL 18 en conteneur (optionnel) |
 
-## État : Sprint 0 livré
+## État : Sprint 1 livré (référentiel complet et prix datés)
 
 - **Socle** : monolithe modulaire (14 modules déclarés, frontières vérifiées par test), erreurs RFC 9457 avec code métier, verrouillage optimiste (`VERSION_OBSOLETE`), UUID v7.
 - **Sécurité** : jeton d'accès JWT de 15 min gardé en mémoire ; jeton de rafraîchissement de 8 h en cookie HttpOnly, renouvelé à chaque usage. Rejouer un ancien jeton ferme toutes les sessions de l'utilisateur. Le compte est verrouillé 15 min après 5 échecs. Le mot de passe provisoire doit être changé avant tout accès. Il y a 8 rôles et 15 permissions, et le périmètre d'un utilisateur est soit tout le réseau, soit une liste de stations.
@@ -23,6 +23,25 @@ Plateforme de gestion d'un réseau de stations-service (carburants, lubrifiants)
   - utilisateurs, avec mot de passe provisoire affiché une seule fois ;
   - journal d'audit, avec le détail avant/après de chaque modification ;
   - mon compte.
+
+Sprint 1 :
+
+- **Prix datés** : chaque changement a une date et une heure d'effet (heure de Dakar), un motif et une référence. Il s'applique à des stations désignées ou à tout le réseau ; les stations qui ne stockent pas le carburant sont écartées.
+  - La base interdit deux prix simultanés par une contrainte d'exclusion.
+  - Une variation de plus de 20 % doit être confirmée.
+  - Un changement programmé s'annule tant qu'il n'est pas entré en vigueur et qu'aucun autre ne le suit.
+  - Seule la Direction modifie les prix.
+  - L'historique 2026 du classeur est chargé. L'interface `Tarification` (prix en vigueur, découpage d'une période) est prête pour la valorisation des ventes.
+- **Barèmes de jaugeage** :
+  - le tableau du certificat se colle depuis Excel, en cm ou en mm, avec virgule ou point décimal ;
+  - avant l'enregistrement, on contrôle que les volumes croissent, qu'il n'y a pas de doublon et que le barème est cohérent avec la capacité de la cuve ;
+  - un calculateur de volume est disponible ;
+  - le serveur convertit une hauteur en litres par interpolation linéaire.
+- **Historique des équipements** (en insertion seule) :
+  - remplacement ou remise à zéro de totalisateur, avec index avant et après contrôlés ;
+  - étalonnage, scellés, nettoyage et maintenance ;
+  - alerte quand une vérification approche ou est dépassée.
+- **Écrans** : page Prix (grille station × produit, historique, changement, annulation), fiche station (barème, événements, historique des prix), carte des prix sur le tableau de bord.
 
 ## Prérequis
 
@@ -73,8 +92,8 @@ Documentation de l'API : http://localhost:8080/swagger-ui.html
 ## Tests
 
 ```powershell
-cd jaugeo-api; mvn test        # 70 tests : unitaires, architecture modulaire, intégration sur PostgreSQL 18 (Testcontainers)
-cd jaugeo-web; npm test        # 20 tests : client API (rafraîchissement, erreurs), parcours d'écrans
+cd jaugeo-api; mvn test        # 96 tests : unitaires, architecture modulaire, intégration sur PostgreSQL 18 (Testcontainers)
+cd jaugeo-web; npm test        # 31 tests : client API, parcours d'écrans, page Prix, analyse des barèmes, échéances
 cd jaugeo-web; npm run lint; npm run build
 ```
 
@@ -82,10 +101,10 @@ Vérifications sur l'application en cours d'exécution :
 
 ```powershell
 .\scripts\verifier-api.ps1                                     # 29 contrôles d'API, sur une base neuve
-$env:JAUGEO_ADMIN_MDP = "<mdp admin>"; cd jaugeo-web; npm run e2e  # 22 contrôles dans Edge, captures dans e2e/captures
+$env:JAUGEO_ADMIN_MDP = "<mdp admin>"; cd jaugeo-web; npm run e2e  # 33 contrôles dans Edge, captures dans e2e/captures
 ```
 
-`npm run e2e` crée un utilisateur de test (`e2e.*`) à chaque exécution : à réserver aux bases de développement.
+`npm run e2e` crée deux utilisateurs de test (`e2e.*`) et un changement de prix aussitôt annulé à chaque exécution : à réserver aux bases de développement.
 
 ## Conventions
 

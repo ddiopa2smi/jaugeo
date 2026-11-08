@@ -11,7 +11,7 @@ import MenuItem from '@mui/material/MenuItem'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
 import { api, messageErreur } from '../../api/client'
@@ -22,6 +22,9 @@ import { ChampTexte } from '../../shared/composants'
 import { reporterErreursServeur } from '../../shared/formulaires'
 import { PERIMETRES, videVersNull } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
+
+/** Rôles exercés dans une station : périmètre limité par défaut. */
+const ROLES_DE_STATION = ['GERANT', 'POMPISTE']
 
 const schema = z
   .object({
@@ -60,7 +63,7 @@ export function FormulaireUtilisateur({
   const stations = useStations()
   const queryClient = useQueryClient()
   const [erreur, setErreur] = useState<string | null>(null)
-  const { control, handleSubmit, setError } = useForm<Saisie>({
+  const { control, handleSubmit, setError, setValue, subscribe } = useForm<Saisie>({
     resolver: zodResolver(schema),
     defaultValues: {
       identifiant: utilisateur?.identifiant ?? '',
@@ -76,6 +79,17 @@ export function FormulaireUtilisateur({
   const perimetre = useWatch({ control, name: 'perimetre' })
   const role = useWatch({ control, name: 'role' })
   const descriptionRole = roles.data?.find((r) => r.code === role)?.description
+
+  // À la création, le choix du rôle propose le périmètre habituel (modifiable ensuite).
+  useEffect(() => {
+    if (utilisateur) return
+    return subscribe({
+      name: 'role',
+      formState: { values: true },
+      callback: ({ values }) =>
+        setValue('perimetre', ROLES_DE_STATION.includes(values.role) ? 'STATIONS' : 'RESEAU', { shouldValidate: true }),
+    })
+  }, [utilisateur, subscribe, setValue])
 
   const mutation = useMutation({
     mutationFn: async (v: Saisie) => {

@@ -1,6 +1,8 @@
 import AddIcon from '@mui/icons-material/Add'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
+import BuildIcon from '@mui/icons-material/Build'
 import EditIcon from '@mui/icons-material/Edit'
+import StraightenIcon from '@mui/icons-material/Straighten'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
@@ -17,12 +19,15 @@ import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
 import { useState, type ReactNode } from 'react'
 import { Link as LienRouteur, useParams } from 'react-router'
-import { useEquipements } from '../../api/requetes'
-import type { Cuve, Pistolet, Pompe } from '../../api/types'
+import { useEquipements, useEvenements } from '../../api/requetes'
+import type { Cuve, Evenement, Pistolet, Pompe } from '../../api/types'
 import { usePermission } from '../../auth/session'
 import { AlerteErreur, Chargement, PuceStatut } from '../../shared/composants'
 import { formaterDate, formaterNombre, MODES_EXPLOITATION, TYPES_STATION } from '../../shared/libelles'
+import { DialogueBareme } from './DialogueBareme'
+import { DialogueEvenement, type CibleDialogue } from './DialogueEvenement'
 import { DialogueCuve, DialoguePistolet, DialoguePompe } from './DialoguesEquipement'
+import { HistoriqueEquipements, PrixDeLaStation } from './SectionsStation'
 import { FormulaireStation } from './FormulaireStation'
 
 type Dialogue =
@@ -30,6 +35,16 @@ type Dialogue =
   | { type: 'cuve'; cuve?: Cuve }
   | { type: 'pompe' }
   | { type: 'pistolet'; pompe: Pompe; pistolet?: Pistolet }
+  | { type: 'bareme'; cuve: Cuve }
+  | { type: 'evenement'; cible: CibleDialogue }
+
+/** Index attendu avant un changement de compteur : dernier « index après », sinon index de mise en service. */
+function indexReference(pistolet: Pistolet, evenements: Evenement[]): number {
+  const dernier = evenements
+    .filter((e) => e.equipementId === pistolet.id && e.indexApres !== null)
+    .sort((a, b) => b.date.localeCompare(a.date))[0]
+  return dernier?.indexApres ?? pistolet.indexMiseEnService
+}
 
 function Info({ libelle, valeur }: { libelle: string; valeur: ReactNode }) {
   return (
@@ -56,6 +71,16 @@ function Section({ titre, action, children }: { titre: string; action?: ReactNod
   )
 }
 
+function BoutonIcone({ libelle, icone, onClick }: { libelle: string; icone: ReactNode; onClick: () => void }) {
+  return (
+    <Tooltip title={libelle}>
+      <IconButton size="small" aria-label={libelle} onClick={onClick}>
+        {icone}
+      </IconButton>
+    </Tooltip>
+  )
+}
+
 function BoutonModifier({ libelle, onClick }: { libelle: string; onClick: () => void }) {
   return (
     <Tooltip title={libelle}>
@@ -70,6 +95,7 @@ export function PageStation() {
   const { id = '' } = useParams()
   const equipements = useEquipements(id)
   const peutGerer = usePermission('REFERENTIEL_GERER')
+  const evenements = useEvenements(id)
   const [dialogue, setDialogue] = useState<Dialogue | null>(null)
   const fermer = () => setDialogue(null)
 
@@ -87,6 +113,8 @@ export function PageStation() {
 
   const { station, cuves, pompes } = equipements.data
   const nbPistolets = pompes.reduce((n, p) => n + p.pistolets.length, 0)
+  const listeEvenements = evenements.data ?? []
+  const consigner = (cible: CibleDialogue) => setDialogue({ type: 'evenement', cible })
 
   return (
     <>
@@ -150,8 +178,9 @@ export function PageStation() {
                   <TableCell>Produit</TableCell>
                   <TableCell align="right">Capacité (L)</TableCell>
                   <TableCell align="right">Creux de sécurité (L)</TableCell>
+                  <TableCell>Barème</TableCell>
                   <TableCell>Statut</TableCell>
-                  {peutGerer && <TableCell width={48} />}
+                  {peutGerer && <TableCell width={96} />}
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -162,10 +191,26 @@ export function PageStation() {
                     <TableCell align="right">{formaterNombre(c.capaciteLitres)}</TableCell>
                     <TableCell align="right">{formaterNombre(c.creuxSecuriteLitres)}</TableCell>
                     <TableCell>
+                      <Button
+                        size="small"
+                        startIcon={<StraightenIcon />}
+                        color={c.baremePoints > 0 ? 'primary' : 'warning'}
+                        onClick={() => setDialogue({ type: 'bareme', cuve: c })}
+                        aria-label={`Barème de la cuve ${c.code}`}
+                      >
+                        {c.baremePoints > 0 ? `${c.baremePoints} points` : 'À saisir'}
+                      </Button>
+                    </TableCell>
+                    <TableCell>
                       <PuceStatut actif={c.actif} libelleInactif="Hors service" />
                     </TableCell>
                     {peutGerer && (
-                      <TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                        <BoutonIcone
+                          libelle={`Événement sur la cuve ${c.code}`}
+                          icone={<BuildIcon fontSize="small" />}
+                          onClick={() => consigner({ cible: 'CUVE', id: c.id, libelle: `Cuve ${c.code}` })}
+                        />
                         <BoutonModifier libelle={`Modifier la cuve ${c.code}`} onClick={() => setDialogue({ type: 'cuve', cuve: c })} />
                       </TableCell>
                     )}
@@ -199,9 +244,18 @@ export function PageStation() {
                   {[p.marque, p.numeroSerie && `n° ${p.numeroSerie}`].filter(Boolean).join(' · ')}
                 </Typography>
                 {peutGerer && (
-                  <Button size="small" startIcon={<AddIcon />} onClick={() => setDialogue({ type: 'pistolet', pompe: p })}>
-                    Pistolet
-                  </Button>
+                  <>
+                    <Button
+                      size="small"
+                      startIcon={<BuildIcon />}
+                      onClick={() => consigner({ cible: 'POMPE', id: p.id, libelle: `Pompe ${p.code}` })}
+                    >
+                      Événement
+                    </Button>
+                    <Button size="small" startIcon={<AddIcon />} onClick={() => setDialogue({ type: 'pistolet', pompe: p })}>
+                      Pistolet
+                    </Button>
+                  </>
                 )}
               </Stack>
               {p.pistolets.length === 0 ? (
@@ -218,7 +272,7 @@ export function PageStation() {
                         <TableCell>Cuve · produit</TableCell>
                         <TableCell align="right">Index de mise en service</TableCell>
                         <TableCell>Statut</TableCell>
-                        {peutGerer && <TableCell width={48} />}
+                        {peutGerer && <TableCell width={96} />}
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -234,7 +288,19 @@ export function PageStation() {
                             <PuceStatut actif={pi.actif} libelleInactif="Hors service" />
                           </TableCell>
                           {peutGerer && (
-                            <TableCell>
+                            <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                              <BoutonIcone
+                                libelle={`Événement sur le pistolet ${pi.code}`}
+                                icone={<BuildIcon fontSize="small" />}
+                                onClick={() =>
+                                  consigner({
+                                    cible: 'PISTOLET',
+                                    id: pi.id,
+                                    libelle: `Pistolet ${pi.code} · pompe ${p.code}`,
+                                    indexReference: indexReference(pi, listeEvenements),
+                                  })
+                                }
+                              />
                               <BoutonModifier
                                 libelle={`Modifier le pistolet ${pi.code}`}
                                 onClick={() => setDialogue({ type: 'pistolet', pompe: p, pistolet: pi })}
@@ -252,6 +318,20 @@ export function PageStation() {
         </Stack>
       </Section>
 
+      <Section titre="Historique des équipements">
+        {evenements.isLoading ? (
+          <Chargement />
+        ) : evenements.error ? (
+          <AlerteErreur erreur={evenements.error} />
+        ) : (
+          <HistoriqueEquipements evenements={listeEvenements} />
+        )}
+      </Section>
+
+      <Section titre="Prix">
+        <PrixDeLaStation stationId={station.id} />
+      </Section>
+
       {dialogue?.type === 'station' && (
         <FormulaireStation
           station={station}
@@ -263,6 +343,10 @@ export function PageStation() {
       {dialogue?.type === 'pistolet' && (
         <DialoguePistolet stationId={station.id} pompe={dialogue.pompe} pistolet={dialogue.pistolet} cuves={cuves} onFermer={fermer} />
       )}
+      {dialogue?.type === 'bareme' && (
+        <DialogueBareme stationId={station.id} cuve={dialogue.cuve} peutGerer={peutGerer} onFermer={fermer} />
+      )}
+      {dialogue?.type === 'evenement' && <DialogueEvenement stationId={station.id} cible={dialogue.cible} onFermer={fermer} />}
     </>
   )
 }

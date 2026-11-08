@@ -115,6 +115,9 @@ export interface Cuve {
   creuxSecuriteLitres: number | null
   actif: boolean
   version: number
+  baremePoints: number
+  baremeCertificat: string | null
+  baremeDate: string | null
 }
 
 export interface Pistolet {
@@ -162,6 +165,112 @@ export interface PageAudit {
   page: number
   taille: number
   total: number
+}
+
+// ---------------------------------------------------------------- Prix
+
+export interface LigneGrille {
+  stationId: string
+  stationCode: string
+  stationNom: string
+  produitCode: string
+  produitLibelle: string
+  prix: number | null
+  depuis: string | null
+  prochainPrix: number | null
+  prochainDebut: string | null
+}
+
+export interface LigneChangement {
+  stationId: string
+  stationCode: string
+  stationNom: string
+  produitCode: string
+  produitLibelle: string
+  ancienPrix: number | null
+  nouveauPrix: number
+}
+
+export interface ChangementPrix {
+  id: string
+  debut: string
+  motif: string
+  reference: string | null
+  annule: boolean
+  annulable: boolean
+  creePar: string
+  creeLe: string
+  annulePar: string | null
+  annuleLe: string | null
+  lignes: LigneChangement[]
+  ignores: string[]
+}
+
+export interface DemandeChangementPrix {
+  debut: string
+  motif: string
+  reference: string | null
+  stations: string[]
+  prix: { produitCode: string; prixUnitaire: number }[]
+  confirmerVariation: boolean
+}
+
+export interface PeriodePrix {
+  id: string
+  produitCode: string
+  produitLibelle: string
+  prixUnitaire: number
+  debut: string
+  fin: string | null
+  changementId: string
+  motif: string
+  reference: string | null
+  creePar: string
+}
+
+// ---------------------------------------------------------------- Barèmes et événements
+
+export interface PointBareme {
+  hauteurMm: number
+  volumeLitres: number
+}
+
+export interface Bareme {
+  cuveId: string
+  cuveCode: string
+  produitLibelle: string
+  capaciteLitres: number | null
+  certificat: string | null
+  dateCertificat: string | null
+  cuveVersion: number
+  points: PointBareme[]
+}
+
+export type TypeEvenement =
+  | 'REMPLACEMENT_TOTALISATEUR'
+  | 'REMISE_A_ZERO'
+  | 'ETALONNAGE'
+  | 'POSE_SCELLES'
+  | 'NETTOYAGE'
+  | 'MAINTENANCE'
+  | 'AUTRE'
+
+export type CibleEvenement = 'PISTOLET' | 'POMPE' | 'CUVE'
+
+export interface Evenement {
+  id: string
+  cible: CibleEvenement
+  equipementId: string
+  equipement: string
+  type: TypeEvenement
+  date: string
+  indexAvant: number | null
+  indexApres: number | null
+  referenceScelles: string | null
+  intervenant: string | null
+  prochaineVerification: string | null
+  commentaire: string | null
+  creePar: string
 }
 
 /** Erreur RFC 9457 renvoyée par l'API, avec le code métier. */

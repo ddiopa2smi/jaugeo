@@ -6,6 +6,7 @@ import LogoutIcon from '@mui/icons-material/Logout'
 import MenuIcon from '@mui/icons-material/Menu'
 import OilBarrelIcon from '@mui/icons-material/OilBarrel'
 import PeopleIcon from '@mui/icons-material/People'
+import SellIcon from '@mui/icons-material/Sell'
 import AppBar from '@mui/material/AppBar'
 import Avatar from '@mui/material/Avatar'
 import Box from '@mui/material/Box'
@@ -50,6 +51,7 @@ const SECTIONS: { titre: string; entrees: EntreeMenu[] }[] = [
     entrees: [
       { chemin: '/stations', libelle: 'Stations', icone: <LocalGasStationIcon />, permission: 'REFERENTIEL_CONSULTER' },
       { chemin: '/produits', libelle: 'Produits', icone: <OilBarrelIcon />, permission: 'REFERENTIEL_CONSULTER' },
+      { chemin: '/prix', libelle: 'Prix', icone: <SellIcon />, permission: 'REFERENTIEL_CONSULTER' },
     ],
   },
   {

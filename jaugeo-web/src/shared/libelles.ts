@@ -1,4 +1,4 @@
-import type { Famille, ModeExploitation, Perimetre, TypeStation, Unite } from '../api/types'
+import type { CibleEvenement, Famille, ModeExploitation, Perimetre, TypeEvenement, TypeStation, Unite } from '../api/types'
 
 export const TYPES_STATION: Record<TypeStation, string> = {
   ROUTIERE: 'Routière',
@@ -36,6 +36,23 @@ export const OPERATIONS_AUDIT: Record<string, string> = {
   DELETE: 'Suppression',
 }
 
+export const TYPES_EVENEMENT: Record<TypeEvenement, string> = {
+  REMPLACEMENT_TOTALISATEUR: 'Remplacement du totalisateur',
+  REMISE_A_ZERO: 'Remise à zéro du totalisateur',
+  ETALONNAGE: 'Étalonnage / vérification',
+  POSE_SCELLES: 'Pose de scellés',
+  NETTOYAGE: 'Nettoyage',
+  MAINTENANCE: 'Maintenance',
+  AUTRE: 'Autre',
+}
+
+/** Types proposés selon l'équipement (mêmes règles que le serveur). */
+export const EVENEMENTS_PAR_CIBLE: Record<CibleEvenement, TypeEvenement[]> = {
+  PISTOLET: ['REMPLACEMENT_TOTALISATEUR', 'REMISE_A_ZERO', 'ETALONNAGE', 'POSE_SCELLES', 'MAINTENANCE', 'AUTRE'],
+  POMPE: ['ETALONNAGE', 'POSE_SCELLES', 'MAINTENANCE', 'AUTRE'],
+  CUVE: ['ETALONNAGE', 'NETTOYAGE', 'MAINTENANCE', 'AUTRE'],
+}
+
 const nombre = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 })
 const dateHeure = new Intl.DateTimeFormat('fr-FR', {
   dateStyle: 'short',
@@ -67,4 +84,30 @@ export function versNombre(texte: string | null | undefined): number | null {
 export function videVersNull(texte: string | null | undefined): string | null {
   const t = texte?.trim()
   return t ? t : null
+}
+
+const prix = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 })
+
+/** Prix en francs CFA : « 755 F ». */
+export function formaterPrix(v: number | null | undefined): string {
+  return v === null || v === undefined ? '—' : `${prix.format(v)} F`
+}
+
+const dateHeureCourte = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Africa/Dakar' })
+
+export function formaterDateHeureCourte(iso: string | null | undefined): string {
+  return iso ? dateHeureCourte.format(new Date(iso)) : '—'
+}
+
+// Dakar vit à UTC+0 toute l'année (pas d'heure d'été) : un champ « datetime-local » saisi à Dakar
+// se convertit sans ambiguïté, quel que soit le fuseau du poste.
+
+/** « 2026-08-16T00:00 » (heure de Dakar) → instant ISO. */
+export function dakarVersIso(local: string): string {
+  return new Date(`${local}:00Z`).toISOString()
+}
+
+/** Instant → valeur de champ « datetime-local » à l'heure de Dakar. */
+export function isoVersDakar(iso: string | Date): string {
+  return new Date(iso).toISOString().slice(0, 16)
 }
