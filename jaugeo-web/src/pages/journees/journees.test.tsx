@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { DetailJournee, LigneReleve, Permission, SaisieJournee, StockJournee } from '../../api/types'
+import type { DepensesJournee, DetailJournee, LigneReleve, Permission, RecetteJournee, SaisieJournee, StockJournee } from '../../api/types'
 import { Fournisseurs } from '../../app/Fournisseurs'
 import { RestaurationSession } from '../../app/Gardes'
 import { creerQueryClient } from '../../app/queryClient'
@@ -131,7 +131,67 @@ describe('saisie et clôture d’une journée', () => {
         ],
       }
     }
+    // Une dépense autorisée (sous le plafond) de 5 000 F payée sur la recette
+    const depenses = (): DepensesJournee => ({
+      journeeId: 'j1',
+      stationId: 's-nia',
+      stationCode: 'NIA',
+      date: '2026-08-16',
+      statut: courante.statut,
+      version: courante.version,
+      modifiable: courante.statut === 'BROUILLON',
+      justificatifObligatoire: false,
+      depenses: [
+        {
+          id: 'd1',
+          natureId: 'n1',
+          natureCode: 'FOURNITURES',
+          natureLibelle: 'Fournitures',
+          libelle: 'Registre',
+          beneficiaire: null,
+          montant: 5000,
+          plafond: 25000,
+          statut: 'AUTORISEE',
+          justificatif: null,
+          decisionPar: null,
+          decisionLe: null,
+          motifDecision: null,
+          creePar: 'gerant.nia',
+          modifieLe: '2026-08-16T10:00:00Z',
+          decidable: false,
+        },
+      ],
+      totalAutorise: 5000,
+      totalEnAttente: 0,
+      totalRefuse: 0,
+      anomalies: [],
+    })
+    const recette = (): RecetteJournee => {
+      const montant = courante.montant === null ? null : courante.montant - 5000
+      return {
+        journeeId: 'j1',
+        stationId: 's-nia',
+        stationCode: 'NIA',
+        date: '2026-08-16',
+        statut: courante.statut,
+        fige: courante.statut !== 'BROUILLON',
+        ventes: courante.montant,
+        bonsDirection: 0,
+        bonsGerant: 0,
+        depenses: 5000,
+        complements: 0,
+        montantAVerser: montant,
+        soldeOuverture: 120000,
+        versements: [],
+        totalVersements: 0,
+        soldeFin: montant === null ? null : 120000 + montant,
+        arrete: null,
+        peutVerser: false,
+      }
+    }
     installerFauxServeur(({ methode, chemin, corps }) => {
+      if (chemin === '/journees/j1/depenses') return { status: 200, corps: depenses() }
+      if (chemin === '/journees/j1/tresorerie') return { status: 200, corps: recette() }
       if (chemin === '/auth/rafraichir') return { status: 200, corps: sessionTest('j', GERANT) }
       if (chemin === '/journees/j1' && methode === 'GET') return { status: 200, corps: courante }
       if (chemin === '/journees/j1/releves') {
@@ -211,6 +271,8 @@ describe('saisie et clôture d’une journée', () => {
     expect(jaugeages).toEqual([{ version: 4, jaugeages: [{ cuveId: 'c1', moment: 'CLOTURE', hauteurMm: null, volumeLitres: 8714, observation: null }] }])
     expect(within(dialogue).getByTestId('total-journee')).toHaveTextContent('966 778 F')
     expect(within(dialogue).getByTestId('recap-ecart-C1')).toHaveTextContent(/5,5 L/)
+    // Montant à verser = ventes − dépenses autorisées
+    expect(within(dialogue).getByTestId('montant-a-verser')).toHaveTextContent('961 778 F')
     await u.click(within(dialogue).getByRole('button', { name: 'Confirmer la clôture' }))
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
@@ -218,5 +280,10 @@ describe('saisie et clôture d’une journée', () => {
     expect(await screen.findByText(/Clôturée par gerant.nia/)).toBeInTheDocument()
     expect(screen.getByLabelText("Index d'arrivée G1")).toBeDisabled()
     expect(screen.queryByRole('button', { name: 'Enregistrer' })).not.toBeInTheDocument()
+    // Recette figée et solde de caisse du gérant reporté
+    const recetteFigee = screen.getByLabelText('Recette et versements')
+    expect(await within(recetteFigee).findByText('Figée')).toBeInTheDocument()
+    expect(within(recetteFigee).getByTestId('solde-fin')).toHaveTextContent('1 081 778 F')
+    expect(screen.queryByRole('button', { name: 'Ajouter une dépense' })).not.toBeInTheDocument()
   })
 })

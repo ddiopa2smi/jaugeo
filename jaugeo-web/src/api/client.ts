@@ -33,14 +33,16 @@ async function lireProbleme(reponse: Response): Promise<Probleme> {
 }
 
 async function envoyer(methode: string, chemin: string, corps: unknown, jeton: string | null): Promise<Response> {
+  const fichier = typeof FormData !== 'undefined' && corps instanceof FormData
   const entetes: Record<string, string> = { Accept: 'application/json' }
-  if (corps !== undefined) entetes['Content-Type'] = 'application/json'
+  // Formulaire multipart : le navigateur fixe lui-même l'en-tête (avec la frontière)
+  if (corps !== undefined && !fichier) entetes['Content-Type'] = 'application/json'
   if (jeton) entetes.Authorization = `Bearer ${jeton}`
   try {
     return await fetch(BASE + chemin, {
       method: methode,
       headers: entetes,
-      body: corps === undefined ? undefined : JSON.stringify(corps),
+      body: corps === undefined ? undefined : fichier ? (corps as FormData) : JSON.stringify(corps),
       credentials: 'same-origin',
     })
   } catch {
@@ -80,7 +82,7 @@ export function rafraichirSession(): Promise<ReponseSession> {
   return rafraichissementEnCours
 }
 
-async function requete<T>(methode: string, chemin: string, corps?: unknown): Promise<T> {
+async function requete<T>(methode: string, chemin: string, corps?: unknown, binaire = false): Promise<T> {
   const estAuth = chemin.startsWith('/auth/connexion') || chemin.startsWith('/auth/rafraichir')
   let reponse = await envoyer(methode, chemin, corps, useSession.getState().jeton)
 
@@ -102,6 +104,7 @@ async function requete<T>(methode: string, chemin: string, corps?: unknown): Pro
     throw new ErreurApi(reponse.status, probleme)
   }
   if (reponse.status === 204) return undefined as T
+  if (binaire) return (await reponse.blob()) as T
   const texte = await reponse.text()
   return (texte ? JSON.parse(texte) : undefined) as T
 }
@@ -111,6 +114,28 @@ export const api = {
   post: <T>(chemin: string, corps?: unknown) => requete<T>('POST', chemin, corps ?? {}),
   put: <T>(chemin: string, corps: unknown) => requete<T>('PUT', chemin, corps),
   delete: <T>(chemin: string) => requete<T>('DELETE', chemin),
+  /** Envoi d'un fichier (photo de bordereau, justificatif) dans le champ « fichier ». */
+  fichier: <T>(chemin: string, fichier: File) => {
+    const formulaire = new FormData()
+    formulaire.append('fichier', fichier)
+    return requete<T>('PUT', chemin, formulaire)
+  },
+  /** Téléchargement authentifié d'une pièce jointe. */
+  blob: (chemin: string) => requete<Blob>('GET', chemin, undefined, true),
+}
+
+/** Ouvre une pièce jointe dans un nouvel onglet (le lien n'est valable que dans cette session). */
+export async function ouvrirPiece(chemin: string): Promise<void> {
+  const onglet = window.open('', '_blank')
+  try {
+    const url = URL.createObjectURL(await api.blob(chemin))
+    if (onglet) onglet.location.href = url
+    else window.location.assign(url)
+    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  } catch (e) {
+    onglet?.close()
+    throw e
+  }
 }
 
 /** Message lisible pour n'importe quelle erreur. */

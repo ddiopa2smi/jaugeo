@@ -25,12 +25,14 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 import { Link as LienRouteur, useParams } from 'react-router'
 import { api, messageErreur } from '../../api/client'
-import { cles, useJournee } from '../../api/requetes'
-import type { DetailJournee, LigneReleve, SaisieJournee, StockJournee } from '../../api/types'
+import { cles, rafraichirJournee, useJournee } from '../../api/requetes'
+import type { DepensesJournee, DetailJournee, LigneReleve, RecetteJournee, SaisieJournee, StockJournee } from '../../api/types'
 import { AlerteErreur, Chargement } from '../../shared/composants'
 import { apercu, memeSaisie, saisieInitiale, STATUTS_JOURNEE, type SaisieLigne } from '../../shared/journee'
 import { formaterDate, formaterDateHeureCourte, formaterNombre, formaterPrix, versNombre } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
+import { RecapDepenses, SectionDepenses } from './SectionDepenses'
+import { DetailMontant, SectionRecette } from './SectionRecette'
 import { RecapStock, SectionStock, type PoigneeStock } from './SectionStock'
 
 const heure = (iso: string) => new Date(iso).toISOString().slice(11, 16)
@@ -203,7 +205,12 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
     Object.fromEntries(journee.lignes.map((l) => [l.pistoletId, saisieInitiale(l)])),
   )
   const [observation, setObservation] = useState(journee.observation ?? '')
-  const [recap, setRecap] = useState<{ journee: DetailJournee; stock: StockJournee } | null>(null)
+  const [recap, setRecap] = useState<{
+    journee: DetailJournee
+    stock: StockJournee
+    depenses: DepensesJournee
+    recette: RecetteJournee
+  } | null>(null)
   const poigneeStock = useRef<PoigneeStock>(null)
   const [renvoi, setRenvoi] = useState<string | null>(null)
 
@@ -216,8 +223,9 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
   const majCache = (j: DetailJournee) => {
     queryClient.setQueryData(cles.journee(j.id), j)
     queryClient.invalidateQueries({ queryKey: cles.journeesStation(j.stationId) })
-    // Les sorties (donc le stock théorique) et la version de la journée ont changé
-    queryClient.invalidateQueries({ queryKey: cles.stockJournee(j.id) })
+    // Sorties, ventes et version de la journée ont changé : stock, dépenses et recette à relire
+    rafraichirJournee(queryClient, j.id, cles.journee(j.id))
+    queryClient.invalidateQueries({ queryKey: cles.tresorerie })
   }
 
   const enregistrement = useMutation({
@@ -270,18 +278,22 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
     const j = modifiee ? await enregistrement.mutateAsync() : journee
     if (poigneeStock.current?.modifie) await poigneeStock.current.enregistrer(j.version)
     // État serveur à jour (version et contrôles) avant de proposer la clôture
-    const [jf, sf] = await Promise.all([
+    const [jf, sf, df, rf] = await Promise.all([
       api.get<DetailJournee>(`/journees/${journee.id}`),
       api.get<StockJournee>(`/journees/${journee.id}/stock`),
+      api.get<DepensesJournee>(`/journees/${journee.id}/depenses`),
+      api.get<RecetteJournee>(`/journees/${journee.id}/tresorerie`),
     ])
     queryClient.setQueryData(cles.journee(jf.id), jf)
     queryClient.setQueryData(cles.stockJournee(jf.id), sf)
-    const points = jf.anomalies + sf.anomalies
+    queryClient.setQueryData(cles.depensesJournee(jf.id), df)
+    queryClient.setQueryData(cles.recette(jf.id), rf)
+    const points = jf.anomalies + sf.anomalies + df.anomalies.length
     if (points > 0) {
       notifier(`Clôture impossible : ${points} point(s) à corriger (en rouge).`, 'error')
       return
     }
-    setRecap({ journee: jf, stock: sf })
+    setRecap({ journee: jf, stock: sf, depenses: df, recette: rf })
   }
 
   const groupes = new Map<string, LigneReleve[]>()
@@ -327,82 +339,86 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
             </Paper>
           ))}
           <SectionStock journeeId={journee.id} ref={poigneeStock} />
+          <SectionDepenses journeeId={journee.id} />
         </Stack>
 
-        <Paper variant="outlined" sx={{ p: 2, width: { xs: '100%', lg: 360 }, flexShrink: 0, position: { lg: 'sticky' }, top: { lg: 80 } }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
-            Ventes de la journée
-          </Typography>
-          {modifiee && (
-            <Typography variant="body2" color="warning.main" sx={{ mb: 1 }}>
-              Modifications non enregistrées : totaux mis à jour à l'enregistrement.
+        <Stack spacing={2} sx={{ width: { xs: '100%', lg: 360 }, flexShrink: 0 }}>
+          <Paper variant="outlined" sx={{ p: 2 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+              Ventes de la journée
             </Typography>
-          )}
-          <Totaux journee={journee} />
-          {journee.anomalies > 0 && !modifiee && (
-            <Typography variant="body2" color="error" sx={{ mt: 1 }}>
-              {journee.anomalies} point(s) à corriger avant la clôture.
-            </Typography>
-          )}
-          <TextField
-            label="Observation"
-            value={observation}
-            onChange={(e) => setObservation(e.target.value)}
-            disabled={!modifiable}
-            multiline
-            minRows={2}
-            fullWidth
-            slotProps={{ htmlInput: { maxLength: 500 } }}
-            sx={{ mt: 2 }}
-          />
-          <Stack spacing={1} sx={{ mt: 2 }}>
-            {modifiable && (
-              <Button
-                variant="outlined"
-                size="large"
-                startIcon={<SaveIcon />}
-                onClick={() => enregistrer().catch(() => undefined)}
-                disabled={enregistrement.isPending || !modifiee}
-              >
-                Enregistrer
-              </Button>
-            )}
-            {journee.actions.cloturer && (
-              <Button
-                variant="contained"
-                size="large"
-                startIcon={<LockIcon />}
-                onClick={() => preparerCloture().catch(() => undefined)}
-                disabled={enregistrement.isPending}
-              >
-                Clôturer la journée
-              </Button>
-            )}
-            {journee.actions.valider && (
-              <Button
-                variant="contained"
-                color="success"
-                size="large"
-                startIcon={<VerifiedIcon />}
-                onClick={() => action.mutate({ chemin: 'validation', corps: { version: journee.version } })}
-                disabled={action.isPending}
-              >
-                Valider
-              </Button>
-            )}
-            {journee.actions.renvoyer && (
-              <Button variant="outlined" color="error" size="large" startIcon={<ReplyIcon />} onClick={() => setRenvoi('')}>
-                Renvoyer pour correction
-              </Button>
-            )}
-            {journee.statut === 'CLOTUREE' && !journee.actions.valider && journee.actions.renvoyer && (
-              <Typography variant="caption" color="text.secondary">
-                Vous avez clôturé cette journée : un autre superviseur doit la valider.
+            {modifiee && (
+              <Typography variant="body2" color="warning.main" sx={{ mb: 1 }}>
+                Modifications non enregistrées : totaux mis à jour à l'enregistrement.
               </Typography>
             )}
-          </Stack>
-          {!recap && renvoi === null && <AlerteErreur erreur={action.error} />}
-        </Paper>
+            <Totaux journee={journee} />
+            {journee.anomalies > 0 && !modifiee && (
+              <Typography variant="body2" color="error" sx={{ mt: 1 }}>
+                {journee.anomalies} point(s) à corriger avant la clôture.
+              </Typography>
+            )}
+            <TextField
+              label="Observation"
+              value={observation}
+              onChange={(e) => setObservation(e.target.value)}
+              disabled={!modifiable}
+              multiline
+              minRows={2}
+              fullWidth
+              slotProps={{ htmlInput: { maxLength: 500 } }}
+              sx={{ mt: 2 }}
+            />
+            <Stack spacing={1} sx={{ mt: 2 }}>
+              {modifiable && (
+                <Button
+                  variant="outlined"
+                  size="large"
+                  startIcon={<SaveIcon />}
+                  onClick={() => enregistrer().catch(() => undefined)}
+                  disabled={enregistrement.isPending || !modifiee}
+                >
+                  Enregistrer
+                </Button>
+              )}
+              {journee.actions.cloturer && (
+                <Button
+                  variant="contained"
+                  size="large"
+                  startIcon={<LockIcon />}
+                  onClick={() => preparerCloture().catch(() => undefined)}
+                  disabled={enregistrement.isPending}
+                >
+                  Clôturer la journée
+                </Button>
+              )}
+              {journee.actions.valider && (
+                <Button
+                  variant="contained"
+                  color="success"
+                  size="large"
+                  startIcon={<VerifiedIcon />}
+                  onClick={() => action.mutate({ chemin: 'validation', corps: { version: journee.version } })}
+                  disabled={action.isPending}
+                >
+                  Valider
+                </Button>
+              )}
+              {journee.actions.renvoyer && (
+                <Button variant="outlined" color="error" size="large" startIcon={<ReplyIcon />} onClick={() => setRenvoi('')}>
+                  Renvoyer pour correction
+                </Button>
+              )}
+              {journee.statut === 'CLOTUREE' && !journee.actions.valider && journee.actions.renvoyer && (
+                <Typography variant="caption" color="text.secondary">
+                  Vous avez clôturé cette journée : un autre superviseur doit la valider.
+                </Typography>
+              )}
+            </Stack>
+            {!recap && renvoi === null && <AlerteErreur erreur={action.error} />}
+          </Paper>
+          <SectionRecette journeeId={journee.id} />
+        </Stack>
       </Stack>
 
       <Dialog open={!!recap} onClose={() => setRecap(null)} maxWidth="xs" fullWidth>
@@ -410,8 +426,17 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
         <DialogContent>
           {recap && <Totaux journee={recap.journee} />}
           {recap && <RecapStock stock={recap.stock} />}
+          {recap && <RecapDepenses depenses={recap.depenses} />}
+          {recap && (
+            <>
+              <Typography variant="subtitle2" sx={{ mt: 2 }}>
+                Recette à verser
+              </Typography>
+              <DetailMontant recette={recap.recette} />
+            </>
+          )}
           <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-            Après clôture, les index, les ventes et les écarts de stock sont figés. Seul un superviseur peut renvoyer la journée pour correction.
+            Après clôture, les index, les ventes, les écarts de stock, les dépenses et le montant à verser sont figés. Seul un superviseur peut renvoyer la journée pour correction.
           </Typography>
           {action.error && (
             <Alert severity="error" sx={{ mt: 2 }}>

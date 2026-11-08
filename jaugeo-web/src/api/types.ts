@@ -16,6 +16,8 @@ export type Permission =
   | 'CLIENT_GERER'
   | 'CREDIT_DEROGER'
   | 'CLOTURE_MENSUELLE'
+  | 'DEPENSE_VALIDER'
+  | 'CAISSE_CONTROLER'
 
 export type Perimetre = 'RESEAU' | 'STATIONS'
 
@@ -599,4 +601,239 @@ export interface ComplementCiterne {
   reglePar: string | null
   version: number
   reglable: boolean
+}
+// ---------------------------------------------------------------- Dépenses (M7)
+
+export interface NatureDepense {
+  id: string
+  code: string
+  libelle: string
+  plafond: number | null
+  actif: boolean
+  version: number
+}
+
+export type StatutDepense = 'A_VALIDER' | 'AUTORISEE' | 'REFUSEE'
+
+export interface PieceJointe {
+  nomFichier: string
+  typeMime: string
+  taille: number
+}
+
+export interface Depense {
+  id: string
+  natureId: string
+  natureCode: string
+  natureLibelle: string
+  libelle: string
+  beneficiaire: string | null
+  montant: number
+  plafond: number | null
+  statut: StatutDepense
+  justificatif: PieceJointe | null
+  decisionPar: string | null
+  decisionLe: string | null
+  motifDecision: string | null
+  creePar: string
+  modifieLe: string
+  decidable: boolean
+}
+
+export interface DepensesJournee {
+  journeeId: string
+  stationId: string
+  stationCode: string
+  date: string
+  statut: StatutJournee
+  version: number
+  modifiable: boolean
+  justificatifObligatoire: boolean
+  depenses: Depense[]
+  totalAutorise: number
+  totalEnAttente: number
+  totalRefuse: number
+  anomalies: string[]
+}
+
+export interface DepenseAValider {
+  id: string
+  journeeId: string
+  journeeVersion: number
+  stationId: string
+  stationCode: string
+  date: string
+  natureLibelle: string
+  libelle: string
+  beneficiaire: string | null
+  montant: number
+  plafond: number | null
+  creePar: string
+  justificatif: boolean
+  decidable: boolean
+}
+
+export interface SaisieDepense {
+  version: number
+  natureId: string
+  libelle: string
+  beneficiaire: string | null
+  montant: number
+}
+
+// ---------------------------------------------------------------- Trésorerie (M5)
+
+export type StatutVersement = 'SAISI' | 'VERIFIE' | 'REJETE'
+
+export interface Versement {
+  id: string
+  stationId: string
+  stationCode: string
+  dateDepot: string
+  banque: string
+  referenceBv: string
+  montant: number
+  deposant: string | null
+  observation: string | null
+  statut: StatutVersement
+  piece: PieceJointe | null
+  verifiePar: string | null
+  verifieLe: string | null
+  motifRejet: string | null
+  creePar: string
+  creeLe: string
+  version: number
+  modifiable: boolean
+  verifiable: boolean
+}
+
+export interface SaisieVersement {
+  version?: number
+  stationId: string
+  dateDepot: string
+  banque: string
+  referenceBv: string
+  montant: number
+  deposant: string | null
+  observation: string | null
+}
+
+export type TypeArrete = 'REPRISE' | 'CONTROLE'
+
+export interface ArreteCaisse {
+  id: string
+  stationId: string
+  stationCode: string
+  date: string
+  type: TypeArrete
+  soldeTheorique: number | null
+  especesComptees: number
+  ecart: number | null
+  responsable: string | null
+  observation: string | null
+  creePar: string
+  creeLe: string
+  manquantId: string | null
+  manquantStatut: StatutManquant | null
+}
+
+export interface RecetteJournee {
+  journeeId: string
+  stationId: string
+  stationCode: string
+  date: string
+  statut: StatutJournee
+  fige: boolean
+  ventes: number | null
+  bonsDirection: number
+  bonsGerant: number
+  depenses: number | null
+  complements: number | null
+  montantAVerser: number | null
+  soldeOuverture: number
+  versements: Versement[]
+  totalVersements: number
+  soldeFin: number | null
+  arrete: ArreteCaisse | null
+  peutVerser: boolean
+}
+
+export interface LigneCaisse {
+  date: string
+  journeeId: string | null
+  statutJournee: StatutJournee | null
+  ventes: number | null
+  bons: number | null
+  depenses: number | null
+  complements: number | null
+  montantAVerser: number | null
+  soldeOuverture: number
+  versements: number
+  soldeTheorique: number
+  arrete: ArreteCaisse | null
+  ecart: number | null
+  solde: number
+}
+
+export interface LivreCaisse {
+  stationId: string
+  stationCode: string
+  stationNom: string
+  mois: string
+  soldeDebut: number
+  totalVentes: number
+  totalDepenses: number
+  totalComplements: number
+  totalMontants: number
+  totalVersements: number
+  totalEcarts: number
+  soldeFin: number
+  joursNonClotures: number
+  lignes: LigneCaisse[]
+  peutArreter: boolean
+}
+
+export type StatutManquant = 'OUVERT' | 'SOLDE'
+export type ModeReglementManquant = 'REMBOURSEMENT' | 'RETENUE' | 'PERTE'
+
+export interface Manquant {
+  id: string
+  stationId: string
+  stationCode: string
+  date: string
+  montant: number
+  responsable: string | null
+  observation: string | null
+  statut: StatutManquant
+  modeReglement: ModeReglementManquant | null
+  referenceReglement: string | null
+  regleLe: string | null
+  reglePar: string | null
+  version: number
+  reglable: boolean
+}
+
+export interface SituationCaisse {
+  stationId: string
+  stationCode: string
+  stationNom: string
+  soldeNonVerse: number
+  derniereRecette: string | null
+  dernierVersement: string | null
+  joursSansVersement: number | null
+  retard: boolean
+  versementsAVerifier: number
+  manquantsOuverts: number
+  montantManquants: number
+  dernierArrete: string | null
+  dernierEcart: number | null
+}
+
+export interface SituationTresorerie {
+  stations: SituationCaisse[]
+  retards: number
+  versementsAVerifier: number
+  manquantsOuverts: number
+  montantManquants: number
+  delaiVersementJours: number
 }

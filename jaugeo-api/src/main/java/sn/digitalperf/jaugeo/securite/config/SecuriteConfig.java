@@ -71,6 +71,20 @@ class SecuriteConfig {
                         .hasAuthority("JOURNEE_SAISIR")
                         .requestMatchers(HttpMethod.POST, "/api/v1/stock/complements/*/reglement").hasAuthority("RECEPTION_VALIDER")
                         .requestMatchers(HttpMethod.GET, "/api/v1/stock/**").hasAuthority("REFERENTIEL_CONSULTER")
+                        // Depenses : saisies dans la journee, validees au-dela du plafond ; natures gerees par l'administration
+                        .requestMatchers(HttpMethod.POST, "/api/v1/journees/*/depenses/*/decision").hasAuthority("DEPENSE_VALIDER")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/journees/*/depenses").hasAuthority("REFERENTIEL_CONSULTER")
+                        .requestMatchers("/api/v1/journees/*/depenses", "/api/v1/journees/*/depenses/**").hasAuthority("JOURNEE_SAISIR")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/depenses/**").hasAuthority("REFERENTIEL_CONSULTER")
+                        .requestMatchers("/api/v1/depenses/natures", "/api/v1/depenses/natures/*").hasAuthority("REFERENTIEL_GERER")
+                        // Tresorerie : versements du gerant, verification comptable, arretes de caisse
+                        .requestMatchers(HttpMethod.POST, "/api/v1/tresorerie/versements/*/verification",
+                                "/api/v1/tresorerie/manquants/*/reglement").hasAuthority("VERSEMENT_VALIDER")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/tresorerie/**", "/api/v1/journees/*/tresorerie",
+                                "/api/v1/stations/*/caisse", "/api/v1/stations/*/arretes").hasAuthority("REFERENTIEL_CONSULTER")
+                        .requestMatchers("/api/v1/tresorerie/versements", "/api/v1/tresorerie/versements/**")
+                        .hasAuthority("VERSEMENT_SAISIR")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/stations/*/arretes").hasAuthority("CAISSE_CONTROLER")
                         .requestMatchers(HttpMethod.POST, REFERENTIEL).hasAuthority("REFERENTIEL_GERER")
                         .requestMatchers(HttpMethod.PUT, REFERENTIEL).hasAuthority("REFERENTIEL_GERER")
                         .requestMatchers(HttpMethod.GET, REFERENTIEL).hasAuthority("REFERENTIEL_CONSULTER")

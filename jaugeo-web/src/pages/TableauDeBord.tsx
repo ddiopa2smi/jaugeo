@@ -1,4 +1,3 @@
-import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Chip from '@mui/material/Chip'
 import Paper from '@mui/material/Paper'
@@ -10,7 +9,7 @@ import TableHead from '@mui/material/TableHead'
 import TableRow from '@mui/material/TableRow'
 import Typography from '@mui/material/Typography'
 import { useNavigate } from 'react-router'
-import { useGrillePrix, useProduits, useSituationStock, useStations } from '../api/requetes'
+import { useGrillePrix, useProduits, useSituationStock, useSituationTresorerie, useStations } from '../api/requetes'
 import { usePermission, useSession } from '../auth/session'
 import { AlerteErreur, Chargement } from '../shared/composants'
 import { formaterDate, formaterDateHeureCourte, formaterNombre, formaterPrix, TYPES_STATION } from '../shared/libelles'
@@ -72,6 +71,91 @@ function PrixEnVigueur() {
           )
         })}
       </Box>
+    </Paper>
+  )
+}
+
+/** Solde non versé de chaque station, retards de versement, versements à vérifier et manquants ouverts. */
+function SituationTresorerie() {
+  const situation = useSituationTresorerie()
+  const navigate = useNavigate()
+  const s = situation.data
+  if (!s || s.stations.length === 0) return null
+  const total = s.stations.reduce((t, x) => t + x.soldeNonVerse, 0)
+  return (
+    <Paper sx={{ p: 2, mb: 3 }} aria-label="Trésorerie">
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1, flexWrap: 'wrap', rowGap: 1 }}>
+        <Typography variant="body2" color="text.secondary" sx={{ flexGrow: 1 }}>
+          Trésorerie · solde non versé {formaterPrix(total)}
+        </Typography>
+        <Chip
+          size="small"
+          color={s.retards > 0 ? 'error' : 'success'}
+          label={s.retards > 0 ? `${s.retards} station(s) en retard de versement` : 'Versements à jour'}
+          data-testid="retards-versement"
+        />
+        {s.versementsAVerifier > 0 && (
+          <Chip
+            size="small"
+            color="warning"
+            label={`${s.versementsAVerifier} versement(s) à vérifier`}
+            onClick={() => navigate('/tresorerie?onglet=verification')}
+          />
+        )}
+        {s.manquantsOuverts > 0 && (
+          <Chip
+            size="small"
+            color="error"
+            variant="outlined"
+            label={`${s.manquantsOuverts} manquant(s) · ${formaterPrix(s.montantManquants)}`}
+            onClick={() => navigate('/tresorerie?onglet=manquants')}
+          />
+        )}
+      </Stack>
+      <Box sx={{ overflowX: 'auto' }}>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>Station</TableCell>
+              <TableCell align="right">Solde non versé</TableCell>
+              <TableCell>Dernier versement</TableCell>
+              <TableCell>Dernier arrêté</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {s.stations.map((x) => (
+              <TableRow key={x.stationId} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/tresorerie?station=${x.stationId}`)}>
+                <TableCell>
+                  {x.stationCode} · {x.stationNom}
+                </TableCell>
+                <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                  {formaterPrix(x.soldeNonVerse)}
+                  {x.retard && <Chip size="small" color="error" sx={{ ml: 1 }} label="Retard" />}
+                </TableCell>
+                <TableCell>
+                  {x.dernierVersement ? formaterDate(x.dernierVersement) : '—'}
+                  {x.joursSansVersement !== null && x.joursSansVersement > 0 && (
+                    <Typography variant="caption" color="text.secondary" component="div">
+                      il y a {x.joursSansVersement} jour(s)
+                    </Typography>
+                  )}
+                </TableCell>
+                <TableCell>
+                  {x.dernierArrete ? formaterDate(x.dernierArrete) : '—'}
+                  {x.dernierEcart !== null && x.dernierEcart !== 0 && (
+                    <Typography variant="caption" color={x.dernierEcart < 0 ? 'error' : 'text.secondary'} component="div">
+                      écart {formaterPrix(x.dernierEcart)}
+                    </Typography>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Box>
+      <Typography variant="caption" color="text.secondary">
+        Retard : solde non versé supérieur aux recettes des {s.delaiVersementJours} derniers jours.
+      </Typography>
     </Paper>
   )
 }
@@ -204,10 +288,8 @@ export function TableauDeBord() {
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         {utilisateur.roleLibelle} · {utilisateur.perimetre === 'RESEAU' ? 'tout le réseau' : `${utilisateur.stationIds.length} station(s)`}
       </Typography>
+      {voitReferentiel && <SituationTresorerie />}
       {voitReferentiel && <SituationStocks />}
-      <Alert severity="info" sx={{ mb: 3 }}>
-        Les indicateurs de ventes et de trésorerie s'afficheront ici avec les modules de trésorerie et de reporting.
-      </Alert>
       {voitReferentiel && <SyntheseReferentiel />}
     </>
   )

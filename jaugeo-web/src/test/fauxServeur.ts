@@ -13,7 +13,8 @@ export function installerFauxServeur(gestionnaire: Gestionnaire) {
     const chemin = url.replace(/^\/api\/v1/, '')
     const entetes = (init?.headers ?? {}) as Record<string, string>
     const jeton = entetes.Authorization?.replace('Bearer ', '') ?? null
-    const corps = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined
+    // JSON décodé ; un envoi de fichier arrive tel quel (FormData)
+    const corps = typeof init?.body === 'string' ? JSON.parse(init.body) : init?.body instanceof FormData ? init.body : undefined
     appels.push({ methode, chemin, jeton })
     const r = gestionnaire({ methode, chemin, corps, jeton }) ?? { status: 404, corps: { code: 'INTROUVABLE', detail: 'Introuvable' } }
     return new Response(r.corps === undefined ? null : JSON.stringify(r.corps), {

@@ -20,6 +20,11 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+  servlet:
+    multipart:
+      # Photos de bordereau et justificatifs : 5 Mo controles par l'application, marge pour l'enveloppe
+      max-file-size: 6MB
+      max-request-size: 7MB
   jackson:
     time-zone: Africa/Dakar
     deserialization:

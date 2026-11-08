@@ -1,3 +1,4 @@
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance'
 import AccountCircleIcon from '@mui/icons-material/AccountCircle'
 import DashboardIcon from '@mui/icons-material/Dashboard'
 import EventNoteIcon from '@mui/icons-material/EventNote'
@@ -53,6 +54,7 @@ const SECTIONS: { titre: string; entrees: EntreeMenu[] }[] = [
     entrees: [
       { chemin: '/journees', libelle: 'Journées', icone: <EventNoteIcon />, permission: 'REFERENTIEL_CONSULTER' },
       { chemin: '/stocks', libelle: 'Stocks', icone: <InventoryIcon />, permission: 'REFERENTIEL_CONSULTER' },
+      { chemin: '/tresorerie', libelle: 'Trésorerie', icone: <AccountBalanceIcon />, permission: 'REFERENTIEL_CONSULTER' },
     ],
   },
   {

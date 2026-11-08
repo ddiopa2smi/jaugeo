@@ -9,10 +9,10 @@ Plateforme de gestion d'un réseau de stations-service (carburants, lubrifiants)
 | `scripts/` | Environnement de dev, démarrage, vérification de l'API |
 | `docker-compose.yml` | PostgreSQL 18 en conteneur (optionnel) |
 
-## État : Sprint 3 livré (stocks, jaugeages, réceptions et écarts)
+## État : Sprint 4 livré (trésorerie, versements et dépenses)
 
 - **Socle** : monolithe modulaire (14 modules déclarés, frontières vérifiées par test), erreurs RFC 9457 avec code métier, verrouillage optimiste (`VERSION_OBSOLETE`), UUID v7.
-- **Sécurité** : jeton d'accès JWT de 15 min gardé en mémoire ; jeton de rafraîchissement de 8 h en cookie HttpOnly, renouvelé à chaque usage. Rejouer un ancien jeton ferme toutes les sessions de l'utilisateur. Le compte est verrouillé 15 min après 5 échecs. Le mot de passe provisoire doit être changé avant tout accès. Il y a 8 rôles et 15 permissions, et le périmètre d'un utilisateur est soit tout le réseau, soit une liste de stations.
+- **Sécurité** : jeton d'accès JWT de 15 min gardé en mémoire ; jeton de rafraîchissement de 8 h en cookie HttpOnly, renouvelé à chaque usage. Rejouer un ancien jeton ferme toutes les sessions de l'utilisateur. Le compte est verrouillé 15 min après 5 échecs. Le mot de passe provisoire doit être changé avant tout accès. Il y a 8 rôles et 17 permissions, et le périmètre d'un utilisateur est soit tout le réseau, soit une liste de stations.
 - **Audit** : un déclencheur PostgreSQL trace toute écriture, avec son auteur, dans un journal partitionné par mois. Le journal est en insertion seule et ne contient aucun secret.
 - **Référentiel** : régions, stations, produits, cuves, pompes et pistolets. Le réseau du classeur *SUIVI DES STATIONS 2026* est chargé : 6 stations et 14 pistolets, avec leurs index au 01/01/2026.
 - **Écrans** :
@@ -70,6 +70,19 @@ Sprint 3 (module `stock`, Flyway V7) :
   - **Complément citerne** : au-delà d'un manquant de 0,3 % du BL (`jaugeo.stock.tolerance-transport-pct`), tout le manquant est dû par le transporteur et valorisé au prix du jour. La logistique enregistre son règlement. Un complément réglé empêche le renvoi de la journée.
 - **Écrans** : section « Stock et jaugeages » de la fiche journée (réceptions, écart en direct, récapitulatif de clôture) ; page Stocks (analyse mensuelle par cuve, compléments citerne) ; carte « Stocks et écarts » du tableau de bord.
 
+Sprint 4 (modules `depenses` et `tresorerie`, Flyway V8) :
+
+- **Dépenses autorisées** payées sur la recette, saisies dans la fiche journée : nature, objet, bénéficiaire, montant, justificatif (photo ou PDF).
+  - Chaque nature a un plafond (électricité et eau sans plafond ; gardiennage et entretien 50 000 F ; fournitures 25 000 F ; transport et divers 10 000 F). Au-delà, la dépense attend la décision d'un superviseur ou de la Direction, autre que l'auteur ; un refus exige un motif et laisse la dépense à la charge du gérant.
+  - Clôture bloquée tant qu'une dépense attend une décision, ou qu'un justificatif manque si `jaugeo.depenses.justificatif-obligatoire=true`.
+- **Montant à verser** = ventes − bons direction − bons gérant − dépenses autorisées − compléments citerne (feuille station, colonne Q). Il est calculé en direct pendant la saisie et figé à la clôture (`tresorerie.recette_journee`, reprise des journées déjà clôturées). Les bons valent 0 jusqu'au module crédit (S5).
+- **Versements bancaires** : date de dépôt, banque, n° de bordereau (BV), montant, photo du BV. Un même BV n'est accepté qu'une fois par banque. La comptabilité vérifie (photo obligatoire, vérificateur autre que l'auteur) ou rejette avec un motif ; un versement rejeté ne compte plus.
+- **Solde de caisse du gérant** (solde non versé) reporté jour après jour : solde de la veille + montant à verser − versements du jour. Le livre de caisse mensuel le montre ligne par ligne.
+  - **Arrêté de caisse** : *reprise* du solde existant, ou *contrôle* (espèces comptées contre solde théorique, observation obligatoire si écart). Les espèces comptées deviennent le solde ; un écart négatif ouvre un **manquant** au nom du gérant, soldé par remboursement, retenue ou perte. Un arrêté fige le passé : plus de versement ni de renvoi de journée à une date antérieure.
+  - **Retard de versement** : solde non versé supérieur aux recettes des 3 derniers jours (`jaugeo.tresorerie.delai-versement-jours`).
+- **Pièces jointes** : JPEG, PNG, WebP ou PDF, 5 Mo au plus, type reconnu sur le contenu ; servies avec `nosniff` et une CSP restrictive.
+- **Écrans** : sections « Dépenses » et « Recette à verser » de la fiche journée (montant à verser dans le récapitulatif de clôture) ; page Trésorerie (caisse du gérant, versements à vérifier, dépenses à valider, manquants) ; carte « Trésorerie » du tableau de bord.
+
 ## Prérequis
 
 - JDK 17 (sur ce poste, `JAVA_HOME` système pointe vers un JDK 8 : utilisez `scripts/env-dev.ps1`)
@@ -119,8 +132,8 @@ Documentation de l'API : http://localhost:8080/swagger-ui.html
 ## Tests
 
 ```powershell
-cd jaugeo-api; mvn test        # 118 tests : unitaires, architecture modulaire, intégration sur PostgreSQL 18 (Testcontainers)
-cd jaugeo-web; npm test        # 37 tests : client API, parcours d'écrans, page Prix, saisie et clôture d'une journée avec jaugeage, page Stocks, barèmes, échéances
+cd jaugeo-api; mvn test        # 125 tests : unitaires, architecture modulaire, intégration sur PostgreSQL 18 (Testcontainers)
+cd jaugeo-web; npm test        # 39 tests : client API, parcours d'écrans, page Prix, saisie et clôture d'une journée avec jaugeage et recette, page Stocks, trésorerie (versement avec photo du BV, vérification), barèmes, échéances
 cd jaugeo-web; npm run lint; npm run build
 ```
 

@@ -50,6 +50,19 @@ public class GestionnaireErreurs {
                 "La requête est mal formée.", requete);
     }
 
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    ProblemDetail tropLourd(Exception e, HttpServletRequest requete) {
+        return probleme(HttpStatus.CONTENT_TOO_LARGE, "FICHIER_TROP_LOURD",
+                "Le fichier dépasse 5 Mo : réduisez la photo.", requete);
+    }
+
+    @ExceptionHandler({org.springframework.web.multipart.support.MissingServletRequestPartException.class,
+            org.springframework.web.bind.MissingServletRequestParameterException.class,
+            org.springframework.web.multipart.MultipartException.class})
+    ProblemDetail partieManquante(Exception e, HttpServletRequest requete) {
+        return probleme(HttpStatus.BAD_REQUEST, "REQUETE_ILLISIBLE", "La requête est incomplète.", requete);
+    }
+
     @ExceptionHandler(OptimisticLockingFailureException.class)
     ProblemDetail concurrence(OptimisticLockingFailureException e, HttpServletRequest requete) {
         return probleme(HttpStatus.CONFLICT, "VERSION_OBSOLETE",
