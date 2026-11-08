@@ -52,7 +52,7 @@ Sprint 2 :
   - Calcul : sortie nette = (arrivée − départ) − remises ; vente = Σ litres × prix de chaque tranche de prix ; montants arrondis au franc.
   - Contrôles bloquants à la clôture : index manquant ou inférieur au départ, débit impossible (plus de 80 L/min sur 24 h, réglable par `jaugeo.exploitation.debit-max-litres-minute`), remise excessive, index intermédiaire manquant ou incohérent, absence de prix.
   - La clôture fige les ventes (table `exploitation.vente`, une ligne par pistolet et par tranche de prix).
-  - La validation est réservée au superviseur, qui ne peut pas être l'auteur de la clôture. Le renvoi exige un motif, retire les ventes et n'est possible que si la journée suivante n'est pas ouverte.
+  - La validation est réservée au superviseur et à la Direction (Flyway V12), qui ne peuvent pas être l'auteur de la clôture. Le renvoi exige un motif, retire les ventes et n'est possible que si la journée suivante n'est pas ouverte.
 - **Verrous** : une journée clôturée interdit tout changement de prix ou de compteur daté pendant cette journée. Le trou des prix rétroactifs laissé au Sprint 1 est ainsi fermé.
 - **Écrans** : liste des journées par station et ouverture de la suivante ; fiche journée adaptée à la tablette (pistolets regroupés par pompe, aperçu immédiat de la vente, totaux par produit, récapitulatif avant clôture, validation et renvoi).
 

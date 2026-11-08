@@ -153,8 +153,9 @@ class JourneesTest {
         mvc.perform(avec(post("/api/v1/journees/" + JsonPath.read(j1, "$.id") + "/validation"), gerant).content(version(cloturee)))
                 .andExpect(status().isForbidden());
 
-        // Renvoi par le superviseur : retour en brouillon, ventes retirees
-        String renvoyee = mvc.perform(avec(post("/api/v1/journees/" + JsonPath.read(j1, "$.id") + "/renvoi"), superviseur)
+        // Renvoi par la direction (JOURNEE_VALIDER depuis V12) : retour en brouillon, ventes retirees
+        String direction = OutilsApi.creerEtConnecter(mvc, jdbc, "DIRECTION", "RESEAU", List.of());
+        String renvoyee = mvc.perform(avec(post("/api/v1/journees/" + JsonPath.read(j1, "$.id") + "/renvoi"), direction)
                         .content("{\"version\":" + JsonPath.read(cloturee, "$.version") + ",\"motif\":\"Vérifier l'index de G2\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.statut").value("BROUILLON"))
