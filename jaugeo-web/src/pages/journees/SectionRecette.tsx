@@ -31,7 +31,7 @@ function Ligne({ libelle, valeur, gras, testid }: { libelle: string; valeur: str
 
 const moins = (v: number | null) => (v === null ? '—' : v === 0 ? formaterPrix(0) : `− ${formaterPrix(v)}`)
 
-/** Décomposition du montant à verser (feuille station : ventes − bons − dépenses − compléments). */
+/** Décomposition du montant à verser (feuille station : ventes − bons − dépenses − compléments + créances recouvrées). */
 export function DetailMontant({ recette }: { recette: RecetteJournee }) {
   return (
     <Table size="small">
@@ -41,6 +41,7 @@ export function DetailMontant({ recette }: { recette: RecetteJournee }) {
         <Ligne libelle="Bons gérant" valeur={moins(recette.bonsGerant)} />
         <Ligne libelle="Dépenses autorisées" valeur={moins(recette.depenses)} />
         <Ligne libelle="Compléments citerne" valeur={moins(recette.complements)} />
+        {recette.recouvrements > 0 && <Ligne libelle="Créances recouvrées" valeur={`+ ${formaterPrix(recette.recouvrements)}`} />}
         <Ligne libelle="Montant à verser" valeur={formaterPrix(recette.montantAVerser)} gras testid="montant-a-verser" />
       </TableBody>
     </Table>

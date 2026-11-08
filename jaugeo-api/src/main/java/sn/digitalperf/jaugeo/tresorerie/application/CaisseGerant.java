@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
+import sn.digitalperf.jaugeo.clients.ComptesClients;
 import sn.digitalperf.jaugeo.depenses.DepensesJournee;
 import sn.digitalperf.jaugeo.exploitation.JourneesExploitation;
 import sn.digitalperf.jaugeo.exploitation.JourneesExploitation.JourneeRef;
@@ -34,15 +35,18 @@ class CaisseGerant {
     private final JourneesExploitation exploitation;
     private final DepensesJournee depenses;
     private final StocksJournee stocks;
+    private final ComptesClients clients;
 
     CaisseGerant(RecetteJourneeDepot recettes, VersementDepot versements, ArreteCaisseDepot arretes,
-                 JourneesExploitation exploitation, DepensesJournee depenses, StocksJournee stocks) {
+                 JourneesExploitation exploitation, DepensesJournee depenses, StocksJournee stocks,
+                 ComptesClients clients) {
         this.recettes = recettes;
         this.versements = versements;
         this.arretes = arretes;
         this.exploitation = exploitation;
         this.depenses = depenses;
         this.stocks = stocks;
+        this.clients = clients;
     }
 
     /** Dernier arrete a cette date ou avant ; a defaut, l'origine a zero. */
@@ -78,7 +82,13 @@ class CaisseGerant {
         if (figee.isPresent()) {
             return Optional.of(figee.get().composantes());
         }
-        return exploitation.montantVentes(j.id()).map(ventes -> new RecetteJournee.Composantes(ventes, BigDecimal.ZERO,
-                BigDecimal.ZERO, depenses.totalAutorise(j.id()), stocks.montantComplements(j.id())));
+        return exploitation.montantVentes(j.id()).map(ventes -> calculer(j, ventes));
+    }
+
+    /** Composantes calculees : ventes, bons et recouvrements des clients, depenses autorisees, complements citerne. */
+    RecetteJournee.Composantes calculer(JourneeRef j, BigDecimal ventes) {
+        ComptesClients.TotauxJournee credit = clients.totauxJournee(j.id());
+        return new RecetteJournee.Composantes(ventes, credit.bonsDirection(), credit.bonsGerant(), depenses.totalAutorise(j.id()),
+                stocks.montantComplements(j.id()), credit.recouvrements());
     }
 }

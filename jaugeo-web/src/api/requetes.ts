@@ -1,6 +1,12 @@
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { api } from './client'
 import type {
+  Client,
+  CreditJournee,
+  FicheClient,
+  Releve,
+  SyntheseStocks,
+  SyntheseVentes,
   AnalyseMensuelle,
   ArreteCaisse,
   DepenseAValider,
@@ -62,6 +68,13 @@ export const cles = {
   arretes: (stationId: string) => ['tresorerie', 'arretes', stationId] as const,
   manquants: (statut: string) => ['tresorerie', 'manquants', statut] as const,
   situationTresorerie: ['tresorerie', 'situation'] as const,
+  clients: ['clients'] as const,
+  ficheClient: (id: string) => ['clients', id] as const,
+  releve: (id: string, stationId: string, du: string, au: string) => ['clients', id, 'releve', stationId, du, au] as const,
+  creditJournee: (id: string) => ['journees', id, 'credit'] as const,
+  syntheses: ['syntheses'] as const,
+  syntheseVentes: (mois: string) => ['syntheses', 'ventes', mois] as const,
+  syntheseStocks: (mois: string) => ['syntheses', 'stocks', mois] as const,
 }
 
 export const useRegions = () => useQuery({ queryKey: cles.regions, queryFn: () => api.get<Region[]>('/regions'), staleTime: 10 * 60_000 })
@@ -204,3 +217,37 @@ export function useRafraichirTresorerie() {
     queryClient.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'journees' && q.queryKey[2] === 'tresorerie' })
   }
 }
+
+export const useClients = () => useQuery({ queryKey: cles.clients, queryFn: () => api.get<Client[]>('/clients') })
+
+export const useFicheClient = (id: string | null) =>
+  useQuery({ queryKey: cles.ficheClient(id ?? ''), queryFn: () => api.get<FicheClient>(`/clients/${id}`), enabled: !!id })
+
+export const useReleve = (id: string, stationId: string | null, du: string, au: string) =>
+  useQuery({
+    queryKey: cles.releve(id, stationId ?? '', du, au),
+    queryFn: () => {
+      const p = new URLSearchParams({ station: stationId! })
+      if (du) p.set('du', du)
+      if (au) p.set('au', au)
+      return api.get<Releve>(`/clients/${id}/releve?${p}`)
+    },
+    enabled: !!stationId,
+  })
+
+export const useCreditJournee = (id: string) =>
+  useQuery({ queryKey: cles.creditJournee(id), queryFn: () => api.get<CreditJournee>(`/journees/${id}/credit`) })
+
+export const useSyntheseVentes = (mois: string) =>
+  useQuery({
+    queryKey: cles.syntheseVentes(mois),
+    queryFn: () => api.get<SyntheseVentes>(`/syntheses/ventes?mois=${mois}`),
+    enabled: moisValide(mois),
+  })
+
+export const useSyntheseStocks = (mois: string) =>
+  useQuery({
+    queryKey: cles.syntheseStocks(mois),
+    queryFn: () => api.get<SyntheseStocks>(`/syntheses/stocks?mois=${mois}`),
+    enabled: moisValide(mois),
+  })

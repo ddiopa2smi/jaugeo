@@ -26,11 +26,12 @@ import { useRef, useState } from 'react'
 import { Link as LienRouteur, useParams } from 'react-router'
 import { api, messageErreur } from '../../api/client'
 import { cles, rafraichirJournee, useJournee } from '../../api/requetes'
-import type { DepensesJournee, DetailJournee, LigneReleve, RecetteJournee, SaisieJournee, StockJournee } from '../../api/types'
+import type { CreditJournee, DepensesJournee, DetailJournee, LigneReleve, RecetteJournee, SaisieJournee, StockJournee } from '../../api/types'
 import { AlerteErreur, Chargement } from '../../shared/composants'
 import { apercu, memeSaisie, saisieInitiale, STATUTS_JOURNEE, type SaisieLigne } from '../../shared/journee'
 import { formaterDate, formaterDateHeureCourte, formaterNombre, formaterPrix, versNombre } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
+import { RecapCredit, SectionCredit } from './SectionCredit'
 import { RecapDepenses, SectionDepenses } from './SectionDepenses'
 import { DetailMontant, SectionRecette } from './SectionRecette'
 import { RecapStock, SectionStock, type PoigneeStock } from './SectionStock'
@@ -209,6 +210,7 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
     journee: DetailJournee
     stock: StockJournee
     depenses: DepensesJournee
+    credit: CreditJournee
     recette: RecetteJournee
   } | null>(null)
   const poigneeStock = useRef<PoigneeStock>(null)
@@ -278,22 +280,24 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
     const j = modifiee ? await enregistrement.mutateAsync() : journee
     if (poigneeStock.current?.modifie) await poigneeStock.current.enregistrer(j.version)
     // État serveur à jour (version et contrôles) avant de proposer la clôture
-    const [jf, sf, df, rf] = await Promise.all([
+    const [jf, sf, df, cf, rf] = await Promise.all([
       api.get<DetailJournee>(`/journees/${journee.id}`),
       api.get<StockJournee>(`/journees/${journee.id}/stock`),
       api.get<DepensesJournee>(`/journees/${journee.id}/depenses`),
+      api.get<CreditJournee>(`/journees/${journee.id}/credit`),
       api.get<RecetteJournee>(`/journees/${journee.id}/tresorerie`),
     ])
     queryClient.setQueryData(cles.journee(jf.id), jf)
     queryClient.setQueryData(cles.stockJournee(jf.id), sf)
     queryClient.setQueryData(cles.depensesJournee(jf.id), df)
+    queryClient.setQueryData(cles.creditJournee(jf.id), cf)
     queryClient.setQueryData(cles.recette(jf.id), rf)
-    const points = jf.anomalies + sf.anomalies + df.anomalies.length
+    const points = jf.anomalies + sf.anomalies + df.anomalies.length + cf.anomalies.length
     if (points > 0) {
       notifier(`Clôture impossible : ${points} point(s) à corriger (en rouge).`, 'error')
       return
     }
-    setRecap({ journee: jf, stock: sf, depenses: df, recette: rf })
+    setRecap({ journee: jf, stock: sf, depenses: df, credit: cf, recette: rf })
   }
 
   const groupes = new Map<string, LigneReleve[]>()
@@ -339,6 +343,7 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
             </Paper>
           ))}
           <SectionStock journeeId={journee.id} ref={poigneeStock} />
+          <SectionCredit journeeId={journee.id} />
           <SectionDepenses journeeId={journee.id} />
         </Stack>
 
@@ -426,6 +431,7 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
         <DialogContent>
           {recap && <Totaux journee={recap.journee} />}
           {recap && <RecapStock stock={recap.stock} />}
+          {recap && <RecapCredit credit={recap.credit} />}
           {recap && <RecapDepenses depenses={recap.depenses} />}
           {recap && (
             <>

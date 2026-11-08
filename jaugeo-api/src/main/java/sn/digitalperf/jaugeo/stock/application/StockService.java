@@ -25,6 +25,7 @@ import sn.digitalperf.jaugeo.referentiel.ReferentielConsultation;
 import sn.digitalperf.jaugeo.referentiel.ReferentielConsultation.CuveRef;
 import sn.digitalperf.jaugeo.referentiel.ReferentielConsultation.StationRef;
 import sn.digitalperf.jaugeo.securite.PerimetreCourant;
+import sn.digitalperf.jaugeo.stock.StocksMensuels;
 import sn.digitalperf.jaugeo.stock.application.EvaluationStock.CuveEvaluee;
 import sn.digitalperf.jaugeo.stock.application.VuesStock.AnalyseMensuelle;
 import sn.digitalperf.jaugeo.stock.application.VuesStock.AnomalieVue;
@@ -51,7 +52,7 @@ import sn.digitalperf.jaugeo.stock.domaine.ReceptionDepot;
 /** Stocks (M4) : jaugeages et receptions d'une journee, analyse mensuelle, situation du reseau, complements citerne. */
 @Service
 @Transactional(readOnly = true)
-public class StockService {
+public class StockService implements StocksMensuels {
 
     private final JourneesExploitation exploitation;
     private final ReferentielConsultation referentiel;
@@ -235,6 +236,18 @@ public class StockService {
     public AnalyseMensuelle mensuel(UUID stationUuid, YearMonth mois) {
         StationRef s = referentiel.station(stationUuid).orElseThrow(() -> ErreurMetier.introuvable("Station"));
         perimetre.exigerStation(s.id());
+        return mensuel(s, mois);
+    }
+
+    @Override
+    public List<BilanCuve> bilans(long stationId, YearMonth mois) {
+        StationRef s = referentiel.station(stationId).orElseThrow(() -> ErreurMetier.introuvable("Station"));
+        return mensuel(s, mois).totaux().stream().map(c -> new BilanCuve(c.cuveCode(), c.produitCode(), c.produitLibelle(),
+                c.stockDepart(), c.receptions(), c.sorties(), c.stockTheorique(), c.stockPhysique(), c.ecartLitres(), c.ecartPct(),
+                c.ecartValeur(), c.tolerancePct(), c.niveau(), c.jours())).toList();
+    }
+
+    private AnalyseMensuelle mensuel(StationRef s, YearMonth mois) {
         Map<Long, CuveRef> cuves = referentiel.cuves(s.id()).stream().collect(Collectors.toMap(CuveRef::id, Function.identity()));
         List<EcartStock> lignes = ecarts.findByStationIdAndDateJourBetweenOrderByDateJourAscCuveIdAsc(s.id(),
                 mois.atDay(1), mois.atEndOfMonth());

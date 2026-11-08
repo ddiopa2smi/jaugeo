@@ -14,10 +14,10 @@ public class RecetteJournee extends EntiteAuditee {
 
     /** Composantes du montant a verser. */
     public record Composantes(BigDecimal ventes, BigDecimal bonsDirection, BigDecimal bonsGerant, BigDecimal depenses,
-                              BigDecimal complements) {
+                              BigDecimal complements, BigDecimal recouvrements) {
 
         public BigDecimal montantAVerser() {
-            return CalculCaisse.montantAVerser(ventes, bonsDirection, bonsGerant, depenses, complements);
+            return CalculCaisse.montantAVerser(ventes, bonsDirection, bonsGerant, depenses, complements, recouvrements);
         }
     }
 
@@ -45,6 +45,9 @@ public class RecetteJournee extends EntiteAuditee {
     @Column(nullable = false, updatable = false)
     private BigDecimal complements;
 
+    @Column(nullable = false, updatable = false)
+    private BigDecimal recouvrements;
+
     @Column(name = "montant_a_verser", nullable = false, updatable = false)
     private BigDecimal montantAVerser;
 
@@ -60,11 +63,12 @@ public class RecetteJournee extends EntiteAuditee {
         this.bonsGerant = c.bonsGerant();
         this.depenses = c.depenses();
         this.complements = c.complements();
+        this.recouvrements = c.recouvrements();
         this.montantAVerser = c.montantAVerser();
     }
 
     public Composantes composantes() {
-        return new Composantes(ventes, bonsDirection, bonsGerant, depenses, complements);
+        return new Composantes(ventes, bonsDirection, bonsGerant, depenses, complements, recouvrements);
     }
 
     public Long getJourneeId() {

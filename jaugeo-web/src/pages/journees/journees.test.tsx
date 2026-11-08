@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { DepensesJournee, DetailJournee, LigneReleve, Permission, RecetteJournee, SaisieJournee, StockJournee } from '../../api/types'
+import type { CreditJournee, DepensesJournee, DetailJournee, LigneReleve, Permission, RecetteJournee, SaisieJournee, StockJournee } from '../../api/types'
 import { Fournisseurs } from '../../app/Fournisseurs'
 import { RestaurationSession } from '../../app/Gardes'
 import { creerQueryClient } from '../../app/queryClient'
@@ -166,6 +166,22 @@ describe('saisie et clôture d’une journée', () => {
       totalRefuse: 0,
       anomalies: [],
     })
+    const credit = (): CreditJournee => ({
+      journeeId: 'j1',
+      stationId: 's-nia',
+      stationCode: 'NIA',
+      date: '2026-08-16',
+      statut: courante.statut,
+      version: courante.version,
+      modifiable: courante.statut === 'BROUILLON',
+      produits: [{ id: 'p-go', code: 'GASOIL', libelle: 'Gasoil', prixUnitaire: 755 }],
+      bons: [],
+      recouvrements: [],
+      totalBonsDirection: 0,
+      totalBonsGerant: 0,
+      totalRecouvrements: 0,
+      anomalies: [],
+    })
     const recette = (): RecetteJournee => {
       const montant = courante.montant === null ? null : courante.montant - 5000
       return {
@@ -180,6 +196,7 @@ describe('saisie et clôture d’une journée', () => {
         bonsGerant: 0,
         depenses: 5000,
         complements: 0,
+        recouvrements: 0,
         montantAVerser: montant,
         soldeOuverture: 120000,
         versements: [],
@@ -192,6 +209,7 @@ describe('saisie et clôture d’une journée', () => {
     installerFauxServeur(({ methode, chemin, corps }) => {
       if (chemin === '/journees/j1/depenses') return { status: 200, corps: depenses() }
       if (chemin === '/journees/j1/tresorerie') return { status: 200, corps: recette() }
+      if (chemin === '/journees/j1/credit') return { status: 200, corps: credit() }
       if (chemin === '/auth/rafraichir') return { status: 200, corps: sessionTest('j', GERANT) }
       if (chemin === '/journees/j1' && methode === 'GET') return { status: 200, corps: courante }
       if (chemin === '/journees/j1/releves') {

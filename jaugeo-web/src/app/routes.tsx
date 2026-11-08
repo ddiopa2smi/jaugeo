@@ -20,6 +20,8 @@ const PageJournees = differe(() => import('../pages/journees/PageJournees'), 'Pa
 const PageJournee = differe(() => import('../pages/journees/PageJournee'), 'PageJournee')
 const PageStocks = differe(() => import('../pages/stocks/PageStocks'), 'PageStocks')
 const PageTresorerie = differe(() => import('../pages/tresorerie/PageTresorerie'), 'PageTresorerie')
+const PageClients = differe(() => import('../pages/clients/PageClients'), 'PageClients')
+const PageSyntheses = differe(() => import('../pages/syntheses/PageSyntheses'), 'PageSyntheses')
 const PagePrix = differe(() => import('../pages/prix/PagePrix'), 'PagePrix')
 const PageProduits = differe(() => import('../pages/PageProduits'), 'PageProduits')
 const PageUtilisateurs = differe(() => import('../pages/utilisateurs/PageUtilisateurs'), 'PageUtilisateurs')
@@ -49,6 +51,8 @@ export const routes: RouteObject[] = [
           { path: 'journees/:id', element: protegee('REFERENTIEL_CONSULTER', <PageJournee />) },
           { path: 'stocks', element: protegee('REFERENTIEL_CONSULTER', <PageStocks />) },
           { path: 'tresorerie', element: protegee('REFERENTIEL_CONSULTER', <PageTresorerie />) },
+          { path: 'clients', element: protegee('REFERENTIEL_CONSULTER', <PageClients />) },
+          { path: 'syntheses', element: protegee('REFERENTIEL_CONSULTER', <PageSyntheses />) },
           { path: 'prix', element: protegee('REFERENTIEL_CONSULTER', <PagePrix />) },
           { path: 'produits', element: protegee('REFERENTIEL_CONSULTER', <PageProduits />) },
           { path: 'utilisateurs', element: protegee('UTILISATEUR_GERER', <PageUtilisateurs />) },

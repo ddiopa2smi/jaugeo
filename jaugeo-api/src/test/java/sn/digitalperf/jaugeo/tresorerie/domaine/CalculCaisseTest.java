@@ -18,8 +18,14 @@ class CalculCaisseTest {
     @Test
     void montantAVerserDeduitBonsDepensesEtComplements() {
         // Feuille station : Q = -(J - L - N - P), depenses deduites dans l'ecart (T)
-        assertThat(CalculCaisse.montantAVerser(f(1_000_000), f(50_000), f(20_000), f(15_000), f(74_550)))
+        assertThat(CalculCaisse.montantAVerser(f(1_000_000), f(50_000), f(20_000), f(15_000), f(74_550), BigDecimal.ZERO))
                 .isEqualByComparingTo("840450");
+    }
+
+    @Test
+    void lesCreancesRecouvreesEnEspecesSAjoutentAuMontantAVerser() {
+        assertThat(CalculCaisse.montantAVerser(f(1_000_000), f(50_000), f(20_000), f(15_000), f(74_550), f(30_000)))
+                .isEqualByComparingTo("870450");
     }
 
     @Test

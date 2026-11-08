@@ -9,7 +9,7 @@ Plateforme de gestion d'un réseau de stations-service (carburants, lubrifiants)
 | `scripts/` | Environnement de dev, démarrage, vérification de l'API |
 | `docker-compose.yml` | PostgreSQL 18 en conteneur (optionnel) |
 
-## État : Sprint 4 livré (trésorerie, versements et dépenses)
+## État : Sprint 5 livré (clients en compte, bons, créances et synthèses mensuelles)
 
 - **Socle** : monolithe modulaire (14 modules déclarés, frontières vérifiées par test), erreurs RFC 9457 avec code métier, verrouillage optimiste (`VERSION_OBSOLETE`), UUID v7.
 - **Sécurité** : jeton d'accès JWT de 15 min gardé en mémoire ; jeton de rafraîchissement de 8 h en cookie HttpOnly, renouvelé à chaque usage. Rejouer un ancien jeton ferme toutes les sessions de l'utilisateur. Le compte est verrouillé 15 min après 5 échecs. Le mot de passe provisoire doit être changé avant tout accès. Il y a 8 rôles et 17 permissions, et le périmètre d'un utilisateur est soit tout le réseau, soit une liste de stations.
@@ -75,13 +75,67 @@ Sprint 4 (modules `depenses` et `tresorerie`, Flyway V8) :
 - **Dépenses autorisées** payées sur la recette, saisies dans la fiche journée : nature, objet, bénéficiaire, montant, justificatif (photo ou PDF).
   - Chaque nature a un plafond (électricité et eau sans plafond ; gardiennage et entretien 50 000 F ; fournitures 25 000 F ; transport et divers 10 000 F). Au-delà, la dépense attend la décision d'un superviseur ou de la Direction, autre que l'auteur ; un refus exige un motif et laisse la dépense à la charge du gérant.
   - Clôture bloquée tant qu'une dépense attend une décision, ou qu'un justificatif manque si `jaugeo.depenses.justificatif-obligatoire=true`.
-- **Montant à verser** = ventes − bons direction − bons gérant − dépenses autorisées − compléments citerne (feuille station, colonne Q). Il est calculé en direct pendant la saisie et figé à la clôture (`tresorerie.recette_journee`, reprise des journées déjà clôturées). Les bons valent 0 jusqu'au module crédit (S5).
+- **Montant à verser** = ventes − bons direction − bons gérant − dépenses autorisées − compléments citerne (feuille station, colonne Q). Il est calculé en direct pendant la saisie et figé à la clôture (`tresorerie.recette_journee`, reprise des journées déjà clôturées). Depuis le Sprint 5, les bons et les créances recouvrées en espèces y entrent.
 - **Versements bancaires** : date de dépôt, banque, n° de bordereau (BV), montant, photo du BV. Un même BV n'est accepté qu'une fois par banque. La comptabilité vérifie (photo obligatoire, vérificateur autre que l'auteur) ou rejette avec un motif ; un versement rejeté ne compte plus.
 - **Solde de caisse du gérant** (solde non versé) reporté jour après jour : solde de la veille + montant à verser − versements du jour. Le livre de caisse mensuel le montre ligne par ligne.
   - **Arrêté de caisse** : *reprise* du solde existant, ou *contrôle* (espèces comptées contre solde théorique, observation obligatoire si écart). Les espèces comptées deviennent le solde ; un écart négatif ouvre un **manquant** au nom du gérant, soldé par remboursement, retenue ou perte. Un arrêté fige le passé : plus de versement ni de renvoi de journée à une date antérieure.
   - **Retard de versement** : solde non versé supérieur aux recettes des 3 derniers jours (`jaugeo.tresorerie.delai-versement-jours`).
 - **Pièces jointes** : JPEG, PNG, WebP ou PDF, 5 Mo au plus, type reconnu sur le contenu ; servies avec `nosniff` et une CSP restrictive.
 - **Écrans** : sections « Dépenses » et « Recette à verser » de la fiche journée (montant à verser dans le récapitulatif de clôture) ; page Trésorerie (caisse du gérant, versements à vérifier, dépenses à valider, manquants) ; carte « Trésorerie » du tableau de bord.
+
+Sprint 5 (modules `clients` et `reporting`, Flyway V9) :
+
+- **Clients en compte** (gérés par la comptabilité, `CLIENT_GERER`) : code, nom, téléphone, mode de recouvrement, plafond d'encours facultatif, état actif.
+  - *Recouvrement par la direction* : les bons sont déduits de la recette et recouvrés par le siège.
+  - *Recouvrement par le gérant* : le gérant recouvre lui-même la créance à la station.
+- **Bons à crédit** saisis dans la fiche journée (règle 6) : client actif, produit distribué par la station, litres (2 décimales), véhicule ou pirogue, porteur.
+  - Le bon est valorisé au prix en vigueur à l'ouverture de la journée (montant arrondi au franc).
+  - Un numéro de bon ne sert qu'une fois par station (`BON_DEJA_UTILISE`).
+  - Un bon qui porterait l'encours du client (toutes stations) au-delà de son plafond est refusé (`BON_PLAFOND_DEPASSE`, disponible indiqué).
+  - Contrôle bloquant à la clôture : les litres servis sur bons d'un produit ne dépassent pas les sorties des pompes.
+- **Créances** par client et par station = reprises + bons − règlements.
+  - *Reprise* : créance existante au démarrage du suivi, saisie par la comptabilité (par exemple les 24 212 721 F de Cheikh Omar à Hydrobase au 31/12/2025).
+  - *Règlement au siège* : virement, chèque, espèces au siège ou compensation.
+  - *Recouvrement en espèces à la station* : saisi par le gérant dans la journée, il s'ajoute au montant à verser.
+  - Un règlement ne peut pas dépasser la créance de la station (`CREANCE_INSUFFISANTE`).
+  - La fiche client montre l'encours, le disponible, la créance par station et le relevé de compte sur une période.
+- **Montant à verser** = ventes − bons direction − bons gérant − dépenses autorisées − compléments citerne + créances recouvrées.
+- **Synthèse mensuelle des ventes et recettes** (feuille *ANALYSE VENTES & RECETTES*), une ligne par station et une ligne de cumul. Elle est calculée sur les journées clôturées :
+  - litres vendus par produit ;
+  - E recettes du mois ;
+  - F solde de caisse à l'ouverture ;
+  - G créances au début du mois ;
+  - H = E + F + G ;
+  - I versements ;
+  - J solde de caisse du gérant ;
+  - K créances en fin de mois ;
+  - L dépenses autorisées ;
+  - M compléments citerne ;
+  - O règlements reçus au siège ;
+  - Q = I + J + K + L + M + O ;
+  - **R = Q − H**.
+
+  Quand toutes les journées sont clôturées, R est égal à la somme des écarts constatés aux arrêtés de caisse.
+- **Observations** : chaque ligne porte une observation calculée (journées non clôturées, écart, créances laissées au gérant). Le contrôle de gestion et la comptabilité (`CLOTURE_MENSUELLE`) peuvent y ajouter la leur.
+- **Synthèse des stocks** (feuille *ANALYSE DES STOCKS*), par station et par cuve :
+  - stock de départ, réceptions et sorties ;
+  - stock théorique et stock physique ;
+  - écart en litres, en % et en valeur ;
+  - niveau d'alerte.
+
+  Un total du réseau par produit complète la feuille.
+- **Exports** des deux feuilles :
+  - classeur Excel : formules H, Q, R et cumul conservées ;
+  - PDF en A4 paysage.
+- **Écrans** :
+  - section « Ventes à crédit » de la fiche journée : bons, créances recouvrées, montant estimé et alerte de plafond avant l'envoi ;
+  - page Clients en compte : liste, fiche, relevé, règlements et reprises ;
+  - page Synthèses mensuelles : deux onglets, observations, exports Excel et PDF.
+- **Hypothèses à confirmer** :
+  - le prix d'un bon est celui de l'ouverture de la journée ;
+  - le plafond bloque sans dérogation (`CREDIT_DEROGER` n'est pas encore utilisé) ;
+  - les véhicules et pirogues autorisés par client, l'échéance, la facturation et la balance âgée sont reportés au lot 2 ;
+  - les créances d'ouverture du classeur sont à saisir en reprise (leur import automatique est prévu au Sprint 6).
 
 ## Prérequis
 
@@ -132,8 +186,8 @@ Documentation de l'API : http://localhost:8080/swagger-ui.html
 ## Tests
 
 ```powershell
-cd jaugeo-api; mvn test        # 125 tests : unitaires, architecture modulaire, intégration sur PostgreSQL 18 (Testcontainers)
-cd jaugeo-web; npm test        # 39 tests : client API, parcours d'écrans, page Prix, saisie et clôture d'une journée avec jaugeage et recette, page Stocks, trésorerie (versement avec photo du BV, vérification), barèmes, échéances
+cd jaugeo-api; mvn test        # 127 tests : unitaires, architecture modulaire, intégration sur PostgreSQL 18 (Testcontainers)
+cd jaugeo-web; npm test        # 42 tests : client API, parcours d'écrans, page Prix, saisie et clôture d'une journée avec jaugeage et recette, page Stocks, trésorerie (versement avec photo du BV, vérification), clients (création, fiche, relevé), bon à crédit avec alerte de plafond, synthèse mensuelle (observation, export), barèmes, échéances
 cd jaugeo-web; npm run lint; npm run build
 ```
 

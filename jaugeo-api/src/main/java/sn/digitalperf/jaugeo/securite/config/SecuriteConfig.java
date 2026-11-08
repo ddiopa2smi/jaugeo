@@ -85,6 +85,14 @@ class SecuriteConfig {
                         .requestMatchers("/api/v1/tresorerie/versements", "/api/v1/tresorerie/versements/**")
                         .hasAuthority("VERSEMENT_SAISIR")
                         .requestMatchers(HttpMethod.POST, "/api/v1/stations/*/arretes").hasAuthority("CAISSE_CONTROLER")
+                        // Clients : bons et recouvrements especes saisis dans la journee ; comptes geres par la comptabilite
+                        .requestMatchers("/api/v1/journees/*/bons", "/api/v1/journees/*/bons/*", "/api/v1/journees/*/recouvrements",
+                                "/api/v1/journees/*/recouvrements/*").hasAuthority("JOURNEE_SAISIR")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/clients", "/api/v1/clients/**").hasAuthority("REFERENTIEL_CONSULTER")
+                        .requestMatchers("/api/v1/clients", "/api/v1/clients/**").hasAuthority("CLIENT_GERER")
+                        // Syntheses mensuelles (feuilles d'analyse) : lecture et exports ; observations du controle de gestion
+                        .requestMatchers(HttpMethod.GET, "/api/v1/syntheses/**").hasAuthority("REFERENTIEL_CONSULTER")
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/syntheses/commentaires").hasAuthority("CLOTURE_MENSUELLE")
                         .requestMatchers(HttpMethod.POST, REFERENTIEL).hasAuthority("REFERENTIEL_GERER")
                         .requestMatchers(HttpMethod.PUT, REFERENTIEL).hasAuthority("REFERENTIEL_GERER")
                         .requestMatchers(HttpMethod.GET, REFERENTIEL).hasAuthority("REFERENTIEL_CONSULTER")

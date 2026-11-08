@@ -34,6 +34,7 @@ import sn.digitalperf.jaugeo.exploitation.JourneesExploitation.JourneeRef;
 import sn.digitalperf.jaugeo.referentiel.ReferentielConsultation;
 import sn.digitalperf.jaugeo.referentiel.ReferentielConsultation.StationRef;
 import sn.digitalperf.jaugeo.securite.PerimetreCourant;
+import sn.digitalperf.jaugeo.tresorerie.SyntheseCaisse;
 import sn.digitalperf.jaugeo.tresorerie.application.VuesTresorerie.ArreteVue;
 import sn.digitalperf.jaugeo.tresorerie.application.VuesTresorerie.LigneCaisse;
 import sn.digitalperf.jaugeo.tresorerie.application.VuesTresorerie.LivreCaisse;
@@ -61,7 +62,7 @@ import sn.digitalperf.jaugeo.tresorerie.domaine.VersementDepot;
  */
 @Service
 @Transactional(readOnly = true)
-public class TresorerieService {
+public class TresorerieService implements SyntheseCaisse {
 
     private static final ZoneId DAKAR = ZoneId.of("Africa/Dakar");
 
@@ -117,6 +118,7 @@ public class TresorerieService {
                 c.map(RecetteJournee.Composantes::bonsGerant).orElse(BigDecimal.ZERO),
                 c.map(RecetteJournee.Composantes::depenses).orElse(null),
                 c.map(RecetteJournee.Composantes::complements).orElse(null),
+                c.map(RecetteJournee.Composantes::recouvrements).orElse(BigDecimal.ZERO),
                 montant, ouverture, vues, verse, soldeFin, arrete.map(a -> vue(a, s)).orElse(null),
                 aPermission("VERSEMENT_SAISIR"));
     }
@@ -124,7 +126,18 @@ public class TresorerieService {
     // ---------------------------------------------------------------- Livre de caisse (ecart de versement jour par jour)
 
     public LivreCaisse livre(UUID stationUuid, YearMonth mois) {
-        StationRef s = stationAccessible(stationUuid);
+        return livre(stationAccessible(stationUuid), mois);
+    }
+
+    @Override
+    public MoisCaisse mois(long stationId, YearMonth mois) {
+        LivreCaisse l = livre(referentiel.station(stationId).orElseThrow(() -> ErreurMetier.introuvable("Station")), mois);
+        return new MoisCaisse(l.soldeDebut(), l.totalVentes(), l.totalBonsDirection(), l.totalBonsGerant(), l.totalDepenses(),
+                l.totalComplements(), l.totalRecouvrements(), l.totalMontants(), l.totalVersements(), l.totalEcarts(),
+                l.soldeFin(), l.joursNonClotures());
+    }
+
+    private LivreCaisse livre(StationRef s, YearMonth mois) {
         LocalDate du = mois.atDay(1);
         LocalDate au = mois.atEndOfMonth();
         BigDecimal soldeDebut = caisse.soldeFin(s.id(), du.minusDays(1));
@@ -153,8 +166,11 @@ public class TresorerieService {
 
         List<LigneCaisse> lignes = new ArrayList<>();
         BigDecimal ventes = BigDecimal.ZERO;
+        BigDecimal bonsDirection = BigDecimal.ZERO;
+        BigDecimal bonsGerant = BigDecimal.ZERO;
         BigDecimal depenses = BigDecimal.ZERO;
         BigDecimal complements = BigDecimal.ZERO;
+        BigDecimal recouvrements = BigDecimal.ZERO;
         BigDecimal ecarts = BigDecimal.ZERO;
         int nonCloturees = 0;
         for (CalculCaisse.Ligne l : CalculCaisse.derouler(soldeDebut, jours)) {
@@ -167,8 +183,11 @@ public class TresorerieService {
             }
             if (c != null) {
                 ventes = ventes.add(c.ventes());
+                bonsDirection = bonsDirection.add(c.bonsDirection());
+                bonsGerant = bonsGerant.add(c.bonsGerant());
                 depenses = depenses.add(c.depenses());
                 complements = complements.add(c.complements());
+                recouvrements = recouvrements.add(c.recouvrements());
             }
             // Un arrete garde l'ecart constate le jour ou il a ete dresse
             BigDecimal ecart = a == null ? null : a.getEcart();
@@ -178,13 +197,15 @@ public class TresorerieService {
             }
             lignes.add(new LigneCaisse(l.date(), j == null ? null : j.uuid(), j == null ? null : j.statut(),
                     c == null ? null : c.ventes(), c == null ? null : c.bonsDirection().add(c.bonsGerant()),
-                    c == null ? null : c.depenses(), c == null ? null : c.complements(), l.montantAVerser(),
+                    c == null ? null : c.depenses(), c == null ? null : c.complements(), c == null ? null : c.recouvrements(),
+                    l.montantAVerser(),
                     l.ouverture(), l.versements(), theorique, a == null ? null : vue(a, s), ecart, l.solde()));
         }
         BigDecimal montants = parDate.values().stream().map(RecetteJournee::getMontantAVerser).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal verse = verses.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal soldeFin = lignes.isEmpty() ? soldeDebut : lignes.get(lignes.size() - 1).solde();
-        return new LivreCaisse(s.uuid(), s.code(), s.nom(), mois, soldeDebut, ventes, depenses, complements, montants, verse,
+        return new LivreCaisse(s.uuid(), s.code(), s.nom(), mois, soldeDebut, ventes, bonsDirection, bonsGerant, depenses,
+                complements, recouvrements, montants, verse,
                 ecarts, soldeFin, nonCloturees, lignes, aPermission("CAISSE_CONTROLER"));
     }
 

@@ -749,6 +749,7 @@ export interface RecetteJournee {
   bonsGerant: number
   depenses: number | null
   complements: number | null
+  recouvrements: number
   montantAVerser: number | null
   soldeOuverture: number
   versements: Versement[]
@@ -766,6 +767,7 @@ export interface LigneCaisse {
   bons: number | null
   depenses: number | null
   complements: number | null
+  recouvrements: number | null
   montantAVerser: number | null
   soldeOuverture: number
   versements: number
@@ -782,8 +784,11 @@ export interface LivreCaisse {
   mois: string
   soldeDebut: number
   totalVentes: number
+  totalBonsDirection: number
+  totalBonsGerant: number
   totalDepenses: number
   totalComplements: number
+  totalRecouvrements: number
   totalMontants: number
   totalVersements: number
   totalEcarts: number
@@ -836,4 +841,243 @@ export interface SituationTresorerie {
   manquantsOuverts: number
   montantManquants: number
   delaiVersementJours: number
+}
+
+// ---------------------------------------------------------------- Clients en compte (Sprint 5)
+
+export type Recouvrement = 'DIRECTION' | 'GERANT'
+export type ModeReglementClient = 'ESPECES_STATION' | 'ESPECES_SIEGE' | 'VIREMENT' | 'CHEQUE' | 'COMPENSATION'
+
+export interface Client {
+  id: string
+  code: string
+  nom: string
+  telephone: string | null
+  recouvrement: Recouvrement
+  plafond: number | null
+  actif: boolean
+  observation: string | null
+  encours: number
+  disponible: number | null
+  version: number
+}
+
+export interface SaisieClient {
+  code?: string
+  nom: string
+  telephone: string | null
+  recouvrement: Recouvrement
+  plafond: number | null
+  actif: boolean
+  observation: string | null
+  version?: number
+}
+
+export interface CompteStation {
+  stationId: string
+  stationCode: string
+  stationNom: string
+  creance: number
+  dernierBon: string | null
+  dernierReglement: string | null
+}
+
+export interface FicheClient {
+  client: Client
+  comptes: CompteStation[]
+  peutGerer: boolean
+}
+
+export interface LigneReleveClient {
+  date: string
+  type: 'BON' | 'REPRISE' | 'REGLEMENT'
+  mode: string | null
+  numero: string | null
+  produitCode: string | null
+  litres: number | null
+  prixUnitaire: number | null
+  reference: string | null
+  observation: string | null
+  debit: number | null
+  credit: number | null
+  solde: number
+  operationId: string | null
+  version: number | null
+  supprimable: boolean
+  creePar: string
+}
+
+export interface Releve {
+  clientId: string
+  clientCode: string
+  clientNom: string
+  stationId: string
+  stationCode: string
+  du: string | null
+  au: string | null
+  soldeDebut: number
+  totalDebit: number
+  totalCredit: number
+  soldeFin: number
+  lignes: LigneReleveClient[]
+}
+
+export interface SaisieOperation {
+  stationId: string
+  type: 'REPRISE' | 'REGLEMENT'
+  mode: ModeReglementClient | null
+  date: string
+  montant: number
+  reference: string | null
+  observation: string | null
+}
+
+export interface Bon {
+  id: string
+  numero: string
+  clientId: string
+  clientCode: string
+  clientNom: string
+  produitId: string
+  produitCode: string
+  produitLibelle: string
+  litres: number
+  prixUnitaire: number
+  montant: number
+  recouvrement: Recouvrement
+  immatriculation: string | null
+  porteur: string | null
+  creePar: string
+  modifieLe: string
+}
+
+export interface RecouvrementJournee {
+  id: string
+  clientId: string
+  clientCode: string
+  clientNom: string
+  montant: number
+  reference: string | null
+  observation: string | null
+  creePar: string
+}
+
+export interface ProduitCredit {
+  id: string
+  code: string
+  libelle: string
+  prixUnitaire: number | null
+}
+
+export interface CreditJournee {
+  journeeId: string
+  stationId: string
+  stationCode: string
+  date: string
+  statut: StatutJournee
+  version: number
+  modifiable: boolean
+  produits: ProduitCredit[]
+  bons: Bon[]
+  recouvrements: RecouvrementJournee[]
+  totalBonsDirection: number
+  totalBonsGerant: number
+  totalRecouvrements: number
+  anomalies: string[]
+}
+
+export interface SaisieBon {
+  version: number
+  clientId: string
+  numero: string
+  produitId: string
+  litres: number
+  immatriculation: string | null
+  porteur: string | null
+}
+
+// ---------------------------------------------------------------- Synthèses mensuelles (Sprint 5)
+
+export interface ProduitColonne {
+  code: string
+  libelle: string
+}
+
+export interface LigneVentes {
+  stationId: string | null
+  stationCode: string
+  stationNom: string
+  litres: Record<string, number>
+  recettes: number
+  soldeOuverture: number
+  creancesDebut: number
+  aVerser: number
+  versements: number
+  soldeCaisse: number
+  creancesFin: number
+  depenses: number
+  complements: number
+  reglementsSiege: number
+  totalVersements: number
+  ecart: number
+  bonsDirection: number
+  bonsGerant: number
+  recouvrements: number
+  creancesGerantFin: number
+  ecartsArretes: number
+  joursNonClotures: number
+  observation: string | null
+  commentaire: string | null
+  commentaireVersion: number | null
+}
+
+export interface SyntheseVentes {
+  mois: string
+  produits: ProduitColonne[]
+  lignes: LigneVentes[]
+  cumul: LigneVentes
+  peutCommenter: boolean
+}
+
+export interface LigneStocks {
+  stationId: string
+  stationCode: string
+  stationNom: string
+  cuveCode: string
+  produitCode: string
+  produitLibelle: string
+  stockDepart: number
+  receptions: number
+  sorties: number
+  stockTheorique: number
+  stockPhysique: number
+  ecartLitres: number
+  ecartPct: number | null
+  ecartValeur: number | null
+  tolerancePct: number | null
+  niveau: string
+  jours: number
+}
+
+export interface TotalProduitStock {
+  produitCode: string
+  produitLibelle: string
+  receptions: number
+  sorties: number
+  ecartLitres: number
+  ecartPct: number | null
+  ecartValeur: number
+}
+
+export interface SyntheseStocks {
+  mois: string
+  lignes: LigneStocks[]
+  totaux: TotalProduitStock[]
+}
+
+export interface CommentaireMensuel {
+  stationId: string
+  mois: string
+  texte: string | null
+  version: number | null
 }
