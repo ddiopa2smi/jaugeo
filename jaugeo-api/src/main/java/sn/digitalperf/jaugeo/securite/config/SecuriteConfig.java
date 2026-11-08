@@ -65,6 +65,12 @@ class SecuriteConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/journees/*/cloture").hasAuthority("JOURNEE_CLOTURER")
                         .requestMatchers(HttpMethod.POST, "/api/v1/journees/*/validation", "/api/v1/journees/*/renvoi")
                         .hasAuthority("JOURNEE_VALIDER")
+                        // Stocks : jaugeages et receptions saisis dans la journee ; complements regles par la logistique
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/journees/*/jaugeages").hasAuthority("JOURNEE_SAISIR")
+                        .requestMatchers("/api/v1/journees/*/receptions", "/api/v1/journees/*/receptions/*")
+                        .hasAuthority("JOURNEE_SAISIR")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/stock/complements/*/reglement").hasAuthority("RECEPTION_VALIDER")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/stock/**").hasAuthority("REFERENTIEL_CONSULTER")
                         .requestMatchers(HttpMethod.POST, REFERENTIEL).hasAuthority("REFERENTIEL_GERER")
                         .requestMatchers(HttpMethod.PUT, REFERENTIEL).hasAuthority("REFERENTIEL_GERER")
                         .requestMatchers(HttpMethod.GET, REFERENTIEL).hasAuthority("REFERENTIEL_CONSULTER")

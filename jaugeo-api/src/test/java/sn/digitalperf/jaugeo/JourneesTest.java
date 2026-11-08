@@ -95,6 +95,11 @@ class JourneesTest {
         return "{\"version\":" + JsonPath.read(json, "$.version") + "}";
     }
 
+    /** Jaugeage sans ecart de chaque cuve (obligatoire a la cloture depuis le sprint 3) ; renvoie la journee a jour. */
+    private String jauger(String jeton, String journee) throws Exception {
+        return OutilsApi.jaugerSansEcart(mvc, jeton, JsonPath.read(journee, "$.id"));
+    }
+
     @Test
     void enchainementDesJourneesDeNiandane() throws Exception {
         String gerant = gerant("NIA");
@@ -136,6 +141,7 @@ class JourneesTest {
         mvc.perform(avec(post("/api/v1/journees/" + JsonPath.read(j1, "$.id") + "/cloture"), pompiste).content(version(apres)))
                 .andExpect(status().isForbidden());
 
+        apres = jauger(gerant, apres);
         String cloturee = mvc.perform(avec(post("/api/v1/journees/" + JsonPath.read(j1, "$.id") + "/cloture"), gerant).content(version(apres)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.statut").value("CLOTUREE"))
@@ -205,6 +211,7 @@ class JourneesTest {
                 "[{\"instant\":\"" + changement + "\",\"index\":$MILIEU}]"));
         assertThat(nombres(avec, "$.lignes[0].tranches[*].litres")).containsExactly("100", "200");
         assertThat(nombre(avec, "$.lignes[0].montant")).isEqualTo("153700"); // 100 x 497 + 200 x 520
+        avec = jauger(gerant, avec);
         String cloturee = mvc.perform(avec(post("/api/v1/journees/" + JsonPath.read(j, "$.id") + "/cloture"), gerant).content(version(avec)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         assertThat(JsonPath.<String>read(cloturee, "$.statut")).isEqualTo("CLOTUREE");
@@ -237,6 +244,7 @@ class JourneesTest {
         assertThat(JsonPath.<List<Object>>read(d, "$.lignes[0].ruptures")).hasSize(1);
         String saisi = enregistrer(gerant, d, saisie(d, BigDecimal.TEN, Map.of(code, "\"indexArrivee\":50"), null));
         assertThat(nombre(saisi, "$.lignes[0].sortieBrute")).isEqualTo("150");
+        saisi = jauger(gerant, saisi);
         mvc.perform(avec(post("/api/v1/journees/" + JsonPath.read(j, "$.id") + "/cloture"), gerant).content(version(saisi)))
                 .andExpect(status().isOk());
 

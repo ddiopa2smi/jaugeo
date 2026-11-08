@@ -43,7 +43,7 @@ public class ReferentielService {
     }
 
     public record DonneesProduit(String libelle, Produit.Famille famille, Produit.Unite unite,
-                                 boolean suiviJaugeage, BigDecimal tauxTva, boolean actif) {
+                                 boolean suiviJaugeage, BigDecimal tauxTva, boolean actif, BigDecimal toleranceEcartPct) {
     }
 
     private final StationDepot stations;
@@ -126,7 +126,7 @@ public class ReferentielService {
             throw ErreurMetier.conflit("CODE_EXISTANT", "Un produit avec le code « " + c + " » existe déjà.");
         }
         Produit p = new Produit(c);
-        p.modifier(d.libelle().trim(), d.famille(), d.unite(), d.suiviJaugeage(), d.tauxTva(), d.actif());
+        p.modifier(d.libelle().trim(), d.famille(), d.unite(), d.suiviJaugeage(), d.tauxTva(), d.actif(), d.toleranceEcartPct());
         return ProduitVue.de(produits.saveAndFlush(p));
     }
 
@@ -134,7 +134,7 @@ public class ReferentielService {
     public ProduitVue modifierProduit(UUID id, DonneesProduit d, Integer version) {
         Produit p = produits.findByUuid(id).orElseThrow(() -> ErreurMetier.introuvable("Produit"));
         p.verifierVersion(version);
-        p.modifier(d.libelle().trim(), d.famille(), d.unite(), d.suiviJaugeage(), d.tauxTva(), d.actif());
+        p.modifier(d.libelle().trim(), d.famille(), d.unite(), d.suiviJaugeage(), d.tauxTva(), d.actif(), d.toleranceEcartPct());
         return ProduitVue.de(produits.saveAndFlush(p));
     }
 

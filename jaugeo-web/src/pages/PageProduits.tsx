@@ -36,6 +36,11 @@ const schema = z
       return n !== null && n >= 0 && n <= 100
     }, 'Taux entre 0 et 100'),
     actif: z.boolean(),
+    toleranceEcartPct: z.string().refine((v) => {
+      if (v.trim() === '') return true
+      const n = versNombre(v)
+      return n !== null && n >= 0 && n <= 10
+    }, 'Tolérance entre 0 et 10 %'),
   })
   .refine((v) => !v.suiviJaugeage || v.unite === 'LITRE', {
     path: ['suiviJaugeage'],
@@ -56,6 +61,7 @@ function FormulaireProduit({ produit, onFermer }: { produit?: Produit; onFermer:
       suiviJaugeage: produit?.suiviJaugeage ?? true,
       tauxTva: produit?.tauxTva?.toString() ?? '',
       actif: produit?.actif ?? true,
+      toleranceEcartPct: produit?.toleranceEcartPct?.toString() ?? '0.5',
     },
   })
   const mutation = useMutation({
@@ -68,6 +74,7 @@ function FormulaireProduit({ produit, onFermer }: { produit?: Produit; onFermer:
         suiviJaugeage: v.suiviJaugeage,
         tauxTva: versNombre(v.tauxTva),
         actif: v.actif,
+        toleranceEcartPct: versNombre(v.toleranceEcartPct),
         version: produit?.version,
       }
       return produit ? api.put<Produit>(`/produits/${produit.id}`, corps) : api.post<Produit>('/produits', corps)
@@ -109,6 +116,7 @@ function FormulaireProduit({ produit, onFermer }: { produit?: Produit; onFermer:
               ))}
             </ChampTexte>
             <ChampTexte control={control} nom="tauxTva" libelle="Taux de TVA (%)" aide="Laisser vide si non applicable" />
+            <ChampTexte control={control} nom="toleranceEcartPct" libelle="Tolérance d'écart de stock (%)" aide="En % des sorties du mois (cuves)" />
             <Box>
               <ChampInterrupteur control={control} nom="suiviJaugeage" libelle="Suivi par jaugeage de cuve" />
               {erreurJaugeage && <Alert severity="warning" sx={{ mt: 1 }}>{erreurJaugeage}</Alert>}
@@ -143,6 +151,12 @@ export function PageProduits() {
       headerName: 'TVA',
       width: 90,
       valueFormatter: (v: number | null) => (v === null ? '—' : `${formaterNombre(v)} %`),
+    },
+    {
+      field: 'toleranceEcartPct',
+      headerName: 'Tolérance stock',
+      width: 130,
+      valueFormatter: (v: number | null) => (v == null ? '—' : `± ${formaterNombre(v)} %`),
     },
     { field: 'actif', headerName: 'Statut', width: 110, renderCell: ({ value }) => <PuceStatut actif={!!value} /> },
   ]

@@ -110,6 +110,7 @@ export const api = {
   get: <T>(chemin: string) => requete<T>('GET', chemin),
   post: <T>(chemin: string, corps?: unknown) => requete<T>('POST', chemin, corps ?? {}),
   put: <T>(chemin: string, corps: unknown) => requete<T>('PUT', chemin, corps),
+  delete: <T>(chemin: string) => requete<T>('DELETE', chemin),
 }
 
 /** Message lisible pour n'importe quelle erreur. */

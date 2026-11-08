@@ -81,7 +81,32 @@ class ReferentielConsultationService implements ReferentielConsultation {
 
     @Override
     public BigDecimal volumeJauge(UUID cuveId, int hauteurMm) {
-        Cuve cuve = cuves.findByUuid(cuveId).orElseThrow(() -> ErreurMetier.introuvable("Cuve"));
+        return volume(cuves.findByUuid(cuveId).orElseThrow(() -> ErreurMetier.introuvable("Cuve")), hauteurMm);
+    }
+
+    @Override
+    public BigDecimal volumeJauge(long cuveId, int hauteurMm) {
+        return volume(cuves.findById(cuveId).orElseThrow(() -> ErreurMetier.introuvable("Cuve")), hauteurMm);
+    }
+
+    @Override
+    public List<CuveRef> cuves(long stationId) {
+        List<Cuve> liste = cuves.findByStationIdOrderByCodeAsc(stationId);
+        if (liste.isEmpty()) {
+            return List.of();
+        }
+        Set<Long> avecBareme = baremes.compterParCuve(liste.stream().map(Cuve::getId).toList()).stream()
+                .filter(n -> n.getNombre() > 0).map(PointBaremeDepot.NombreParCuve::getCuveId)
+                .collect(Collectors.toUnmodifiableSet());
+        return liste.stream().map(c -> ref(c, avecBareme.contains(c.getId()))).toList();
+    }
+
+    @Override
+    public Optional<CuveRef> cuve(UUID uuid) {
+        return cuves.findByUuid(uuid).map(c -> ref(c, !baremes.findByCuveIdOrderByHauteurMmAsc(c.getId()).isEmpty()));
+    }
+
+    private BigDecimal volume(Cuve cuve, int hauteurMm) {
         List<PointBareme> points = baremes.findByCuveIdOrderByHauteurMmAsc(cuve.getId());
         if (points.isEmpty()) {
             throw ErreurMetier.regle("BAREME_ABSENT", "La cuve " + cuve.getCode() + " n'a pas encore de barème de jaugeage.");
@@ -108,6 +133,13 @@ class ReferentielConsultationService implements ReferentielConsultation {
     @Override
     public List<PistoletRef> pistolets(long stationId) {
         return pistolets.parStation(stationId).stream().map(ReferentielConsultationService::ref).toList();
+    }
+
+    private static CuveRef ref(Cuve c, boolean bareme) {
+        Produit p = c.getProduit();
+        return new CuveRef(c.getId(), c.getUuid(), c.getStation().getId(), c.getCode(), p.getId(), p.getCode(),
+                p.getLibelle(), c.getCapaciteLitres(), c.getCreuxSecuriteLitres(), p.getToleranceEcartPct(), bareme,
+                c.isActif());
     }
 
     private static ChangementCompteur ref(EvenementEquipement e) {

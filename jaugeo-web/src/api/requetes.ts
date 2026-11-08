@@ -1,6 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from './client'
 import type {
+  AnalyseMensuelle,
+  ComplementCiterne,
+  SituationStock,
+  StockJournee,
   Bareme,
   ChangementPrix,
   DetailJournee,
@@ -35,6 +39,10 @@ export const cles = {
   journees: ['journees'] as const,
   journeesStation: (stationId: string) => ['journees', 'station', stationId] as const,
   journee: (id: string) => ['journees', id] as const,
+  stockJournee: (id: string) => ['journees', id, 'stock'] as const,
+  stockMensuel: (stationId: string, mois: string) => ['stock', 'mensuel', stationId, mois] as const,
+  situationStock: ['stock', 'situation'] as const,
+  complements: (statut: string) => ['stock', 'complements', statut] as const,
 }
 
 export const useRegions = () => useQuery({ queryKey: cles.regions, queryFn: () => api.get<Region[]>('/regions'), staleTime: 10 * 60_000 })
@@ -93,3 +101,22 @@ export const useJourneesStation = (stationId: string | null) =>
   })
 
 export const useJournee = (id: string) => useQuery({ queryKey: cles.journee(id), queryFn: () => api.get<DetailJournee>(`/journees/${id}`) })
+
+export const useStockJournee = (id: string) =>
+  useQuery({ queryKey: cles.stockJournee(id), queryFn: () => api.get<StockJournee>(`/journees/${id}/stock`) })
+
+export const useStockMensuel = (stationId: string | null, mois: string) =>
+  useQuery({
+    queryKey: cles.stockMensuel(stationId ?? '', mois),
+    queryFn: () => api.get<AnalyseMensuelle>(`/stations/${stationId}/stock?mois=${mois}`),
+    enabled: !!stationId && /^\d{4}-\d{2}$/.test(mois),
+  })
+
+export const useSituationStock = () =>
+  useQuery({ queryKey: cles.situationStock, queryFn: () => api.get<SituationStock>('/stock/situation') })
+
+export const useComplements = (statut: string) =>
+  useQuery({
+    queryKey: cles.complements(statut),
+    queryFn: () => api.get<ComplementCiterne[]>(`/stock/complements${statut ? `?statut=${statut}` : ''}`),
+  })

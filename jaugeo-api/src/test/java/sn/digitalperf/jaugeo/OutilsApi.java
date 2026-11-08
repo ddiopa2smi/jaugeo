@@ -1,11 +1,14 @@
 package sn.digitalperf.jaugeo;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -67,6 +70,35 @@ public final class OutilsApi {
                         .content("{\"ancienMotDePasse\":\"%s\",\"nouveauMotDePasse\":\"%s\"}".formatted(provisoire, MDP_UTILISATEUR)))
                 .andExpect(status().isOk()).andReturn();
         return jeton(change);
+    }
+
+    /**
+     * Jauge chaque cuve d'une journee en saisie sans ecart : stock de depart de 5 000 L quand il est demande,
+     * puis stock physique = stock theorique. Renvoie le detail de la journee (version a jour).
+     */
+    public static String jaugerSansEcart(MockMvc mvc, String jeton, String journeeId) throws Exception {
+        String stock = mvc.perform(avec(get("/api/v1/journees/" + journeeId + "/stock"), jeton))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        List<String> ouvertures = JsonPath.read(stock, "$.cuves[?(@.ouvertureRequise == true)].cuveId");
+        if (!ouvertures.isEmpty()) {
+            stock = jauger(mvc, jeton, journeeId, stock, ouvertures.stream()
+                    .map(c -> "{\"cuveId\":\"" + c + "\",\"moment\":\"OUVERTURE\",\"volumeLitres\":5000}").toList());
+        }
+        List<Map<String, Object>> cuves = JsonPath.read(stock, "$.cuves");
+        stock = jauger(mvc, jeton, journeeId, stock, cuves.stream()
+                .map(c -> "{\"cuveId\":\"" + c.get("cuveId") + "\",\"moment\":\"CLOTURE\",\"volumeLitres\":"
+                        + c.get("stockTheorique") + "}").toList());
+        assertThat(JsonPath.<Integer>read(stock, "$.anomalies")).isZero();
+        return mvc.perform(avec(get("/api/v1/journees/" + journeeId), jeton))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+    }
+
+    public static String jauger(MockMvc mvc, String jeton, String journeeId, String stock, List<String> jaugeages)
+            throws Exception {
+        return mvc.perform(avec(put("/api/v1/journees/" + journeeId + "/jaugeages"), jeton)
+                        .content("{\"version\":" + JsonPath.read(stock, "$.version") + ",\"jaugeages\":["
+                                + String.join(",", jaugeages) + "]}"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
     }
 
     public static long numeroStation(JdbcClient jdbc, String code) {

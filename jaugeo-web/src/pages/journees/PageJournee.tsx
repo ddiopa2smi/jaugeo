@@ -22,15 +22,16 @@ import TableRow from '@mui/material/TableRow'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link as LienRouteur, useParams } from 'react-router'
 import { api, messageErreur } from '../../api/client'
 import { cles, useJournee } from '../../api/requetes'
-import type { DetailJournee, LigneReleve, SaisieJournee } from '../../api/types'
+import type { DetailJournee, LigneReleve, SaisieJournee, StockJournee } from '../../api/types'
 import { AlerteErreur, Chargement } from '../../shared/composants'
 import { apercu, memeSaisie, saisieInitiale, STATUTS_JOURNEE, type SaisieLigne } from '../../shared/journee'
 import { formaterDate, formaterDateHeureCourte, formaterNombre, formaterPrix, versNombre } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
+import { RecapStock, SectionStock, type PoigneeStock } from './SectionStock'
 
 const heure = (iso: string) => new Date(iso).toISOString().slice(11, 16)
 
@@ -202,7 +203,8 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
     Object.fromEntries(journee.lignes.map((l) => [l.pistoletId, saisieInitiale(l)])),
   )
   const [observation, setObservation] = useState(journee.observation ?? '')
-  const [recap, setRecap] = useState<DetailJournee | null>(null)
+  const [recap, setRecap] = useState<{ journee: DetailJournee; stock: StockJournee } | null>(null)
+  const poigneeStock = useRef<PoigneeStock>(null)
   const [renvoi, setRenvoi] = useState<string | null>(null)
 
   const modifiable = journee.actions.saisir
@@ -214,6 +216,8 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
   const majCache = (j: DetailJournee) => {
     queryClient.setQueryData(cles.journee(j.id), j)
     queryClient.invalidateQueries({ queryKey: cles.journeesStation(j.stationId) })
+    // Les sorties (donc le stock théorique) et la version de la journée ont changé
+    queryClient.invalidateQueries({ queryKey: cles.stockJournee(j.id) })
   }
 
   const enregistrement = useMutation({
@@ -264,11 +268,20 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
 
   const preparerCloture = async () => {
     const j = modifiee ? await enregistrement.mutateAsync() : journee
-    if (j.anomalies > 0) {
-      notifier(`Clôture impossible : ${j.anomalies} point(s) à corriger (en rouge).`, 'error')
+    if (poigneeStock.current?.modifie) await poigneeStock.current.enregistrer(j.version)
+    // État serveur à jour (version et contrôles) avant de proposer la clôture
+    const [jf, sf] = await Promise.all([
+      api.get<DetailJournee>(`/journees/${journee.id}`),
+      api.get<StockJournee>(`/journees/${journee.id}/stock`),
+    ])
+    queryClient.setQueryData(cles.journee(jf.id), jf)
+    queryClient.setQueryData(cles.stockJournee(jf.id), sf)
+    const points = jf.anomalies + sf.anomalies
+    if (points > 0) {
+      notifier(`Clôture impossible : ${points} point(s) à corriger (en rouge).`, 'error')
       return
     }
-    setRecap(j)
+    setRecap({ journee: jf, stock: sf })
   }
 
   const groupes = new Map<string, LigneReleve[]>()
@@ -313,6 +326,7 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
               ))}
             </Paper>
           ))}
+          <SectionStock journeeId={journee.id} ref={poigneeStock} />
         </Stack>
 
         <Paper variant="outlined" sx={{ p: 2, width: { xs: '100%', lg: 360 }, flexShrink: 0, position: { lg: 'sticky' }, top: { lg: 80 } }}>
@@ -394,9 +408,10 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
       <Dialog open={!!recap} onClose={() => setRecap(null)} maxWidth="xs" fullWidth>
         <DialogTitle>Clôturer la journée du {formaterDate(journee.date)} ?</DialogTitle>
         <DialogContent>
-          {recap && <Totaux journee={recap} />}
+          {recap && <Totaux journee={recap.journee} />}
+          {recap && <RecapStock stock={recap.stock} />}
           <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-            Après clôture, les index et les ventes sont figés. Seul un superviseur peut renvoyer la journée pour correction.
+            Après clôture, les index, les ventes et les écarts de stock sont figés. Seul un superviseur peut renvoyer la journée pour correction.
           </Typography>
           {action.error && (
             <Alert severity="error" sx={{ mt: 2 }}>
@@ -408,7 +423,7 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
           <Button onClick={() => setRecap(null)}>Annuler</Button>
           <Button
             variant="contained"
-            onClick={() => action.mutate({ chemin: 'cloture', corps: { version: recap!.version } })}
+            onClick={() => action.mutate({ chemin: 'cloture', corps: { version: recap!.journee.version } })}
             disabled={action.isPending}
           >
             Confirmer la clôture

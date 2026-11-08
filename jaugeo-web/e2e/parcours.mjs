@@ -238,16 +238,56 @@ try {
   await g.page.getByLabel('Remise en cuve G1').fill('5,5')
   verifier('Aperçu en direct : G1 245 L nets', /245\s?L/.test(await g.page.getByTestId('nette-G1').innerText()))
   await capture(g.page, '09a-journee-saisie-tablette')
+
+  // 10c. Sprint 3 : jaugeages. Relevés enregistrés d'abord (sorties par cuve), stock de départ si la veille n'est pas jaugée
+  await g.page.getByRole('button', { name: 'Enregistrer', exact: true }).click()
+  await g.page.getByText(/Saisie enregistrée|point\(s\) à corriger/).first().waitFor()
+  const litresAffiches = async (testid) => {
+    const t = (await g.page.getByTestId(testid).innerText()).replace(/[^\d,−-]/g, '').replace('−', '-').replace(',', '.')
+    return t === '' || t === '-' ? null : Number(t)
+  }
+  let departSaisi = false
+  for (const cuve of ['C1', 'C2']) {
+    const depart = g.page.getByLabel(`Stock de départ ${cuve}`, { exact: true })
+    if (await depart.count()) {
+      await depart.fill('5000')
+      departSaisi = true
+    }
+  }
+  if (departSaisi) {
+    await g.page.getByRole('button', { name: 'Enregistrer les jaugeages' }).click()
+    await g.page.getByText(/Jaugeages enregistrés/).first().waitFor()
+  }
+  // C1 jaugée au théorique ; C2 avec 2 L de moins (écart faible, dans la tolérance du mois)
+  for (const [cuve, delta] of [['C1', 0], ['C2', -2]]) {
+    await g.page.getByTestId(`theorique-${cuve}`).filter({ hasText: /\d/ }).waitFor()
+    const theorique = await litresAffiches(`theorique-${cuve}`)
+    await g.page.getByLabel(`Jaugeage de fin ${cuve}`, { exact: true }).fill(String(theorique + delta).replace('.', ','))
+  }
+  verifier('Stock : théorique C1 calculé (départ + reçu − sorties)', (await litresAffiches('theorique-C1')) > 0)
+  await capture(g.page, '09d-journee-jaugeages')
+
   await g.page.getByRole('button', { name: 'Clôturer la journée' }).click()
   const dlgCloture = g.page.getByRole('dialog')
   await dlgCloture.getByTestId('total-journee').waitFor()
   verifier('Clôture : récapitulatif des ventes', /\d\s?F/.test(await dlgCloture.getByTestId('total-journee').innerText()))
+  verifier('Clôture : écart de stock C2 au récapitulatif', /2\s?L/.test(await dlgCloture.getByTestId('recap-ecart-C2').innerText()))
   await capture(g.page, '09b-journee-recapitulatif')
   await dlgCloture.getByRole('button', { name: 'Confirmer la clôture' }).click()
   await g.page.getByText('Journée clôturée : les ventes sont figées.').waitFor()
   verifier('Journée clôturée et verrouillée', await g.page.getByLabel("Index d'arrivée G1").isDisabled())
   const urlJournee = g.page.url()
   await capture(g.page, '09c-journee-cloturee')
+
+  // 10d. Analyse mensuelle des stocks de Niandane et carte du tableau de bord
+  const [, mm, aaaa] = titreJournee.match(/(\d{2})\/(\d{4})/) ?? []
+  await g.page.goto(`${BASE}/stocks?mois=${aaaa}-${mm}`)
+  await g.page.getByTestId('total-C1').waitFor()
+  verifier('Stocks : analyse du mois par cuve (C1, C2)', (await g.page.getByTestId('total-C2').count()) === 1)
+  await capture(g.page, '09e-stocks-mensuel')
+  await g.page.getByRole('link', { name: 'Tableau de bord' }).click()
+  await g.page.getByTestId('alertes-stock').waitFor()
+  verifier('Tableau de bord : situation des stocks affichée', true)
 
   // 11. Mobile
   await g.page.setViewportSize({ width: 390, height: 800 })

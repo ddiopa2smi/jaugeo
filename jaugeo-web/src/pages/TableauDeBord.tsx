@@ -3,12 +3,18 @@ import Box from '@mui/material/Box'
 import Chip from '@mui/material/Chip'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
+import Table from '@mui/material/Table'
+import TableBody from '@mui/material/TableBody'
+import TableCell from '@mui/material/TableCell'
+import TableHead from '@mui/material/TableHead'
+import TableRow from '@mui/material/TableRow'
 import Typography from '@mui/material/Typography'
 import { useNavigate } from 'react-router'
-import { useGrillePrix, useProduits, useStations } from '../api/requetes'
+import { useGrillePrix, useProduits, useSituationStock, useStations } from '../api/requetes'
 import { usePermission, useSession } from '../auth/session'
 import { AlerteErreur, Chargement } from '../shared/composants'
-import { formaterDateHeureCourte, formaterPrix, TYPES_STATION } from '../shared/libelles'
+import { formaterDate, formaterDateHeureCourte, formaterNombre, formaterPrix, TYPES_STATION } from '../shared/libelles'
+import { formaterPct, NIVEAUX_ECART } from '../shared/stock'
 
 function Indicateur({ libelle, valeur, detail }: { libelle: string; valeur: string | number; detail?: string }) {
   return (
@@ -65,6 +71,74 @@ function PrixEnVigueur() {
             </Box>
           )
         })}
+      </Box>
+    </Paper>
+  )
+}
+
+/** Dernier stock jaugé de chaque cuve et alertes d'écart (cumul du mois au-delà de la tolérance). */
+function SituationStocks() {
+  const situation = useSituationStock()
+  const navigate = useNavigate()
+  const s = situation.data
+  if (!s || (s.cuves.length === 0 && s.complementsARegler === 0)) return null
+  const alertes = s.cuves.filter((c) => c.niveau !== 'NORMAL')
+  return (
+    <Paper sx={{ p: 2, mb: 3 }} aria-label="Stocks et écarts">
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1, flexWrap: 'wrap' }}>
+        <Typography variant="body2" color="text.secondary" sx={{ flexGrow: 1 }}>
+          Stocks et écarts
+        </Typography>
+        <Chip
+          size="small"
+          color={s.alertes > 0 ? 'error' : 'success'}
+          label={s.alertes > 0 ? `${s.alertes} écart(s) hors tolérance` : 'Écarts dans la tolérance'}
+          data-testid="alertes-stock"
+        />
+        {s.complementsARegler > 0 && (
+          <Chip
+            size="small"
+            color="warning"
+            label={`${s.complementsARegler} complément(s) citerne à régler · ${formaterPrix(s.montantComplementsARegler)}`}
+            onClick={() => navigate('/stocks?onglet=complements')}
+          />
+        )}
+      </Stack>
+      <Box sx={{ overflowX: 'auto' }}>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>Cuve</TableCell>
+              <TableCell>Dernier jaugeage</TableCell>
+              <TableCell align="right">Stock</TableCell>
+              <TableCell align="right">Écart du mois</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {(alertes.length > 0 ? alertes : s.cuves).map((c) => (
+              <TableRow
+                key={c.cuveId}
+                hover
+                sx={{ cursor: 'pointer' }}
+                onClick={() => navigate(`/stocks?station=${c.stationId}&mois=${c.date.slice(0, 7)}`)}
+              >
+                <TableCell>
+                  {c.stationCode} · {c.cuveCode} · {c.produitLibelle}
+                </TableCell>
+                <TableCell>{formaterDate(c.date)}</TableCell>
+                <TableCell align="right">{formaterNombre(c.stockPhysique)} L</TableCell>
+                <TableCell align="right">
+                  <Chip
+                    size="small"
+                    variant="outlined"
+                    color={NIVEAUX_ECART[c.niveau].couleur}
+                    label={`${formaterNombre(c.cumulEcartMois)} L · ${formaterPct(c.ecartPctMois)}`}
+                  />
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </Box>
     </Paper>
   )
@@ -130,9 +204,9 @@ export function TableauDeBord() {
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         {utilisateur.roleLibelle} · {utilisateur.perimetre === 'RESEAU' ? 'tout le réseau' : `${utilisateur.stationIds.length} station(s)`}
       </Typography>
+      {voitReferentiel && <SituationStocks />}
       <Alert severity="info" sx={{ mb: 3 }}>
-        Les indicateurs de ventes, de stock et de trésorerie s'afficheront ici dès la mise en service des modules
-        d'exploitation quotidienne.
+        Les indicateurs de ventes et de trésorerie s'afficheront ici avec les modules de trésorerie et de reporting.
       </Alert>
       {voitReferentiel && <SyntheseReferentiel />}
     </>

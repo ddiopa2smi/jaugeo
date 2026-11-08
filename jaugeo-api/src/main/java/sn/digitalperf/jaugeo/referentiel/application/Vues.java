@@ -38,10 +38,11 @@ public final class Vues {
     }
 
     public record ProduitVue(UUID id, String code, String libelle, Produit.Famille famille, Produit.Unite unite,
-                             boolean suiviJaugeage, BigDecimal tauxTva, boolean actif, Integer version) {
+                             boolean suiviJaugeage, BigDecimal tauxTva, boolean actif, BigDecimal toleranceEcartPct,
+                             Integer version) {
         public static ProduitVue de(Produit p) {
             return new ProduitVue(p.getUuid(), p.getCode(), p.getLibelle(), p.getFamille(), p.getUnite(),
-                    p.isSuiviJaugeage(), p.getTauxTva(), p.isActif(), p.getVersion());
+                    p.isSuiviJaugeage(), p.getTauxTva(), p.isActif(), p.getToleranceEcartPct(), p.getVersion());
         }
     }
 

@@ -28,6 +28,12 @@ public interface ReferentielConsultation {
                        boolean actif) {
     }
 
+    /** Cuve avec son produit, la tolerance d'ecart de stock du produit et la presence d'un bareme. */
+    record CuveRef(long id, UUID uuid, long stationId, String code, long produitId, String produitCode,
+                   String produitLibelle, BigDecimal capaciteLitres, BigDecimal creuxSecuriteLitres,
+                   BigDecimal toleranceEcartPct, boolean bareme, boolean actif) {
+    }
+
     /** Changement de compteur d'un pistolet : index lu sur l'ancien compteur, index de depart du nouveau. */
     record ChangementCompteur(Instant date, BigDecimal indexAvant, BigDecimal indexApres) {
     }
@@ -47,6 +53,14 @@ public interface ReferentielConsultation {
 
     /** Volume (litres) d'une cuve pour une hauteur de jauge, d'apres son bareme. */
     BigDecimal volumeJauge(UUID cuveId, int hauteurMm);
+
+    /** Volume (litres) d'une cuve (identifiant technique) pour une hauteur de jauge, d'apres son bareme. */
+    BigDecimal volumeJauge(long cuveId, int hauteurMm);
+
+    /** Cuves d'une station (actives ou non), par code. */
+    List<CuveRef> cuves(long stationId);
+
+    Optional<CuveRef> cuve(UUID uuid);
 
     /** Changements de compteur d'un pistolet sur [debut, fin), dans l'ordre chronologique. */
     List<ChangementCompteur> changementsCompteur(UUID pistoletId, Instant debut, Instant fin);

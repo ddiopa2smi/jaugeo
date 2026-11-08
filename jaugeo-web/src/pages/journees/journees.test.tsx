@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { DetailJournee, LigneReleve, Permission, SaisieJournee } from '../../api/types'
+import type { DetailJournee, LigneReleve, Permission, SaisieJournee, StockJournee } from '../../api/types'
 import { Fournisseurs } from '../../app/Fournisseurs'
 import { RestaurationSession } from '../../app/Gardes'
 import { creerQueryClient } from '../../app/queryClient'
@@ -81,6 +81,56 @@ describe('saisie et clôture d’une journée', () => {
     let courante = journee(3, [ligne('p1', 'G1', 'P1', 88916), ligne('p2', 'G2', 'P2', 140503)])
     const saisies: SaisieJournee[] = []
     const clotures: unknown[] = []
+    const jaugeages: unknown[] = []
+    let jaugeFin: number | null = null
+    // Cuve C1 : 10 000 L la veille, sorties = celles des relevés enregistrés (1280,5 L)
+    const stock = (): StockJournee => {
+      const sorties = courante.litres
+      const theorique = sorties === null ? null : 10000 - sorties
+      const ecart = jaugeFin === null || theorique === null ? null : jaugeFin - theorique
+      const anomalies = jaugeFin === null ? [{ code: 'JAUGEAGE_CLOTURE_MANQUANT', message: 'Jaugeage de fin manquant.' }] : []
+      return {
+        journeeId: 'j1',
+        stationId: 's-nia',
+        stationCode: 'NIA',
+        date: '2026-08-16',
+        statut: courante.statut,
+        version: courante.version,
+        modifiable: courante.statut === 'BROUILLON',
+        receptions: [],
+        anomalies: anomalies.length,
+        toleranceTransportPct: 0.3,
+        cuves: [
+          {
+            cuveId: 'c1',
+            cuveCode: 'C1',
+            produitCode: 'GASOIL',
+            produitLibelle: 'Gasoil',
+            capaciteLitres: 30000,
+            bareme: false,
+            departReporte: true,
+            ouvertureRequise: false,
+            stockDepart: 10000,
+            ouverture: null,
+            receptions: 0,
+            sorties,
+            stockTheorique: theorique,
+            cloture: jaugeFin === null ? null : { hauteurMm: null, volumeLitres: jaugeFin, observation: null, par: 'gerant.nia', le: '2026-08-16T21:00:00Z' },
+            ecartLitres: ecart,
+            ecartPctJour: null,
+            prixUnitaire: 755,
+            ecartValeur: null,
+            cumulSortiesMois: null,
+            cumulEcartMois: ecart,
+            ecartPctMois: null,
+            tolerancePct: 0.5,
+            niveau: ecart === null ? null : 'NORMAL',
+            observationRequise: false,
+            anomalies,
+          },
+        ],
+      }
+    }
     installerFauxServeur(({ methode, chemin, corps }) => {
       if (chemin === '/auth/rafraichir') return { status: 200, corps: sessionTest('j', GERANT) }
       if (chemin === '/journees/j1' && methode === 'GET') return { status: 200, corps: courante }
@@ -104,6 +154,14 @@ describe('saisie et clôture d’une journée', () => {
           }),
         )
         return { status: 200, corps: courante }
+      }
+      if (chemin === '/journees/j1/stock') return { status: 200, corps: stock() }
+      if (chemin === '/journees/j1/jaugeages') {
+        const s = corps as { version: number; jaugeages: { volumeLitres: number }[] }
+        jaugeages.push(s)
+        jaugeFin = s.jaugeages[0]!.volumeLitres
+        courante = { ...courante, version: courante.version + 1 }
+        return { status: 200, corps: stock() }
       }
       if (chemin === '/journees/j1/cloture') {
         clotures.push(corps)
@@ -141,19 +199,22 @@ describe('saisie et clôture d’une journée', () => {
     expect(within(screen.getByTestId('ligne-G2')).getByText(/inférieur/)).toBeInTheDocument()
     await u.clear(screen.getByLabelText("Index d'arrivée G2"))
     await u.type(screen.getByLabelText("Index d'arrivée G2"), '141003')
+    await u.type(screen.getByLabelText('Jaugeage de fin C1'), '8714')
 
-    // Clôturer enregistre d'abord, puis montre le récapitulatif
+    // Clôturer enregistre relevés puis jaugeages, puis montre le récapitulatif
     await u.click(screen.getByRole('button', { name: 'Clôturer la journée' }))
     const dialogue = await screen.findByRole('dialog')
     expect(saisies[0]).toMatchObject({
       version: 3,
       releves: [{ pistoletId: 'p1', indexArrivee: 89716.5, remiseCuve: 20 }, { indexArrivee: 141003 }],
     })
+    expect(jaugeages).toEqual([{ version: 4, jaugeages: [{ cuveId: 'c1', moment: 'CLOTURE', hauteurMm: null, volumeLitres: 8714, observation: null }] }])
     expect(within(dialogue).getByTestId('total-journee')).toHaveTextContent('966 778 F')
+    expect(within(dialogue).getByTestId('recap-ecart-C1')).toHaveTextContent(/5,5 L/)
     await u.click(within(dialogue).getByRole('button', { name: 'Confirmer la clôture' }))
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(clotures).toEqual([{ version: 4 }])
+    expect(clotures).toEqual([{ version: 5 }])
     expect(await screen.findByText(/Clôturée par gerant.nia/)).toBeInTheDocument()
     expect(screen.getByLabelText("Index d'arrivée G1")).toBeDisabled()
     expect(screen.queryByRole('button', { name: 'Enregistrer' })).not.toBeInTheDocument()

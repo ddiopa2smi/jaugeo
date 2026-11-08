@@ -1,0 +1,95 @@
+package sn.digitalperf.jaugeo.stock.application;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.util.List;
+import java.util.UUID;
+
+/** Contrats JSON du module stocks. */
+public final class VuesStock {
+
+    private VuesStock() {
+    }
+
+    public record AnomalieVue(String code, String message) {
+    }
+
+    public record JaugeageVue(Integer hauteurMm, BigDecimal volumeLitres, String observation, String par, Instant le) {
+    }
+
+    /**
+     * Stock d'une cuve pour une journee. Le depart est reporte du jaugeage de cloture de la veille ;
+     * a defaut (premiere journee suivie), un jaugeage d'ouverture est demande.
+     */
+    public record CuveStock(UUID cuveId, String cuveCode, String produitCode, String produitLibelle,
+                            BigDecimal capaciteLitres, boolean bareme, boolean departReporte, boolean ouvertureRequise,
+                            BigDecimal stockDepart, JaugeageVue ouverture, BigDecimal receptions, BigDecimal sorties,
+                            BigDecimal stockTheorique, JaugeageVue cloture, BigDecimal ecartLitres,
+                            BigDecimal ecartPctJour, BigDecimal prixUnitaire, BigDecimal ecartValeur,
+                            BigDecimal cumulSortiesMois, BigDecimal cumulEcartMois, BigDecimal ecartPctMois,
+                            BigDecimal tolerancePct, String niveau, boolean observationRequise,
+                            List<AnomalieVue> anomalies) {
+    }
+
+    public record ReceptionVue(UUID id, UUID cuveId, String cuveCode, String produitCode, String numeroBl,
+                               String fournisseur, String transporteur, String chauffeur, String immatriculation,
+                               String scelles, BigDecimal quantiteBl, BigDecimal jaugeAvant, BigDecimal jaugeApres,
+                               BigDecimal quantiteRecue, BigDecimal temperatureC, BigDecimal densite,
+                               String observation, BigDecimal ecartLivraison, BigDecimal ecartLivraisonPct,
+                               BigDecimal complementLitres, String complementStatut, String par, Instant le) {
+    }
+
+    public record StockJournee(UUID journeeId, UUID stationId, String stationCode, LocalDate date, String statut,
+                               Integer version, boolean modifiable, List<CuveStock> cuves,
+                               List<ReceptionVue> receptions, int anomalies, BigDecimal toleranceTransportPct) {
+    }
+
+    // ---------------------------------------------------------------- Analyse mensuelle
+
+    public record LigneStock(LocalDate date, UUID journeeId, UUID cuveId, String cuveCode, String produitCode,
+                             BigDecimal stockDepart, BigDecimal receptions, BigDecimal sorties,
+                             BigDecimal stockTheorique, BigDecimal stockPhysique, BigDecimal ecartLitres,
+                             BigDecimal ecartValeur, BigDecimal cumulEcartMois, BigDecimal ecartPctMois,
+                             String niveau, String observation) {
+    }
+
+    public record TotalCuve(UUID cuveId, String cuveCode, String produitCode, String produitLibelle,
+                            BigDecimal stockDepart, BigDecimal receptions, BigDecimal sorties,
+                            BigDecimal stockTheorique, BigDecimal stockPhysique, BigDecimal ecartLitres,
+                            BigDecimal ecartPct, BigDecimal ecartValeur, BigDecimal tolerancePct, String niveau,
+                            int jours) {
+    }
+
+    public record AnalyseMensuelle(UUID stationId, String stationCode, String stationNom, YearMonth mois,
+                                   List<TotalCuve> totaux, List<LigneStock> lignes) {
+    }
+
+    // ---------------------------------------------------------------- Situation et alertes
+
+    public record SituationCuve(UUID stationId, String stationCode, String stationNom, UUID cuveId, String cuveCode,
+                                String produitCode, String produitLibelle, LocalDate date, BigDecimal stockPhysique,
+                                BigDecimal capaciteLitres, BigDecimal cumulEcartMois, BigDecimal ecartPctMois,
+                                BigDecimal tolerancePct, String niveau, String observation) {
+    }
+
+    public record Situation(List<SituationCuve> cuves, int alertes, int complementsARegler,
+                            BigDecimal montantComplementsARegler) {
+    }
+
+    public record ComplementVue(UUID id, UUID stationId, String stationCode, LocalDate date, UUID journeeId,
+                                String numeroBl, String fournisseur, String transporteur, String immatriculation,
+                                String produitCode, BigDecimal quantiteBl, BigDecimal quantiteRecue,
+                                BigDecimal litres, BigDecimal prixUnitaire, BigDecimal montant, String statut,
+                                String referenceReglement, LocalDate regleLe, String reglePar, Integer version,
+                                boolean reglable) {
+    }
+
+    // ---------------------------------------------------------------- Saisies
+
+    /** Hauteur (mm, convertie par le bareme) ou volume lu ; les deux nuls = jaugeage retire. */
+    public record SaisieJaugeage(UUID cuveId, String moment, Integer hauteurMm, BigDecimal volumeLitres,
+                                 String observation) {
+    }
+}

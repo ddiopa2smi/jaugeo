@@ -103,6 +103,8 @@ export interface Produit {
   suiviJaugeage: boolean
   tauxTva: number | null
   actif: boolean
+  /** Tolérance d'écart de stock, en % des sorties du mois */
+  toleranceEcartPct: number
   version: number
 }
 
@@ -391,4 +393,210 @@ export interface SaisieJournee {
   version: number
   observation: string | null
   releves: { pistoletId: string; indexArrivee: number | null; remiseCuve: number | null; lectures: LectureIndex[] }[]
+}
+
+// ---------------------------------------------------------------- Stocks (Sprint 3)
+
+export type NiveauEcart = 'NORMAL' | 'ALERTE' | 'ENQUETE'
+
+export interface Anomalie {
+  code: string
+  message: string
+}
+
+export interface Jaugeage {
+  hauteurMm: number | null
+  volumeLitres: number
+  observation: string | null
+  par: string
+  le: string
+}
+
+export interface CuveStock {
+  cuveId: string
+  cuveCode: string
+  produitCode: string
+  produitLibelle: string
+  capaciteLitres: number | null
+  bareme: boolean
+  departReporte: boolean
+  ouvertureRequise: boolean
+  stockDepart: number | null
+  ouverture: Jaugeage | null
+  receptions: number
+  sorties: number | null
+  stockTheorique: number | null
+  cloture: Jaugeage | null
+  ecartLitres: number | null
+  ecartPctJour: number | null
+  prixUnitaire: number | null
+  ecartValeur: number | null
+  cumulSortiesMois: number | null
+  cumulEcartMois: number | null
+  ecartPctMois: number | null
+  tolerancePct: number
+  niveau: NiveauEcart | null
+  observationRequise: boolean
+  anomalies: Anomalie[]
+}
+
+export interface Reception {
+  id: string
+  cuveId: string
+  cuveCode: string
+  produitCode: string
+  numeroBl: string
+  fournisseur: string
+  transporteur: string | null
+  chauffeur: string | null
+  immatriculation: string | null
+  scelles: string | null
+  quantiteBl: number
+  jaugeAvant: number | null
+  jaugeApres: number | null
+  quantiteRecue: number
+  temperatureC: number | null
+  densite: number | null
+  observation: string | null
+  ecartLivraison: number
+  ecartLivraisonPct: number | null
+  complementLitres: number | null
+  complementStatut: 'A_REGLER' | 'REGLE' | null
+  par: string
+  le: string
+}
+
+export interface StockJournee {
+  journeeId: string
+  stationId: string
+  stationCode: string
+  date: string
+  statut: StatutJournee
+  version: number
+  modifiable: boolean
+  cuves: CuveStock[]
+  receptions: Reception[]
+  anomalies: number
+  toleranceTransportPct: number
+}
+
+export interface SaisieReception {
+  version: number
+  cuveId: string
+  numeroBl: string
+  fournisseur: string
+  transporteur: string | null
+  chauffeur: string | null
+  immatriculation: string | null
+  scelles: string | null
+  quantiteBl: number
+  jaugeAvant: number | null
+  jaugeApres: number | null
+  quantiteRecue: number | null
+  temperatureC: number | null
+  densite: number | null
+  observation: string | null
+}
+
+export interface SaisieJaugeage {
+  cuveId: string
+  moment: 'OUVERTURE' | 'CLOTURE'
+  hauteurMm: number | null
+  volumeLitres: number | null
+  observation: string | null
+}
+
+export interface LigneStock {
+  date: string
+  journeeId: string | null
+  cuveId: string
+  cuveCode: string
+  produitCode: string
+  stockDepart: number
+  receptions: number
+  sorties: number
+  stockTheorique: number
+  stockPhysique: number
+  ecartLitres: number
+  ecartValeur: number | null
+  cumulEcartMois: number
+  ecartPctMois: number | null
+  niveau: NiveauEcart
+  observation: string | null
+}
+
+export interface TotalCuve {
+  cuveId: string
+  cuveCode: string
+  produitCode: string
+  produitLibelle: string
+  stockDepart: number
+  receptions: number
+  sorties: number
+  stockTheorique: number
+  stockPhysique: number
+  ecartLitres: number
+  ecartPct: number | null
+  ecartValeur: number
+  tolerancePct: number
+  niveau: NiveauEcart
+  jours: number
+}
+
+export interface AnalyseMensuelle {
+  stationId: string
+  stationCode: string
+  stationNom: string
+  mois: string
+  totaux: TotalCuve[]
+  lignes: LigneStock[]
+}
+
+export interface SituationCuve {
+  stationId: string
+  stationCode: string
+  stationNom: string
+  cuveId: string
+  cuveCode: string
+  produitCode: string
+  produitLibelle: string
+  date: string
+  stockPhysique: number
+  capaciteLitres: number | null
+  cumulEcartMois: number
+  ecartPctMois: number | null
+  tolerancePct: number
+  niveau: NiveauEcart
+  observation: string | null
+}
+
+export interface SituationStock {
+  cuves: SituationCuve[]
+  alertes: number
+  complementsARegler: number
+  montantComplementsARegler: number
+}
+
+export interface ComplementCiterne {
+  id: string
+  stationId: string
+  stationCode: string
+  date: string
+  journeeId: string | null
+  numeroBl: string
+  fournisseur: string
+  transporteur: string | null
+  immatriculation: string | null
+  produitCode: string | null
+  quantiteBl: number
+  quantiteRecue: number
+  litres: number
+  prixUnitaire: number | null
+  montant: number | null
+  statut: 'A_REGLER' | 'REGLE'
+  referenceReglement: string | null
+  regleLe: string | null
+  reglePar: string | null
+  version: number
+  reglable: boolean
 }

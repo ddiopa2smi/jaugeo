@@ -40,6 +40,12 @@ public class Produit extends EntiteAuditee {
     @Column(nullable = false)
     private boolean actif = true;
 
+    /** Tolerance d'ecart de stock, en % des sorties de la periode (cahier des charges : 0,5 % Gasoil, 0,6 % essences). */
+    @Column(name = "tolerance_ecart_pct", nullable = false)
+    private BigDecimal toleranceEcartPct = TOLERANCE_PAR_DEFAUT;
+
+    public static final BigDecimal TOLERANCE_PAR_DEFAUT = new BigDecimal("0.50");
+
     protected Produit() {
     }
 
@@ -49,8 +55,17 @@ public class Produit extends EntiteAuditee {
 
     public void modifier(String libelle, Famille famille, Unite unite, boolean suiviJaugeage, BigDecimal tauxTva,
                          boolean actif) {
+        modifier(libelle, famille, unite, suiviJaugeage, tauxTva, actif, null);
+    }
+
+    /** Tolerance nulle = inchangee. */
+    public void modifier(String libelle, Famille famille, Unite unite, boolean suiviJaugeage, BigDecimal tauxTva,
+                         boolean actif, BigDecimal toleranceEcartPct) {
         if (suiviJaugeage && unite != Unite.LITRE) {
             throw ErreurMetier.regle("JAUGEAGE_HORS_LITRE", "Seul un produit vendu au litre peut être suivi en cuve.");
+        }
+        if (toleranceEcartPct != null && (toleranceEcartPct.signum() < 0 || toleranceEcartPct.compareTo(BigDecimal.TEN) > 0)) {
+            throw ErreurMetier.regle("TOLERANCE_INVALIDE", "La tolérance d'écart de stock doit être comprise entre 0 et 10 %.");
         }
         this.libelle = libelle;
         this.famille = famille;
@@ -58,6 +73,13 @@ public class Produit extends EntiteAuditee {
         this.suiviJaugeage = suiviJaugeage;
         this.tauxTva = tauxTva == null ? BigDecimal.ZERO : tauxTva;
         this.actif = actif;
+        if (toleranceEcartPct != null) {
+            this.toleranceEcartPct = toleranceEcartPct;
+        }
+    }
+
+    public BigDecimal getToleranceEcartPct() {
+        return toleranceEcartPct;
     }
 
     public String getCode() {

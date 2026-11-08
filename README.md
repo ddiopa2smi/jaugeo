@@ -9,7 +9,7 @@ Plateforme de gestion d'un réseau de stations-service (carburants, lubrifiants)
 | `scripts/` | Environnement de dev, démarrage, vérification de l'API |
 | `docker-compose.yml` | PostgreSQL 18 en conteneur (optionnel) |
 
-## État : Sprint 2 livré (journées, index et ventes valorisées)
+## État : Sprint 3 livré (stocks, jaugeages, réceptions et écarts)
 
 - **Socle** : monolithe modulaire (14 modules déclarés, frontières vérifiées par test), erreurs RFC 9457 avec code métier, verrouillage optimiste (`VERSION_OBSOLETE`), UUID v7.
 - **Sécurité** : jeton d'accès JWT de 15 min gardé en mémoire ; jeton de rafraîchissement de 8 h en cookie HttpOnly, renouvelé à chaque usage. Rejouer un ancien jeton ferme toutes les sessions de l'utilisateur. Le compte est verrouillé 15 min après 5 échecs. Le mot de passe provisoire doit être changé avant tout accès. Il y a 8 rôles et 15 permissions, et le périmètre d'un utilisateur est soit tout le réseau, soit une liste de stations.
@@ -55,6 +55,20 @@ Sprint 2 :
   - La validation est réservée au superviseur, qui ne peut pas être l'auteur de la clôture. Le renvoi exige un motif, retire les ventes et n'est possible que si la journée suivante n'est pas ouverte.
 - **Verrous** : une journée clôturée interdit tout changement de prix ou de compteur daté pendant cette journée. Le trou des prix rétroactifs laissé au Sprint 1 est ainsi fermé.
 - **Écrans** : liste des journées par station et ouverture de la suivante ; fiche journée adaptée à la tablette (pistolets regroupés par pompe, aperçu immédiat de la vente, totaux par produit, récapitulatif avant clôture, validation et renvoi).
+
+Sprint 3 (module `stock`, Flyway V7) :
+
+- **Jaugeages** dans la fiche journée, par cuve : jaugeage de fin obligatoire, et stock de départ uniquement si la veille n'a pas été jaugée (sinon il est reporté). La saisie se fait en litres ou en hauteur (mm), convertie par le barème. Un volume supérieur à la capacité de la cuve est refusé.
+- **Stock théorique** = stock physique de la veille + réceptions − sorties nettes des pistolets de la cuve. **Écart** = jaugé − théorique, valorisé au prix en vigueur.
+- **Alerte d'écart** jugée sur le cumul du mois (Σ écarts / Σ sorties) :
+  - *dans la tolérance* jusqu'à la tolérance du produit (0,5 % Gasoil, 0,6 % Super et Essence pirogue, modifiable sur la fiche produit) ;
+  - *alerte* jusqu'à 2 % (`jaugeo.stock.seuil-enquete-pct`) ;
+  - *enquête* au-delà.
+- **Contrôles bloquants à la clôture** : jaugeage manquant, stock théorique négatif, écart hors tolérance sans observation. La clôture fige les écarts (`stock.ecart_stock`) ; un renvoi les retire.
+- **Réceptions (BL)** : fournisseur, transporteur, chauffeur, immatriculation, scellés, quantité BL, jauges avant/après, température, densité. Un même BL n'est réceptionné qu'une fois par fournisseur.
+  - Quantité reçue = saisie, sinon jauge après − jauge avant, sinon quantité BL.
+  - **Complément citerne** : au-delà d'un manquant de 0,3 % du BL (`jaugeo.stock.tolerance-transport-pct`), tout le manquant est dû par le transporteur et valorisé au prix du jour. La logistique enregistre son règlement. Un complément réglé empêche le renvoi de la journée.
+- **Écrans** : section « Stock et jaugeages » de la fiche journée (réceptions, écart en direct, récapitulatif de clôture) ; page Stocks (analyse mensuelle par cuve, compléments citerne) ; carte « Stocks et écarts » du tableau de bord.
 
 ## Prérequis
 
@@ -105,8 +119,8 @@ Documentation de l'API : http://localhost:8080/swagger-ui.html
 ## Tests
 
 ```powershell
-cd jaugeo-api; mvn test        # 109 tests : unitaires, architecture modulaire, intégration sur PostgreSQL 18 (Testcontainers)
-cd jaugeo-web; npm test        # 36 tests : client API, parcours d'écrans, page Prix, saisie et clôture d'une journée, barèmes, échéances
+cd jaugeo-api; mvn test        # 118 tests : unitaires, architecture modulaire, intégration sur PostgreSQL 18 (Testcontainers)
+cd jaugeo-web; npm test        # 37 tests : client API, parcours d'écrans, page Prix, saisie et clôture d'une journée avec jaugeage, page Stocks, barèmes, échéances
 cd jaugeo-web; npm run lint; npm run build
 ```
 
@@ -114,10 +128,10 @@ Vérifications sur l'application en cours d'exécution :
 
 ```powershell
 .\scripts\verifier-api.ps1                                     # 29 contrôles d'API, sur une base neuve
-$env:JAUGEO_ADMIN_MDP = "<mdp admin>"; cd jaugeo-web; npm run e2e  # 39 contrôles dans Edge, captures dans e2e/captures
+$env:JAUGEO_ADMIN_MDP = "<mdp admin>"; cd jaugeo-web; npm run e2e  # 43 contrôles dans Edge, captures dans e2e/captures
 ```
 
-`npm run e2e` crée trois utilisateurs de test (`e2e.*`) et un changement de prix aussitôt annulé à chaque exécution. Il ouvre, clôture et valide aussi la journée suivante de Niandane, en partant du 01/01/2026 : à réserver aux bases de développement.
+`npm run e2e` crée trois utilisateurs de test (`e2e.*`) et un changement de prix aussitôt annulé à chaque exécution. Il ouvre, jauge (stock de départ 5 000 L par cuve la première fois), clôture et valide aussi la journée suivante de Niandane, en partant du 01/01/2026 : à réserver aux bases de développement.
 
 ## Conventions
 

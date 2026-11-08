@@ -74,9 +74,10 @@ class ReferentielController {
             boolean suiviJaugeage,
             @DecimalMin("0") @DecimalMax("100") BigDecimal tauxTva,
             boolean actif,
+            @DecimalMin("0") @DecimalMax("10") @Digits(integer = 2, fraction = 2) BigDecimal toleranceEcartPct,
             Integer version) {
         DonneesProduit donnees() {
-            return new DonneesProduit(libelle, famille, unite, suiviJaugeage, tauxTva, actif);
+            return new DonneesProduit(libelle, famille, unite, suiviJaugeage, tauxTva, actif, toleranceEcartPct);
         }
     }
 
