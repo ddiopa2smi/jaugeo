@@ -304,4 +304,60 @@ describe('saisie et clôture d’une journée', () => {
     expect(within(recetteFigee).getByTestId('solde-fin')).toHaveTextContent('1 081 778 F')
     expect(screen.queryByRole('button', { name: 'Ajouter une dépense' })).not.toBeInTheDocument()
   })
+
+  it('demande une confirmation avant de valider une journée clôturée', async () => {
+    const SUPERVISEUR = utilisateurTest({
+      identifiant: 'sup.reseau',
+      role: 'SUPERVISEUR',
+      permissions: ['REFERENTIEL_CONSULTER', 'JOURNEE_VALIDER'] as Permission[],
+    })
+    const terminee = { ...ligne('p1', 'G1', 'P1', 88916), indexArrivee: 89916, sortieBrute: 1000, sortieNette: 1000, montant: 755000, anomalies: [] }
+    let courante: DetailJournee = {
+      ...journee(7, [terminee], 'CLOTUREE'),
+      actions: { saisir: false, cloturer: false, valider: true, renvoyer: true },
+    }
+    const validations: unknown[] = []
+    installerFauxServeur(({ methode, chemin, corps }) => {
+      if (chemin === '/auth/rafraichir') return { status: 200, corps: sessionTest('j', SUPERVISEUR) }
+      if (chemin === '/journees/j1' && methode === 'GET') return { status: 200, corps: courante }
+      if (chemin === '/journees/j1/validation') {
+        validations.push(corps)
+        courante = {
+          ...courante,
+          statut: 'VALIDEE',
+          version: 8,
+          valideePar: 'sup.reseau',
+          valideeLe: '2026-08-17T08:00:00Z',
+          actions: { saisir: false, cloturer: false, valider: false, renvoyer: false },
+        }
+        return { status: 200, corps: courante }
+      }
+      return undefined
+    })
+    const routeur = createMemoryRouter(routes, { initialEntries: ['/journees/j1'] })
+    render(
+      <Fournisseurs client={creerQueryClient()}>
+        <RestaurationSession>
+          <RouterProvider router={routeur} />
+        </RestaurationSession>
+      </Fournisseurs>,
+    )
+    const u = userEvent.setup()
+
+    await u.click(await screen.findByRole('button', { name: 'Valider' }))
+    let dialogue = await screen.findByRole('dialog', { name: 'Valider la journée du 16/08/2026 ?' })
+    expect(within(dialogue).getByText(/clôturée par gerant.nia/)).toBeInTheDocument()
+    expect(within(dialogue).getByTestId('total-journee')).toHaveTextContent('755 000 F')
+    // Annuler : rien n'est envoyé
+    await u.click(within(dialogue).getByRole('button', { name: 'Annuler' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(validations).toEqual([])
+
+    await u.click(screen.getByRole('button', { name: 'Valider' }))
+    dialogue = await screen.findByRole('dialog')
+    await u.click(within(dialogue).getByRole('button', { name: 'Confirmer la validation' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(validations).toEqual([{ version: 7 }])
+    expect(await screen.findByText(/validée par sup.reseau/)).toBeInTheDocument()
+  })
 })

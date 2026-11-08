@@ -62,9 +62,22 @@ class TableauBordTest {
     }
 
     @Test
-    void reserveAuxRolesDuSiege() throws Exception {
+    void reserveAuxRolesDuSiegeEtAuxSuperviseurs() throws Exception {
         String gerant = OutilsApi.creerEtConnecter(mvc, jdbc, "GERANT", "STATIONS", List.of(numeroStation(jdbc, "NIA")));
         mvc.perform(avec(get("/api/v1/tableau-bord/reseau"), gerant)).andExpect(status().isForbidden());
+
+        // Superviseur de tout le reseau (V13) : toutes les stations
+        String superviseurReseau = OutilsApi.creerEtConnecter(mvc, jdbc, "SUPERVISEUR", "RESEAU", List.of());
+        String reseau = mvc.perform(avec(get("/api/v1/tableau-bord/reseau?date=2027-06-15"), superviseurReseau))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat((List<String>) JsonPath.read(reseau, "$.stations[*].code")).contains("NIA", "HYD", "KAY", "POT", "YOF", "MBO");
+
+        // Superviseur de quelques stations : seulement les siennes
+        String superviseurNord = OutilsApi.creerEtConnecter(mvc, jdbc, "SUPERVISEUR", "STATIONS",
+                List.of(numeroStation(jdbc, "NIA"), numeroStation(jdbc, "KAY")));
+        String nord = mvc.perform(avec(get("/api/v1/tableau-bord/reseau?date=2027-06-15"), superviseurNord))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat((List<String>) JsonPath.read(nord, "$.stations[*].code")).containsExactlyInAnyOrder("NIA", "KAY");
     }
 
     @Test

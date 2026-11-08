@@ -1,5 +1,6 @@
 // Parcours de bout en bout dans Edge (headless) contre l'application en cours d'execution.
-// Prerequis : API sur :8080, front sur :5173. Cree un utilisateur de test a chaque execution.
+// Prerequis : API sur :8080, front sur :5173. Comptes de test fixes (e2e.gerant, e2e.dg, e2e.sup) :
+// crees a la premiere execution, puis leur mot de passe est reinitialise a chaque execution.
 import { mkdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
@@ -116,52 +117,73 @@ try {
   verifier('Liste des produits affichée', true)
   await capture(page, '04-produits')
 
-  // 7. Création d'un utilisateur limité à Niandane
-  const ident = `e2e.${Date.now().toString(36)}`
+  // 7. Comptes de test : toujours les mêmes trois identifiants. Créés à la première exécution,
+  //    ensuite leur mot de passe est réinitialisé (nouveau mot de passe provisoire à changer).
   await page.getByRole('link', { name: 'Utilisateurs' }).click()
-  await page.getByRole('button', { name: 'Nouvel utilisateur' }).click()
+  await page.getByRole('gridcell', { name: 'admin', exact: true }).waitFor()
   const dlg = page.getByRole('dialog')
-  await dlg.getByLabel('Identifiant de connexion').fill(ident)
+  const existe = async (identifiant) => (await page.getByRole('gridcell', { name: identifiant, exact: true }).count()) > 0
+  const lireProvisoire = async () => {
+    const m = (await page.getByTestId('mdp-provisoire').innerText()).trim()
+    await page.getByRole('button', { name: "J'ai transmis le mot de passe" }).click()
+    return m
+  }
+  const reinitialiser = async (identifiant) => {
+    await page.locator('.MuiDataGrid-row')
+      .filter({ has: page.getByRole('gridcell', { name: identifiant, exact: true }) })
+      .getByRole('button', { name: 'Réinitialiser le mot de passe' }).click()
+    await dlg.getByRole('button', { name: 'Réinitialiser', exact: true }).click()
+    return lireProvisoire()
+  }
+  const compte = async (identifiant, nom, role) => {
+    if (await existe(identifiant)) return reinitialiser(identifiant)
+    await page.getByRole('button', { name: 'Nouvel utilisateur' }).click()
+    await dlg.getByLabel('Identifiant de connexion').fill(identifiant)
+    await dlg.getByLabel('Nom complet').fill(nom)
+    await dlg.getByLabel('Rôle', { exact: true }).click()
+    await page.getByRole('option', { name: role }).click()
+    await page.getByRole('button', { name: 'Créer le compte' }).click()
+    const m = await lireProvisoire()
+    await page.getByRole('gridcell', { name: identifiant, exact: true }).waitFor()
+    return m
+  }
+
+  // 7a. Gérant limité à Niandane ; le contrôle du périmètre est vérifié à chaque exécution
+  const ident = 'e2e.gerant'
+  const gerantExiste = await existe(ident)
+  await page.getByRole('button', { name: 'Nouvel utilisateur' }).click()
+  await dlg.getByLabel('Identifiant de connexion').fill(gerantExiste ? 'e2e.controle' : ident)
   await dlg.getByLabel('Nom complet').fill('Fatou Sarr')
   await dlg.getByLabel('Rôle', { exact: true }).click()
   await page.getByRole('option', { name: 'Gérant de station' }).click()
   await page.getByRole('button', { name: 'Créer le compte' }).click()
   await page.getByText('Désignez au moins une station.').waitFor()
   verifier('Périmètre « stations » sans station : refusé', true)
-  await dlg.getByLabel('Stations accessibles').click()
-  await page.getByRole('option', { name: /NIA/ }).click()
-  await page.getByRole('button', { name: 'Créer le compte' }).click()
-  const mdp = (await page.getByTestId('mdp-provisoire').innerText()).trim()
+  let mdp
+  if (gerantExiste) {
+    await dlg.getByRole('button', { name: 'Annuler' }).click()
+    await dlg.waitFor({ state: 'detached' })
+    mdp = await reinitialiser(ident)
+  } else {
+    await dlg.getByLabel('Stations accessibles').click()
+    await page.getByRole('option', { name: /NIA/ }).click()
+    await page.getByRole('button', { name: 'Créer le compte' }).click()
+    await page.getByTestId('mdp-provisoire').waitFor()
+    await capture(page, '05-mot-de-passe-provisoire')
+    mdp = await lireProvisoire()
+  }
   verifier(`Mot de passe provisoire affiché (${mdp.length} caractères)`, mdp.length === 12)
-  await capture(page, '05-mot-de-passe-provisoire')
-  await page.getByRole('button', { name: "J'ai transmis le mot de passe" }).click()
-  await page.getByRole('gridcell', { name: ident }).waitFor()
-  verifier('Nouvel utilisateur visible dans la liste', true)
+  await page.getByRole('gridcell', { name: ident, exact: true }).waitFor()
+  verifier('Compte de test visible dans la liste', true)
   await capture(page, '06-utilisateurs')
 
   // 7b. Un membre de la Direction (seul rôle habilité à changer les prix)
-  const identDg = `e2e.dg.${Date.now().toString(36)}`
-  await page.getByRole('button', { name: 'Nouvel utilisateur' }).click()
-  await dlg.getByLabel('Identifiant de connexion').fill(identDg)
-  await dlg.getByLabel('Nom complet').fill('Moussa Diop')
-  await dlg.getByLabel('Rôle', { exact: true }).click()
-  await page.getByRole('option', { name: 'Direction générale' }).click()
-  await page.getByRole('button', { name: 'Créer le compte' }).click()
-  const mdpDg = (await page.getByTestId('mdp-provisoire').innerText()).trim()
-  await page.getByRole('button', { name: "J'ai transmis le mot de passe" }).click()
-  await page.getByRole('gridcell', { name: identDg }).waitFor()
+  const identDg = 'e2e.dg'
+  const mdpDg = await compte(identDg, 'Moussa Diop', 'Direction générale')
 
   // 7c. Un superviseur (valide les journées clôturées par les gérants)
-  const identSup = `e2e.sup.${Date.now().toString(36)}`
-  await page.getByRole('button', { name: 'Nouvel utilisateur' }).click()
-  await dlg.getByLabel('Identifiant de connexion').fill(identSup)
-  await dlg.getByLabel('Nom complet').fill('Ibrahima Fall')
-  await dlg.getByLabel('Rôle', { exact: true }).click()
-  await page.getByRole('option', { name: 'Superviseur réseau' }).click()
-  await page.getByRole('button', { name: 'Créer le compte' }).click()
-  const mdpSup = (await page.getByTestId('mdp-provisoire').innerText()).trim()
-  await page.getByRole('button', { name: "J'ai transmis le mot de passe" }).click()
-  await page.getByRole('gridcell', { name: identSup }).waitFor()
+  const identSup = 'e2e.sup'
+  const mdpSup = await compte(identSup, 'Ibrahima Fall', 'Superviseur réseau')
 
   // 8. Journal d'audit
   await page.getByRole('link', { name: "Journal d'audit" }).click()
@@ -300,7 +322,7 @@ try {
 
   // 12. Direction : changement de prix programmé, variation à confirmer, puis annulation (base laissée intacte)
   const d = await nouveauContexte()
-  const motifE2e = `Parcours e2e ${identDg}`
+  const motifE2e = `Parcours e2e ${Date.now().toString(36)}` // unique : l'historique garde les exécutions précédentes
   await d.page.goto(`${BASE}/prix`)
   await d.page.getByLabel('Identifiant').fill(identDg)
   await d.page.getByLabel('Mot de passe', { exact: true }).fill(mdpDg)
@@ -351,7 +373,10 @@ try {
   await sup.page.getByLabel('Station').click()
   await sup.page.getByRole('option', { name: /NIA/ }).click()
   await sup.page.getByRole('gridcell', { name: 'Clôturée' }).first().click()
-  await sup.page.getByRole('button', { name: 'Valider' }).click()
+  await sup.page.getByRole('button', { name: 'Valider', exact: true }).click()
+  await sup.page.getByRole('dialog').getByText(/ne peut plus être renvoyée/).waitFor()
+  verifier('Superviseur : confirmation demandée avant la validation', true)
+  await sup.page.getByRole('button', { name: 'Confirmer la validation' }).click()
   await sup.page.getByText('Journée validée.').waitFor()
   verifier('Superviseur : journée validée', (await sup.page.locator('main').innerText()).includes('validée par ' + identSup))
   await capture(sup.page, '12-journee-validee')

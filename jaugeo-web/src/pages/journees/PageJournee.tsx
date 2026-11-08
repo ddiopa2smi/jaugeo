@@ -217,6 +217,7 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
   } | null>(null)
   const poigneeStock = useRef<PoigneeStock>(null)
   const [renvoi, setRenvoi] = useState<string | null>(null)
+  const [aValider, setAValider] = useState(false)
   /** Réseau coupé au moment de clôturer : clôture gardée dans la tablette, contrôlée par le serveur à l'envoi. */
   const [clotureHorsLigne, setClotureHorsLigne] = useState<number | null>(null)
   const libelle = `${journee.stationCode} · journée du ${formaterDate(journee.date)}`
@@ -297,6 +298,7 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
       majCache(j)
       setRecap(null)
       setRenvoi(null)
+      setAValider(false)
       notifier(
         chemin === 'cloture'
           ? 'Journée clôturée : les ventes sont figées.'
@@ -459,7 +461,10 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
                   color="success"
                   size="large"
                   startIcon={<VerifiedIcon />}
-                  onClick={() => action.mutate({ chemin: 'validation', corps: { version: journee.version } })}
+                  onClick={() => {
+                    action.reset()
+                    setAValider(true)
+                  }}
                   disabled={action.isPending}
                 >
                   Valider
@@ -476,7 +481,7 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
                 </Typography>
               )}
             </Stack>
-            {!recap && renvoi === null && <AlerteErreur erreur={action.error} />}
+            {!recap && renvoi === null && !aValider && <AlerteErreur erreur={action.error} />}
           </Paper>
           <SectionRecette journeeId={journee.id} />
         </Stack>
@@ -540,6 +545,35 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
           <Button onClick={() => setClotureHorsLigne(null)}>Annuler</Button>
           <Button variant="contained" onClick={() => cloture.mutate(clotureHorsLigne!)} disabled={cloture.isPending}>
             Clôturer hors ligne
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={aValider} onClose={() => setAValider(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Valider la journée du {formaterDate(journee.date)} ?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 1 }}>
+            {journee.stationCode} · clôturée par {journee.clotureePar} le {formaterDateHeureCourte(journee.clotureeLe)}.
+          </Typography>
+          <Totaux journee={journee} />
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+            Une journée validée ne peut plus être renvoyée au gérant : toute correction passera par une régularisation.
+          </Typography>
+          {action.error && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              {messageErreur(action.error)}
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAValider(false)}>Annuler</Button>
+          <Button
+            variant="contained"
+            color="success"
+            onClick={() => action.mutate({ chemin: 'validation', corps: { version: journee.version } })}
+            disabled={action.isPending}
+          >
+            Confirmer la validation
           </Button>
         </DialogActions>
       </Dialog>

@@ -159,7 +159,7 @@ Sprint 6 :
   - chaque envoi porte un en-tête `Idempotency-Key`. Le serveur mémorise la réponse (table `securite.requete_idempotente`, purgée après 7 jours) : un envoi rejoué après une réponse perdue n'est jamais exécuté deux fois. La même clé utilisée pour une autre requête est refusée (`IDEMPOTENCE_CLE_REUTILISEE`) ;
   - le serveur recalcule tout et refait ses contrôles. Une saisie refusée (journée modifiée entre-temps, clôture impossible…) apparaît comme conflit dans la barre d'application et sur la fiche journée ; les saisies suivantes de la journée attendent qu'elle soit abandonnée ou réessayée ;
   - limite : la session doit avoir été ouverte en ligne. Après un rechargement de la page sans réseau, il faut se reconnecter au retour du réseau ; les saisies gardées partent alors.
-- **Tableau de bord du réseau** (page *Réseau*, permission `TABLEAU_BORD_RESEAU`) :
+- **Tableau de bord du réseau** (page *Réseau*, permission `TABLEAU_BORD_RESEAU`, donnée aussi aux superviseurs par Flyway V13 ; chacun ne voit que les stations de son périmètre) :
   - un niveau par station (normal, alerte, enquête) avec ses motifs : écart de stock du mois au-delà de la tolérance ou du seuil d'enquête, jours sans journée clôturée, journées à valider, manquant de caisse ;
   - volumes de la veille et du mois, ventes, versements, valeur des écarts de stock et caisse du gérant ;
   - carte des stations (fond OpenStreetMap). Les positions chargées par la migration V11 sont celles des localités : à préciser dans la fiche station.
@@ -231,7 +231,7 @@ Vérifications sur l'application en cours d'exécution :
 $env:JAUGEO_ADMIN_MDP = "<mdp admin>"; cd jaugeo-web; npm run e2e  # 43 contrôles dans Edge, captures dans e2e/captures
 ```
 
-`npm run e2e` crée trois utilisateurs de test (`e2e.*`) et un changement de prix aussitôt annulé à chaque exécution. Il ouvre, jauge (stock de départ 5 000 L par cuve la première fois), clôture et valide aussi la journée suivante de Niandane, en partant du 01/01/2026 : à réserver aux bases de développement.
+`npm run e2e` utilise trois comptes de test fixes (`e2e.gerant`, `e2e.dg`, `e2e.sup`) : créés à la première exécution, puis leur mot de passe est réinitialisé à chaque exécution. Il crée aussi un changement de prix aussitôt annulé. Il ouvre, jauge (stock de départ 5 000 L par cuve la première fois), clôture et valide aussi la journée suivante de Niandane, en partant du 01/01/2026 : à réserver aux bases de développement.
 
 ## Conventions
 
