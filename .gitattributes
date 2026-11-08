@@ -1,0 +1,10 @@
+# Fins de ligne LF dans le dépot (CI Linux, mvnw), CRLF pour les scripts Windows
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.png binary
+*.jpg binary
+*.woff binary
+*.woff2 binary
+*.jar binary

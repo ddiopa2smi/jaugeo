@@ -1,0 +1,73 @@
+spring:
+  application:
+    name: jaugeo-api
+  profiles:
+    default: dev
+  datasource:
+    url: ${JAUGEO_DB_URL:jdbc:postgresql://localhost:5433/jaugeo}
+    username: ${JAUGEO_DB_USER:jaugeo}
+    password: ${JAUGEO_DB_PASSWORD:jaugeo_dev_2026}
+    hikari:
+      maximum-pool-size: 10
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  jackson:
+    time-zone: Africa/Dakar
+    deserialization:
+      # Un booleen absent du JSON vaut false (Jackson 3 le refuse par defaut)
+      fail-on-null-for-primitives: false
+  modulith:
+    events:
+      jdbc:
+        schema-initialization:
+          enabled: true
+
+server:
+  port: ${JAUGEO_PORT:8080}
+  error:
+    include-message: never
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,modulith
+  endpoint:
+    health:
+      show-details: when-authorized
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: alpha
+
+jaugeo:
+  securite:
+    # Secret HMAC (>= 32 caracteres). A remplacer par une variable d'environnement en recette et production.
+    jwt-secret: ${JAUGEO_JWT_SECRET:dev-uniquement-changez-moi-secret-jaugeo-hs256-2026}
+    jwt-emetteur: jaugeo
+    duree-jeton-acces: 15m
+    duree-jeton-rafraichissement: 8h
+    cookie-securise: ${JAUGEO_COOKIE_SECURE:false}
+    tentatives-max: 5
+    duree-verrouillage: 15m
+    admin-mot-de-passe-initial: ${JAUGEO_ADMIN_PASSWORD:Jaugeo@2026}
+
+logging:
+  level:
+    sn.digitalperf.jaugeo: INFO

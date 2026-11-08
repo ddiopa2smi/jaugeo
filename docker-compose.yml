@@ -1,0 +1,25 @@
+# Base PostgreSQL 18 de developpement, alternative au service Windows local.
+# Port 5434 pour ne pas entrer en conflit avec les instances locales (5432 = PG 13, 5433 = PG 18).
+# Utilisation : docker compose up -d  puis  $env:JAUGEO_DB_URL = "jdbc:postgresql://localhost:5434/jaugeo"
+services:
+  postgres:
+    image: postgres:18
+    container_name: jaugeo-postgres
+    environment:
+      POSTGRES_DB: jaugeo
+      POSTGRES_USER: jaugeo
+      POSTGRES_PASSWORD: jaugeo_dev_2026
+      TZ: Africa/Dakar
+    ports:
+      - "5434:5432"
+    volumes:
+      # PostgreSQL 18 range ses donnees sous /var/lib/postgresql/<version>/
+      - jaugeo-pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jaugeo -d jaugeo"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  jaugeo-pgdata:

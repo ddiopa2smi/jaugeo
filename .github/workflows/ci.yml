@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  api:
+    name: jaugeo-api (Java 17, PostgreSQL 18 via Testcontainers)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: jaugeo-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      # « sh » : le bit exécutable de mvnw peut manquer quand le dépôt est créé sous Windows
+      - run: sh ./mvnw -B verify
+
+  web:
+    name: jaugeo-web (lint, tests, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: jaugeo-web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: jaugeo-web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build

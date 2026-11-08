@@ -1,0 +1,16 @@
+# Documents de travail (cahier des charges, classeur source) : hors depot de code
+*.docx
+*.xlsx
+~$*
+
+# Environnements locaux
+.env
+.env.*
+*.local
+
+# Editeurs
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
