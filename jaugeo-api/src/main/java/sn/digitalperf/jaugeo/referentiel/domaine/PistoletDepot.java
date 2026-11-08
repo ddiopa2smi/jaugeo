@@ -9,7 +9,7 @@ import org.springframework.data.repository.query.Param;
 
 public interface PistoletDepot extends JpaRepository<Pistolet, Long> {
 
-    @Query("select p from Pistolet p join fetch p.pompe po where po.station.id = :stationId order by po.code, p.code")
+    @Query("select p from Pistolet p join fetch p.pompe po join fetch p.cuve c join fetch c.produit where po.station.id = :stationId order by po.code, p.code")
     List<Pistolet> parStation(@Param("stationId") Long stationId);
 
     Optional<Pistolet> findByUuid(UUID uuid);

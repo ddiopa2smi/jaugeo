@@ -10,6 +10,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import sn.digitalperf.jaugeo.commun.ErreurMetier;
+import sn.digitalperf.jaugeo.referentiel.GardeCompteur;
 import sn.digitalperf.jaugeo.referentiel.application.Vues.BaremeVue;
 import sn.digitalperf.jaugeo.referentiel.application.Vues.EvenementVue;
 import sn.digitalperf.jaugeo.referentiel.application.Vues.PointBaremeVue;
@@ -42,10 +43,11 @@ public class EquipementService {
     private final PerimetreCourant perimetre;
     private final EntityManager em;
     private final Clock horloge;
+    private final List<GardeCompteur> gardes;
 
     public EquipementService(CuveDepot cuves, PointBaremeDepot baremes, PistoletDepot pistolets, PompeDepot pompes,
                              StationDepot stations, EvenementEquipementDepot evenements, PerimetreCourant perimetre,
-                             EntityManager em, Clock horloge) {
+                             EntityManager em, Clock horloge, List<GardeCompteur> gardes) {
         this.cuves = cuves;
         this.baremes = baremes;
         this.pistolets = pistolets;
@@ -55,6 +57,7 @@ public class EquipementService {
         this.perimetre = perimetre;
         this.em = em;
         this.horloge = horloge;
+        this.gardes = gardes;
     }
 
     // ---------------------------------------------------------------- Baremes
@@ -115,8 +118,12 @@ public class EquipementService {
         // Verrou sur le pistolet : deux changements de compteur simultanes ne peuvent pas s'entrelacer
         em.lock(p, LockModeType.PESSIMISTIC_WRITE);
         EvenementEquipement dernier = evenements.dernierChangementCompteur(p.getId()).orElse(null);
-        return EvenementVue.de(evenements.saveAndFlush(
-                EvenementEquipement.surPistolet(p, saisie, dernier, horloge.instant())));
+        EvenementEquipement e = EvenementEquipement.surPistolet(p, saisie, dernier, horloge.instant());
+        if (e.getType().changeCompteur()) {
+            long stationId = p.getPompe().getStation().getId();
+            gardes.forEach(g -> g.verifierChangementCompteur(stationId, e.getDate()));
+        }
+        return EvenementVue.de(evenements.saveAndFlush(e));
     }
 
     @Transactional

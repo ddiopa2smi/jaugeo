@@ -1,0 +1,161 @@
+import { render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { createMemoryRouter, RouterProvider } from 'react-router'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { DetailJournee, LigneReleve, Permission, SaisieJournee } from '../../api/types'
+import { Fournisseurs } from '../../app/Fournisseurs'
+import { RestaurationSession } from '../../app/Gardes'
+import { creerQueryClient } from '../../app/queryClient'
+import { routes } from '../../app/routes'
+import { useSession } from '../../auth/session'
+import { installerFauxServeur, sessionTest, utilisateurTest } from '../../test/fauxServeur'
+
+const GERANT = utilisateurTest({
+  identifiant: 'gerant.nia',
+  nomComplet: 'Fatou Sall',
+  role: 'GERANT',
+  permissions: ['REFERENTIEL_CONSULTER', 'JOURNEE_SAISIR', 'JOURNEE_CLOTURER'] as Permission[],
+  perimetre: 'STATIONS',
+})
+
+const TRANCHE = { debut: '2026-08-16T00:00:00Z', fin: '2026-08-17T00:00:00Z', prixUnitaire: 755, litres: null, montant: null }
+
+const ligne = (pistoletId: string, code: string, pompe: string, depart: number): LigneReleve => ({
+  releveId: `r-${code}`,
+  pistoletId,
+  pistoletCode: code,
+  pistoletLibelle: code,
+  pompeCode: pompe,
+  cuveCode: 'C1',
+  produitCode: 'GASOIL',
+  produitLibelle: 'Gasoil',
+  indexDepart: depart,
+  indexArrivee: null,
+  remiseCuve: 0,
+  lectures: [],
+  lecturesAttendues: [],
+  ruptures: [],
+  tranches: [TRANCHE],
+  sortieBrute: null,
+  sortieNette: null,
+  montant: null,
+  anomalies: [{ code: 'INDEX_ARRIVEE_MANQUANT', message: "Index d'arrivée non saisi." }],
+})
+
+function journee(version: number, lignes: LigneReleve[], statut: DetailJournee['statut'] = 'BROUILLON'): DetailJournee {
+  const complet = lignes.every((l) => l.anomalies.length === 0)
+  const litres = lignes.reduce((s, l) => s + (l.sortieNette ?? 0), 0)
+  const montant = lignes.reduce((s, l) => s + (l.montant ?? 0), 0)
+  return {
+    id: 'j1',
+    stationId: 's-nia',
+    stationCode: 'NIA',
+    stationNom: 'Station Niandane',
+    date: '2026-08-16',
+    debut: '2026-08-16T00:00:00Z',
+    fin: '2026-08-17T00:00:00Z',
+    statut,
+    version,
+    observation: null,
+    ouvertePar: 'gerant.nia',
+    ouverteLe: '2026-08-16T06:00:00Z',
+    clotureePar: statut === 'BROUILLON' ? null : 'gerant.nia',
+    clotureeLe: statut === 'BROUILLON' ? null : '2026-08-16T22:00:00Z',
+    valideePar: null,
+    valideeLe: null,
+    motifRenvoi: null,
+    lignes,
+    totaux: [{ produitCode: 'GASOIL', produitLibelle: 'Gasoil', litres: complet ? litres : null, montant: complet ? montant : null }],
+    litres: complet ? litres : null,
+    montant: complet ? montant : null,
+    anomalies: lignes.reduce((s, l) => s + l.anomalies.length, 0),
+    actions: { saisir: statut === 'BROUILLON', cloturer: statut === 'BROUILLON', valider: false, renvoyer: false },
+  }
+}
+
+describe('saisie et clôture d’une journée', () => {
+  beforeEach(() => useSession.setState({ jeton: null, utilisateur: null, statut: 'initialisation', motif: null }))
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('calcule la vente en direct, enregistre, puis clôture après récapitulatif', async () => {
+    let courante = journee(3, [ligne('p1', 'G1', 'P1', 88916), ligne('p2', 'G2', 'P2', 140503)])
+    const saisies: SaisieJournee[] = []
+    const clotures: unknown[] = []
+    installerFauxServeur(({ methode, chemin, corps }) => {
+      if (chemin === '/auth/rafraichir') return { status: 200, corps: sessionTest('j', GERANT) }
+      if (chemin === '/journees/j1' && methode === 'GET') return { status: 200, corps: courante }
+      if (chemin === '/journees/j1/releves') {
+        const s = corps as SaisieJournee
+        saisies.push(s)
+        courante = journee(
+          courante.version + 1,
+          courante.lignes.map((l) => {
+            const r = s.releves.find((x) => x.pistoletId === l.pistoletId)!
+            const nette = r.indexArrivee! - l.indexDepart - (r.remiseCuve ?? 0)
+            return {
+              ...l,
+              indexArrivee: r.indexArrivee,
+              remiseCuve: r.remiseCuve ?? 0,
+              sortieBrute: nette + (r.remiseCuve ?? 0),
+              sortieNette: nette,
+              montant: Math.round(nette * 755),
+              anomalies: [],
+            }
+          }),
+        )
+        return { status: 200, corps: courante }
+      }
+      if (chemin === '/journees/j1/cloture') {
+        clotures.push(corps)
+        courante = {
+          ...courante,
+          statut: 'CLOTUREE',
+          version: courante.version + 1,
+          clotureePar: 'gerant.nia',
+          clotureeLe: '2026-08-16T22:00:00Z',
+          actions: { saisir: false, cloturer: false, valider: false, renvoyer: false },
+        }
+        return { status: 200, corps: courante }
+      }
+      return undefined
+    })
+    const routeur = createMemoryRouter(routes, { initialEntries: ['/journees/j1'] })
+    render(
+      <Fournisseurs client={creerQueryClient()}>
+        <RestaurationSession>
+          <RouterProvider router={routeur} />
+        </RestaurationSession>
+      </Fournisseurs>,
+    )
+    const u = userEvent.setup()
+
+    expect(await screen.findByRole('heading', { name: 'Journée du 16/08/2026' })).toBeInTheDocument()
+    expect(screen.getAllByText("Index d'arrivée non saisi.")).toHaveLength(2)
+
+    // Aperçu immédiat : 800,5 L sortis, 20 L remis en cuve
+    await u.type(screen.getByLabelText("Index d'arrivée G1"), '89716,5')
+    await u.type(screen.getByLabelText('Remise en cuve G1'), '20')
+    expect(screen.getByTestId('nette-G1')).toHaveTextContent('780,5 L')
+    expect(screen.getByTestId('montant-G1')).toHaveTextContent('589 278 F')
+    await u.type(screen.getByLabelText("Index d'arrivée G2"), '140000')
+    expect(within(screen.getByTestId('ligne-G2')).getByText(/inférieur/)).toBeInTheDocument()
+    await u.clear(screen.getByLabelText("Index d'arrivée G2"))
+    await u.type(screen.getByLabelText("Index d'arrivée G2"), '141003')
+
+    // Clôturer enregistre d'abord, puis montre le récapitulatif
+    await u.click(screen.getByRole('button', { name: 'Clôturer la journée' }))
+    const dialogue = await screen.findByRole('dialog')
+    expect(saisies[0]).toMatchObject({
+      version: 3,
+      releves: [{ pistoletId: 'p1', indexArrivee: 89716.5, remiseCuve: 20 }, { indexArrivee: 141003 }],
+    })
+    expect(within(dialogue).getByTestId('total-journee')).toHaveTextContent('966 778 F')
+    await u.click(within(dialogue).getByRole('button', { name: 'Confirmer la clôture' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(clotures).toEqual([{ version: 4 }])
+    expect(await screen.findByText(/Clôturée par gerant.nia/)).toBeInTheDocument()
+    expect(screen.getByLabelText("Index d'arrivée G1")).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Enregistrer' })).not.toBeInTheDocument()
+  })
+})

@@ -9,7 +9,7 @@ Plateforme de gestion d'un réseau de stations-service (carburants, lubrifiants)
 | `scripts/` | Environnement de dev, démarrage, vérification de l'API |
 | `docker-compose.yml` | PostgreSQL 18 en conteneur (optionnel) |
 
-## État : Sprint 1 livré (référentiel complet et prix datés)
+## État : Sprint 2 livré (journées, index et ventes valorisées)
 
 - **Socle** : monolithe modulaire (14 modules déclarés, frontières vérifiées par test), erreurs RFC 9457 avec code métier, verrouillage optimiste (`VERSION_OBSOLETE`), UUID v7.
 - **Sécurité** : jeton d'accès JWT de 15 min gardé en mémoire ; jeton de rafraîchissement de 8 h en cookie HttpOnly, renouvelé à chaque usage. Rejouer un ancien jeton ferme toutes les sessions de l'utilisateur. Le compte est verrouillé 15 min après 5 échecs. Le mot de passe provisoire doit être changé avant tout accès. Il y a 8 rôles et 15 permissions, et le périmètre d'un utilisateur est soit tout le réseau, soit une liste de stations.
@@ -42,6 +42,19 @@ Sprint 1 :
   - étalonnage, scellés, nettoyage et maintenance ;
   - alerte quand une vérification approche ou est dépassée.
 - **Écrans** : page Prix (grille station × produit, historique, changement, annulation), fiche station (barème, événements, historique des prix), carte des prix sur le tableau de bord.
+
+Sprint 2 :
+
+- **Journées d'exploitation** (une par station et par jour, de 00:00 à 24:00 heure de Dakar) : en saisie → clôturée → validée.
+  - Ouverture : la première journée d'une station a une date libre ; ensuite, uniquement le jour suivant la dernière journée clôturée, jamais à l'avance.
+  - L'index de départ est reporté automatiquement et n'est pas modifiable : arrivée validée de la veille, sinon index de mise en service, ou index du nouveau compteur après un changement de totalisateur.
+  - Saisie : index d'arrivée, remises en cuve, et index intermédiaire quand un prix change en cours de journée.
+  - Calcul : sortie nette = (arrivée − départ) − remises ; vente = Σ litres × prix de chaque tranche de prix ; montants arrondis au franc.
+  - Contrôles bloquants à la clôture : index manquant ou inférieur au départ, débit impossible (plus de 80 L/min sur 24 h, réglable par `jaugeo.exploitation.debit-max-litres-minute`), remise excessive, index intermédiaire manquant ou incohérent, absence de prix.
+  - La clôture fige les ventes (table `exploitation.vente`, une ligne par pistolet et par tranche de prix).
+  - La validation est réservée au superviseur, qui ne peut pas être l'auteur de la clôture. Le renvoi exige un motif, retire les ventes et n'est possible que si la journée suivante n'est pas ouverte.
+- **Verrous** : une journée clôturée interdit tout changement de prix ou de compteur daté pendant cette journée. Le trou des prix rétroactifs laissé au Sprint 1 est ainsi fermé.
+- **Écrans** : liste des journées par station et ouverture de la suivante ; fiche journée adaptée à la tablette (pistolets regroupés par pompe, aperçu immédiat de la vente, totaux par produit, récapitulatif avant clôture, validation et renvoi).
 
 ## Prérequis
 
@@ -92,8 +105,8 @@ Documentation de l'API : http://localhost:8080/swagger-ui.html
 ## Tests
 
 ```powershell
-cd jaugeo-api; mvn test        # 96 tests : unitaires, architecture modulaire, intégration sur PostgreSQL 18 (Testcontainers)
-cd jaugeo-web; npm test        # 31 tests : client API, parcours d'écrans, page Prix, analyse des barèmes, échéances
+cd jaugeo-api; mvn test        # 109 tests : unitaires, architecture modulaire, intégration sur PostgreSQL 18 (Testcontainers)
+cd jaugeo-web; npm test        # 36 tests : client API, parcours d'écrans, page Prix, saisie et clôture d'une journée, barèmes, échéances
 cd jaugeo-web; npm run lint; npm run build
 ```
 
@@ -101,10 +114,10 @@ Vérifications sur l'application en cours d'exécution :
 
 ```powershell
 .\scripts\verifier-api.ps1                                     # 29 contrôles d'API, sur une base neuve
-$env:JAUGEO_ADMIN_MDP = "<mdp admin>"; cd jaugeo-web; npm run e2e  # 33 contrôles dans Edge, captures dans e2e/captures
+$env:JAUGEO_ADMIN_MDP = "<mdp admin>"; cd jaugeo-web; npm run e2e  # 39 contrôles dans Edge, captures dans e2e/captures
 ```
 
-`npm run e2e` crée deux utilisateurs de test (`e2e.*`) et un changement de prix aussitôt annulé à chaque exécution : à réserver aux bases de développement.
+`npm run e2e` crée trois utilisateurs de test (`e2e.*`) et un changement de prix aussitôt annulé à chaque exécution. Il ouvre, clôture et valide aussi la journée suivante de Niandane, en partant du 01/01/2026 : à réserver aux bases de développement.
 
 ## Conventions
 

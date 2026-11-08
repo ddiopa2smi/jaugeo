@@ -35,4 +35,14 @@ public interface EvenementEquipementDepot extends JpaRepository<EvenementEquipem
             order by e.date asc, e.id asc""")
     List<EvenementEquipement> changementsCompteur(@Param("pistoletId") Long pistoletId,
                                                   @Param("debut") Instant debut, @Param("fin") Instant fin);
+
+    @Query("""
+            select e from EvenementEquipement e
+            where e.pistolet.id = :pistoletId
+              and e.type in (sn.digitalperf.jaugeo.referentiel.domaine.EvenementEquipement.Type.REMPLACEMENT_TOTALISATEUR,
+                             sn.digitalperf.jaugeo.referentiel.domaine.EvenementEquipement.Type.REMISE_A_ZERO)
+              and e.date < :avant
+            order by e.date desc, e.id desc
+            limit 1""")
+    Optional<EvenementEquipement> dernierChangementAvant(@Param("pistoletId") Long pistoletId, @Param("avant") Instant avant);
 }

@@ -3,9 +3,11 @@ import { api } from './client'
 import type {
   Bareme,
   ChangementPrix,
+  DetailJournee,
   Equipements,
   Evenement,
   LigneGrille,
+  ListeJournees,
   PageAudit,
   PeriodePrix,
   Produit,
@@ -30,10 +32,12 @@ export const cles = {
   prixStation: (id: string) => ['prix', 'station', id] as const,
   bareme: (cuveId: string) => ['baremes', cuveId] as const,
   evenements: (stationId: string) => ['stations', stationId, 'evenements'] as const,
+  journees: ['journees'] as const,
+  journeesStation: (stationId: string) => ['journees', 'station', stationId] as const,
+  journee: (id: string) => ['journees', id] as const,
 }
 
-export const useRegions = () =>
-  useQuery({ queryKey: cles.regions, queryFn: () => api.get<Region[]>('/regions'), staleTime: 10 * 60_000 })
+export const useRegions = () => useQuery({ queryKey: cles.regions, queryFn: () => api.get<Region[]>('/regions'), staleTime: 10 * 60_000 })
 
 export const useStations = () => useQuery({ queryKey: cles.stations, queryFn: () => api.get<Station[]>('/stations') })
 
@@ -42,11 +46,9 @@ export const useEquipements = (id: string) =>
 
 export const useProduits = () => useQuery({ queryKey: cles.produits, queryFn: () => api.get<Produit[]>('/produits') })
 
-export const useUtilisateurs = () =>
-  useQuery({ queryKey: cles.utilisateurs, queryFn: () => api.get<Utilisateur[]>('/utilisateurs') })
+export const useUtilisateurs = () => useQuery({ queryKey: cles.utilisateurs, queryFn: () => api.get<Utilisateur[]>('/utilisateurs') })
 
-export const useRoles = () =>
-  useQuery({ queryKey: cles.roles, queryFn: () => api.get<Role[]>('/roles'), staleTime: 10 * 60_000 })
+export const useRoles = () => useQuery({ queryKey: cles.roles, queryFn: () => api.get<Role[]>('/roles'), staleTime: 10 * 60_000 })
 
 export interface FiltresAudit {
   table: string
@@ -67,11 +69,9 @@ export const useAudit = (f: FiltresAudit) =>
     placeholderData: (precedent) => precedent,
   })
 
-export const useTablesAudit = () =>
-  useQuery({ queryKey: cles.tablesAudit, queryFn: () => api.get<string[]>('/audit/tables') })
+export const useTablesAudit = () => useQuery({ queryKey: cles.tablesAudit, queryFn: () => api.get<string[]>('/audit/tables') })
 
-export const useGrillePrix = () =>
-  useQuery({ queryKey: cles.grillePrix, queryFn: () => api.get<LigneGrille[]>('/prix/grille') })
+export const useGrillePrix = () => useQuery({ queryKey: cles.grillePrix, queryFn: () => api.get<LigneGrille[]>('/prix/grille') })
 
 export const useChangementsPrix = () =>
   useQuery({ queryKey: cles.changementsPrix, queryFn: () => api.get<ChangementPrix[]>('/prix/changements') })
@@ -84,3 +84,12 @@ export const useBareme = (cuveId: string) =>
 
 export const useEvenements = (stationId: string) =>
   useQuery({ queryKey: cles.evenements(stationId), queryFn: () => api.get<Evenement[]>(`/stations/${stationId}/evenements`) })
+
+export const useJourneesStation = (stationId: string | null) =>
+  useQuery({
+    queryKey: cles.journeesStation(stationId ?? ''),
+    queryFn: () => api.get<ListeJournees>(`/stations/${stationId}/journees`),
+    enabled: !!stationId,
+  })
+
+export const useJournee = (id: string) => useQuery({ queryKey: cles.journee(id), queryFn: () => api.get<DetailJournee>(`/journees/${id}`) })

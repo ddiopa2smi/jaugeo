@@ -247,13 +247,7 @@ export interface Bareme {
 }
 
 export type TypeEvenement =
-  | 'REMPLACEMENT_TOTALISATEUR'
-  | 'REMISE_A_ZERO'
-  | 'ETALONNAGE'
-  | 'POSE_SCELLES'
-  | 'NETTOYAGE'
-  | 'MAINTENANCE'
-  | 'AUTRE'
+  'REMPLACEMENT_TOTALISATEUR' | 'REMISE_A_ZERO' | 'ETALONNAGE' | 'POSE_SCELLES' | 'NETTOYAGE' | 'MAINTENANCE' | 'AUTRE'
 
 export type CibleEvenement = 'PISTOLET' | 'POMPE' | 'CUVE'
 
@@ -280,4 +274,121 @@ export interface Probleme {
   detail?: string
   code?: string
   champs?: Record<string, string>
+}
+
+// ------------------------------------------------------------------ Journées (Sprint 2)
+
+export type StatutJournee = 'BROUILLON' | 'CLOTUREE' | 'VALIDEE'
+
+export interface ResumeJournee {
+  id: string
+  date: string
+  statut: StatutJournee
+  litres: number | null
+  montant: number | null
+  clotureePar: string | null
+  clotureeLe: string | null
+  valideePar: string | null
+  motifRenvoi: string | null
+}
+
+/** date nulle = première journée de la station : date libre jusqu'à dateMax. */
+export interface ProchaineOuverture {
+  date: string | null
+  possible: boolean
+  motif: string | null
+  dateMax: string
+}
+
+export interface ListeJournees {
+  stationId: string
+  stationCode: string
+  stationNom: string
+  prochaine: ProchaineOuverture
+  journees: ResumeJournee[]
+}
+
+export interface LectureIndex {
+  instant: string
+  index: number
+}
+
+export interface RuptureCompteur {
+  date: string
+  indexAvant: number
+  indexApres: number
+}
+
+export interface TrancheVente {
+  debut: string
+  fin: string
+  prixUnitaire: number | null
+  litres: number | null
+  montant: number | null
+}
+
+export interface AnomalieReleve {
+  code: string
+  message: string
+}
+
+export interface LigneReleve {
+  releveId: string
+  pistoletId: string
+  pistoletCode: string
+  pistoletLibelle: string
+  pompeCode: string
+  cuveCode: string
+  produitCode: string
+  produitLibelle: string
+  indexDepart: number
+  indexArrivee: number | null
+  remiseCuve: number
+  lectures: LectureIndex[]
+  lecturesAttendues: string[]
+  ruptures: RuptureCompteur[]
+  tranches: TrancheVente[]
+  sortieBrute: number | null
+  sortieNette: number | null
+  montant: number | null
+  anomalies: AnomalieReleve[]
+}
+
+export interface TotalProduit {
+  produitCode: string
+  produitLibelle: string
+  litres: number | null
+  montant: number | null
+}
+
+export interface DetailJournee {
+  id: string
+  stationId: string
+  stationCode: string
+  stationNom: string
+  date: string
+  debut: string
+  fin: string
+  statut: StatutJournee
+  version: number
+  observation: string | null
+  ouvertePar: string
+  ouverteLe: string
+  clotureePar: string | null
+  clotureeLe: string | null
+  valideePar: string | null
+  valideeLe: string | null
+  motifRenvoi: string | null
+  lignes: LigneReleve[]
+  totaux: TotalProduit[]
+  litres: number | null
+  montant: number | null
+  anomalies: number
+  actions: { saisir: boolean; cloturer: boolean; valider: boolean; renvoyer: boolean }
+}
+
+export interface SaisieJournee {
+  version: number
+  observation: string | null
+  releves: { pistoletId: string; indexArrivee: number | null; remiseCuve: number | null; lectures: LectureIndex[] }[]
 }

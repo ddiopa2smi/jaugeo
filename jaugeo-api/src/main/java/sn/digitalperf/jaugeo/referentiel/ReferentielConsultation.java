@@ -2,6 +2,7 @@ package sn.digitalperf.jaugeo.referentiel;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -14,11 +15,17 @@ import java.util.UUID;
  */
 public interface ReferentielConsultation {
 
-    record StationRef(long id, UUID uuid, String code, String nom, boolean actif) {
+    record StationRef(long id, UUID uuid, String code, String nom, boolean actif, LocalDate dateOuverture) {
     }
 
     record ProduitRef(long id, UUID uuid, String code, String libelle, String unite, boolean suiviJaugeage,
                       boolean actif) {
+    }
+
+    /** Pistolet avec sa pompe, sa cuve et le produit distribue. */
+    record PistoletRef(long id, UUID uuid, String code, String libelle, String pompeCode, long cuveId, String cuveCode,
+                       long produitId, String produitCode, String produitLibelle, BigDecimal indexMiseEnService,
+                       boolean actif) {
     }
 
     /** Changement de compteur d'un pistolet : index lu sur l'ancien compteur, index de depart du nouveau. */
@@ -43,4 +50,13 @@ public interface ReferentielConsultation {
 
     /** Changements de compteur d'un pistolet sur [debut, fin), dans l'ordre chronologique. */
     List<ChangementCompteur> changementsCompteur(UUID pistoletId, Instant debut, Instant fin);
+
+    /** Changements de compteur d'un pistolet (identifiant technique) sur [debut, fin), dans l'ordre chronologique. */
+    List<ChangementCompteur> changementsCompteur(long pistoletId, Instant debut, Instant fin);
+
+    /** Dernier changement de compteur d'un pistolet strictement avant un instant. */
+    Optional<ChangementCompteur> dernierChangementAvant(long pistoletId, Instant avant);
+
+    /** Pistolets d'une station (actifs ou non), par pompe puis par code. */
+    List<PistoletRef> pistolets(long stationId);
 }

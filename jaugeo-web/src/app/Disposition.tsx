@@ -1,5 +1,6 @@
 import AccountCircleIcon from '@mui/icons-material/AccountCircle'
 import DashboardIcon from '@mui/icons-material/Dashboard'
+import EventNoteIcon from '@mui/icons-material/EventNote'
 import HistoryIcon from '@mui/icons-material/History'
 import LocalGasStationIcon from '@mui/icons-material/LocalGasStation'
 import LogoutIcon from '@mui/icons-material/Logout'
@@ -45,6 +46,10 @@ const SECTIONS: { titre: string; entrees: EntreeMenu[] }[] = [
   {
     titre: 'Pilotage',
     entrees: [{ chemin: '/', libelle: 'Tableau de bord', icone: <DashboardIcon /> }],
+  },
+  {
+    titre: 'Exploitation',
+    entrees: [{ chemin: '/journees', libelle: 'Journées', icone: <EventNoteIcon />, permission: 'REFERENTIEL_CONSULTER' }],
   },
   {
     titre: 'Référentiel',

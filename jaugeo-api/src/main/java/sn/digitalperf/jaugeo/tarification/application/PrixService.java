@@ -23,6 +23,7 @@ import sn.digitalperf.jaugeo.referentiel.ReferentielConsultation;
 import sn.digitalperf.jaugeo.referentiel.ReferentielConsultation.ProduitRef;
 import sn.digitalperf.jaugeo.referentiel.ReferentielConsultation.StationRef;
 import sn.digitalperf.jaugeo.securite.PerimetreCourant;
+import sn.digitalperf.jaugeo.tarification.GardePrix;
 import sn.digitalperf.jaugeo.tarification.Tarification;
 import sn.digitalperf.jaugeo.tarification.domaine.ChangementPrix;
 import sn.digitalperf.jaugeo.tarification.domaine.ChangementPrixDepot;
@@ -76,16 +77,18 @@ public class PrixService implements Tarification {
     private final ReferentielConsultation referentiel;
     private final PerimetreCourant perimetre;
     private final EntityManager em;
+    private final List<GardePrix> gardes;
     private final Clock horloge;
 
     public PrixService(PrixProduitDepot prix, ChangementPrixDepot changements, ReferentielConsultation referentiel,
-                       PerimetreCourant perimetre, EntityManager em, Clock horloge) {
+                       PerimetreCourant perimetre, EntityManager em, Clock horloge, List<GardePrix> gardes) {
         this.prix = prix;
         this.changements = changements;
         this.referentiel = referentiel;
         this.perimetre = perimetre;
         this.em = em;
         this.horloge = horloge;
+        this.gardes = gardes;
     }
 
     // ------------------------------------------------------------ Interface publique (autres modules)
@@ -237,6 +240,9 @@ public class PrixService implements Tarification {
                     + String.join(" ; ", variations) + ". Vérifiez les montants puis confirmez.");
         }
 
+        Set<Long> stationsTouchees = aAppliquer.stream().map(c -> c.station().id()).collect(Collectors.toSet());
+        gardes.forEach(g -> g.verifierChangementPrix(stationsTouchees, d.debut()));
+
         changements.save(changement);
         List<PrixProduit> crees = new ArrayList<>();
         for (Cible c : aAppliquer) {
@@ -267,6 +273,8 @@ public class PrixService implements Tarification {
                         "Un changement de prix postérieur existe pour ces produits : annulez-le d'abord.");
             }
         }
+        Set<Long> stationsTouchees = lignes.stream().map(PrixProduit::getStationId).collect(Collectors.toSet());
+        gardes.forEach(g -> g.verifierChangementPrix(stationsTouchees, c.getDebut()));
         c.annuler(maintenant, perimetre.identifiant());
         List<PrixProduit> precedents = lignes.stream()
                 .map(p -> prix.precedent(p.getStationId(), p.getProduitId(), p.getDebut()))

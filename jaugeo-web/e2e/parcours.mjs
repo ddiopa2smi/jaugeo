@@ -151,6 +151,18 @@ try {
   await page.getByRole('button', { name: "J'ai transmis le mot de passe" }).click()
   await page.getByRole('gridcell', { name: identDg }).waitFor()
 
+  // 7c. Un superviseur (valide les journées clôturées par les gérants)
+  const identSup = `e2e.sup.${Date.now().toString(36)}`
+  await page.getByRole('button', { name: 'Nouvel utilisateur' }).click()
+  await dlg.getByLabel('Identifiant de connexion').fill(identSup)
+  await dlg.getByLabel('Nom complet').fill('Ibrahima Fall')
+  await dlg.getByLabel('Rôle', { exact: true }).click()
+  await page.getByRole('option', { name: 'Superviseur réseau' }).click()
+  await page.getByRole('button', { name: 'Créer le compte' }).click()
+  const mdpSup = (await page.getByTestId('mdp-provisoire').innerText()).trim()
+  await page.getByRole('button', { name: "J'ai transmis le mot de passe" }).click()
+  await page.getByRole('gridcell', { name: identSup }).waitFor()
+
   // 8. Journal d'audit
   await page.getByRole('link', { name: "Journal d'audit" }).click()
   await page.locator('.MuiDataGrid-row').first().waitFor()
@@ -202,6 +214,41 @@ try {
   verifier('Gérant : prix de Niandane seulement, sans bouton de changement', grilleGerant.includes('Niandane') && !grilleGerant.includes('Kayar')
     && (await g.page.getByRole('button', { name: 'Changement de prix' }).count()) === 0)
 
+  // 10b. Sprint 2 : le gérant ouvre, saisit et clôture une journée de Niandane, sur tablette
+  await g.page.setViewportSize({ width: 1024, height: 768 })
+  await g.page.getByRole('link', { name: 'Journées' }).click()
+  await g.page.getByRole('heading', { name: 'Journées' }).waitFor()
+  await g.page.waitForLoadState('networkidle')
+  const ouvrir = g.page.getByRole('button', { name: 'Ouvrir la journée' })
+  if (await ouvrir.count()) {
+    // Base neuve : première journée au 1er janvier, chaque exécution ouvre le jour suivant
+    if (await g.page.getByLabel('Date de la journée').count()) await g.page.getByLabel('Date de la journée').fill('2026-01-01')
+    await ouvrir.click()
+  } else {
+    await g.page.getByRole('gridcell', { name: 'En saisie' }).first().click() // reprise d'une exécution interrompue
+  }
+  await g.page.getByRole('heading', { name: /^Journée du / }).waitFor()
+  const titreJournee = await g.page.getByRole('heading', { name: /^Journée du / }).innerText()
+  verifier(`Journée ouverte : ${titreJournee}, 4 pistolets`, (await g.page.locator('[data-testid^="ligne-"]').count()) === 4)
+  verifier('Index de départ non modifiable', (await g.page.getByTestId('depart-G1').evaluate((e) => e.tagName)) !== 'INPUT')
+  for (const code of ['G1', 'S1', 'G2', 'S2']) {
+    const depart = Number(await g.page.getByTestId(`depart-${code}`).getAttribute('data-valeur'))
+    await g.page.getByLabel(`Index d'arrivée ${code}`).fill(String(depart + 250.5).replace('.', ','))
+  }
+  await g.page.getByLabel('Remise en cuve G1').fill('5,5')
+  verifier('Aperçu en direct : G1 245 L nets', /245\s?L/.test(await g.page.getByTestId('nette-G1').innerText()))
+  await capture(g.page, '09a-journee-saisie-tablette')
+  await g.page.getByRole('button', { name: 'Clôturer la journée' }).click()
+  const dlgCloture = g.page.getByRole('dialog')
+  await dlgCloture.getByTestId('total-journee').waitFor()
+  verifier('Clôture : récapitulatif des ventes', /\d\s?F/.test(await dlgCloture.getByTestId('total-journee').innerText()))
+  await capture(g.page, '09b-journee-recapitulatif')
+  await dlgCloture.getByRole('button', { name: 'Confirmer la clôture' }).click()
+  await g.page.getByText('Journée clôturée : les ventes sont figées.').waitFor()
+  verifier('Journée clôturée et verrouillée', await g.page.getByLabel("Index d'arrivée G1").isDisabled())
+  const urlJournee = g.page.url()
+  await capture(g.page, '09c-journee-cloturee')
+
   // 11. Mobile
   await g.page.setViewportSize({ width: 390, height: 800 })
   await g.page.goto(`${BASE}/`)
@@ -249,6 +296,26 @@ try {
   await d.page.getByRole('row', { name: motifE2e }).getByText('Annulé', { exact: true }).waitFor()
   verifier('Direction : annulation, le prix programmé disparaît', (await d.page.getByText('→ 760 F').count()) === 0)
   await d.ctx.close()
+
+  // 13. Superviseur : valide la journée clôturée par le gérant (séparation des tâches)
+  const sup = await nouveauContexte()
+  await sup.page.goto(urlJournee)
+  await sup.page.getByLabel('Identifiant').fill(identSup)
+  await sup.page.getByLabel('Mot de passe', { exact: true }).fill(mdpSup)
+  await sup.page.getByRole('button', { name: 'Se connecter' }).click()
+  await sup.page.getByLabel('Mot de passe actuel').fill(mdpSup)
+  await sup.page.getByLabel('Nouveau mot de passe', { exact: true }).fill('Superviseur-2026')
+  await sup.page.getByLabel('Confirmer le nouveau mot de passe').fill('Superviseur-2026')
+  await sup.page.getByRole('button', { name: 'Enregistrer le nouveau mot de passe' }).click()
+  await sup.page.getByRole('link', { name: 'Journées' }).click()
+  await sup.page.getByLabel('Station').click()
+  await sup.page.getByRole('option', { name: /NIA/ }).click()
+  await sup.page.getByRole('gridcell', { name: 'Clôturée' }).first().click()
+  await sup.page.getByRole('button', { name: 'Valider' }).click()
+  await sup.page.getByText('Journée validée.').waitFor()
+  verifier('Superviseur : journée validée', (await sup.page.locator('main').innerText()).includes('validée par ' + identSup))
+  await capture(sup.page, '12-journee-validee')
+  await sup.ctx.close()
 } catch (e) {
   ko++
   console.log(`[KO] Exception : ${e.message.split('\n')[0]}`)
