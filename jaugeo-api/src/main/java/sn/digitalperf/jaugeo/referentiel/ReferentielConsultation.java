@@ -15,7 +15,8 @@ import java.util.UUID;
  */
 public interface ReferentielConsultation {
 
-    record StationRef(long id, UUID uuid, String code, String nom, boolean actif, LocalDate dateOuverture) {
+    record StationRef(long id, UUID uuid, String code, String nom, boolean actif, LocalDate dateOuverture,
+                      java.math.BigDecimal latitude, java.math.BigDecimal longitude) {
     }
 
     record ProduitRef(long id, UUID uuid, String code, String libelle, String unite, boolean suiviJaugeage,

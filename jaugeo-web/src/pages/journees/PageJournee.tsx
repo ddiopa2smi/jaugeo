@@ -27,6 +27,8 @@ import { Link as LienRouteur, useParams } from 'react-router'
 import { api, messageErreur } from '../../api/client'
 import { cles, rafraichirJournee, useJournee } from '../../api/requetes'
 import type { CreditJournee, DepensesJournee, DetailJournee, LigneReleve, RecetteJournee, SaisieJournee, StockJournee } from '../../api/types'
+import { envoyerSaisie, estPanneReseau, useHorsLigne } from '../../horsligne/file'
+import { EnvoisJournee } from '../../horsligne/IndicateurHorsLigne'
 import { AlerteErreur, Chargement } from '../../shared/composants'
 import { apercu, memeSaisie, saisieInitiale, STATUTS_JOURNEE, type SaisieLigne } from '../../shared/journee'
 import { formaterDate, formaterDateHeureCourte, formaterNombre, formaterPrix, versNombre } from '../../shared/libelles'
@@ -215,6 +217,11 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
   } | null>(null)
   const poigneeStock = useRef<PoigneeStock>(null)
   const [renvoi, setRenvoi] = useState<string | null>(null)
+  /** Réseau coupé au moment de clôturer : clôture gardée dans la tablette, contrôlée par le serveur à l'envoi. */
+  const [clotureHorsLigne, setClotureHorsLigne] = useState<number | null>(null)
+  const libelle = `${journee.stationCode} · journée du ${formaterDate(journee.date)}`
+  const gardee = (quoi: string) =>
+    notifier(`Réseau indisponible : ${quoi} gardé(e) dans la tablette, envoyé(e) au retour du réseau.`, 'warning')
 
   const modifiable = journee.actions.saisir
   const lignesModifiees = new Set(
@@ -231,23 +238,56 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
   }
 
   const enregistrement = useMutation({
-    mutationFn: () =>
-      api.put<DetailJournee>(`/journees/${journee.id}/releves`, {
-        version: journee.version,
-        observation: observation.trim() || null,
-        releves: journee.lignes.map((l) => {
-          const s = saisies[l.pistoletId]!
-          return {
-            pistoletId: l.pistoletId,
-            indexArrivee: versNombre(s.arrivee),
-            remiseCuve: versNombre(s.remise),
-            lectures: Object.entries(s.lectures)
-              .filter(([, v]) => versNombre(v) !== null)
-              .map(([instant, v]) => ({ instant, index: versNombre(v)! })),
-          }
-        }),
-      } satisfies SaisieJournee),
-    onSuccess: majCache,
+    mutationFn: async () => {
+      const r = await envoyerSaisie<DetailJournee>({
+        journeeId: journee.id,
+        journeeLibelle: libelle,
+        type: 'releves',
+        methode: 'PUT',
+        chemin: `/journees/${journee.id}/releves`,
+        corps: saisieReleves(),
+      })
+      return r.envoye ? r.resultat : null
+    },
+    onSuccess: (j) => (j ? majCache(j) : gardee('la saisie des index')),
+  })
+
+  const saisieReleves = () =>
+    ({
+      version: journee.version,
+      observation: observation.trim() || null,
+      releves: journee.lignes.map((l) => {
+        const s = saisies[l.pistoletId]!
+        return {
+          pistoletId: l.pistoletId,
+          indexArrivee: versNombre(s.arrivee),
+          remiseCuve: versNombre(s.remise),
+          lectures: Object.entries(s.lectures)
+            .filter(([, v]) => versNombre(v) !== null)
+            .map(([instant, v]) => ({ instant, index: versNombre(v)! })),
+        }
+      }),
+    }) satisfies SaisieJournee
+
+  const cloture = useMutation({
+    mutationFn: (version: number) =>
+      envoyerSaisie<DetailJournee>({
+        journeeId: journee.id,
+        journeeLibelle: libelle,
+        type: 'cloture',
+        methode: 'POST',
+        chemin: `/journees/${journee.id}/cloture`,
+        corps: { version },
+      }),
+    onSuccess: (r) => {
+      setClotureHorsLigne(null)
+      if (r.envoye) {
+        majCache(r.resultat)
+        notifier('Journée clôturée : les ventes sont figées.')
+      } else {
+        gardee('la clôture')
+      }
+    },
   })
 
   const action = useMutation({
@@ -269,6 +309,7 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
 
   const enregistrer = async () => {
     const j = await enregistrement.mutateAsync()
+    if (!j) return null
     notifier(
       j.anomalies > 0 ? `Enregistré. ${j.anomalies} point(s) à corriger avant la clôture.` : 'Saisie enregistrée.',
       j.anomalies > 0 ? 'warning' : 'success',
@@ -277,16 +318,30 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
   }
 
   const preparerCloture = async () => {
+    // j nul : index gardés dans la tablette (réseau coupé)
     const j = modifiee ? await enregistrement.mutateAsync() : journee
-    if (poigneeStock.current?.modifie) await poigneeStock.current.enregistrer(j.version)
+    const version = j?.version ?? journee.version
+    const stockGarde = poigneeStock.current?.modifie ? (await poigneeStock.current.enregistrer(version)) === null : false
+    if (!j || stockGarde || useHorsLigne.getState().envois.some((e) => e.journeeId === journee.id)) {
+      setClotureHorsLigne(version)
+      return
+    }
     // État serveur à jour (version et contrôles) avant de proposer la clôture
-    const [jf, sf, df, cf, rf] = await Promise.all([
-      api.get<DetailJournee>(`/journees/${journee.id}`),
-      api.get<StockJournee>(`/journees/${journee.id}/stock`),
-      api.get<DepensesJournee>(`/journees/${journee.id}/depenses`),
-      api.get<CreditJournee>(`/journees/${journee.id}/credit`),
-      api.get<RecetteJournee>(`/journees/${journee.id}/tresorerie`),
-    ])
+    let etat: [DetailJournee, StockJournee, DepensesJournee, CreditJournee, RecetteJournee]
+    try {
+      etat = await Promise.all([
+        api.get<DetailJournee>(`/journees/${journee.id}`),
+        api.get<StockJournee>(`/journees/${journee.id}/stock`),
+        api.get<DepensesJournee>(`/journees/${journee.id}/depenses`),
+        api.get<CreditJournee>(`/journees/${journee.id}/credit`),
+        api.get<RecetteJournee>(`/journees/${journee.id}/tresorerie`),
+      ])
+    } catch (e) {
+      if (!estPanneReseau(e)) throw e
+      setClotureHorsLigne(version)
+      return
+    }
+    const [jf, sf, df, cf, rf] = etat
     queryClient.setQueryData(cles.journee(jf.id), jf)
     queryClient.setQueryData(cles.stockJournee(jf.id), sf)
     queryClient.setQueryData(cles.depensesJournee(jf.id), df)
@@ -319,6 +374,7 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
           . Les index et les ventes ne sont plus modifiables.
         </Alert>
       )}
+      <EnvoisJournee journeeId={journee.id} />
       <AlerteErreur erreur={enregistrement.error} />
 
       <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2} sx={{ alignItems: 'flex-start' }}>
@@ -444,9 +500,9 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
           <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
             Après clôture, les index, les ventes, les écarts de stock, les dépenses et le montant à verser sont figés. Seul un superviseur peut renvoyer la journée pour correction.
           </Typography>
-          {action.error && (
+          {cloture.error && (
             <Alert severity="error" sx={{ mt: 2 }}>
-              {messageErreur(action.error)}
+              {messageErreur(cloture.error)}
             </Alert>
           )}
         </DialogContent>
@@ -454,10 +510,36 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
           <Button onClick={() => setRecap(null)}>Annuler</Button>
           <Button
             variant="contained"
-            onClick={() => action.mutate({ chemin: 'cloture', corps: { version: recap!.journee.version } })}
-            disabled={action.isPending}
+            onClick={() => cloture.mutate(recap!.journee.version, { onSuccess: () => setRecap(null) })}
+            disabled={cloture.isPending}
           >
             Confirmer la clôture
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={clotureHorsLigne !== null} onClose={() => setClotureHorsLigne(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Clôturer hors ligne ?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 1 }}>
+            Le réseau est indisponible, ou des saisies de cette journée attendent encore d’être envoyées : le récapitulatif
+            ne peut pas être calculé maintenant.
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            La clôture est gardée dans la tablette et envoyée après les autres saisies, au retour du réseau. Le serveur
+            refait alors tous les contrôles : si un point bloque la clôture, elle apparaît comme refusée et la journée reste en
+            saisie.
+          </Typography>
+          {cloture.error && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              {messageErreur(cloture.error)}
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setClotureHorsLigne(null)}>Annuler</Button>
+          <Button variant="contained" onClick={() => cloture.mutate(clotureHorsLigne!)} disabled={cloture.isPending}>
+            Clôturer hors ligne
           </Button>
         </DialogActions>
       </Dialog>

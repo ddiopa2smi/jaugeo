@@ -32,9 +32,15 @@ async function lireProbleme(reponse: Response): Promise<Probleme> {
   }
 }
 
-async function envoyer(methode: string, chemin: string, corps: unknown, jeton: string | null): Promise<Response> {
+async function envoyer(
+  methode: string,
+  chemin: string,
+  corps: unknown,
+  jeton: string | null,
+  supplementaires: Record<string, string> = {},
+): Promise<Response> {
   const fichier = typeof FormData !== 'undefined' && corps instanceof FormData
-  const entetes: Record<string, string> = { Accept: 'application/json' }
+  const entetes: Record<string, string> = { Accept: 'application/json', ...supplementaires }
   // Formulaire multipart : le navigateur fixe lui-même l'en-tête (avec la frontière)
   if (corps !== undefined && !fichier) entetes['Content-Type'] = 'application/json'
   if (jeton) entetes.Authorization = `Bearer ${jeton}`
@@ -82,14 +88,20 @@ export function rafraichirSession(): Promise<ReponseSession> {
   return rafraichissementEnCours
 }
 
-async function requete<T>(methode: string, chemin: string, corps?: unknown, binaire = false): Promise<T> {
+async function requete<T>(
+  methode: string,
+  chemin: string,
+  corps?: unknown,
+  binaire = false,
+  entetes: Record<string, string> = {},
+): Promise<T> {
   const estAuth = chemin.startsWith('/auth/connexion') || chemin.startsWith('/auth/rafraichir')
-  let reponse = await envoyer(methode, chemin, corps, useSession.getState().jeton)
+  let reponse = await envoyer(methode, chemin, corps, useSession.getState().jeton, entetes)
 
   if (reponse.status === 401 && !estAuth) {
     try {
       const session = await rafraichirSession()
-      reponse = await envoyer(methode, chemin, corps, session.jetonAcces)
+      reponse = await envoyer(methode, chemin, corps, session.jetonAcces, entetes)
     } catch {
       useSession.getState().fermer('Votre session a expiré. Reconnectez-vous.')
       throw new ErreurApi(401, { code: 'SESSION_EXPIREE', detail: 'Session expirée. Reconnectez-vous.' })
@@ -120,6 +132,12 @@ export const api = {
     formulaire.append('fichier', fichier)
     return requete<T>('PUT', chemin, formulaire)
   },
+  /**
+   * Écriture rejouable : la même clé envoyée deux fois (réponse perdue lors d'une coupure) n'est exécutée
+   * qu'une fois par le serveur, qui renvoie alors la réponse d'origine.
+   */
+  idempotent: <T>(methode: 'POST' | 'PUT', chemin: string, corps: unknown, cle: string) =>
+    requete<T>(methode, chemin, corps, false, { 'Idempotency-Key': cle }),
   /** Téléchargement authentifié d'une pièce jointe. */
   blob: (chemin: string) => requete<Blob>('GET', chemin, undefined, true),
 }

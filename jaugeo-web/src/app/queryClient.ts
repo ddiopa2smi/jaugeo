@@ -11,6 +11,9 @@ export function creerQueryClient() {
         retry: (echecs, erreur) =>
           echecs < 2 && !(erreur instanceof ErreurApi && erreur.status >= 400 && erreur.status < 500),
       },
+      // Écritures toujours tentées, même si le navigateur se croit hors ligne : une coupure est détectée à l'envoi
+      // et les saisies de journée sont alors gardées dans la tablette (au lieu d'une mutation suspendue).
+      mutations: { networkMode: 'always' },
     },
   })
 }

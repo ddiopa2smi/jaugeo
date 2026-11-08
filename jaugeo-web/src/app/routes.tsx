@@ -26,6 +26,7 @@ const PagePrix = differe(() => import('../pages/prix/PagePrix'), 'PagePrix')
 const PageProduits = differe(() => import('../pages/PageProduits'), 'PageProduits')
 const PageUtilisateurs = differe(() => import('../pages/utilisateurs/PageUtilisateurs'), 'PageUtilisateurs')
 const PageAudit = differe(() => import('../pages/PageAudit'), 'PageAudit')
+const PageReseau = differe(() => import('../pages/reseau/PageReseau'), 'PageReseau')
 
 function protegee(permission: Permission, page: ReactNode) {
   return (
@@ -45,6 +46,7 @@ export const routes: RouteObject[] = [
         element: <Disposition />,
         children: [
           { index: true, element: <TableauDeBord /> },
+          { path: 'reseau', element: protegee('TABLEAU_BORD_RESEAU', <PageReseau />) },
           { path: 'stations', element: protegee('REFERENTIEL_CONSULTER', <PageStations />) },
           { path: 'stations/:id', element: protegee('REFERENTIEL_CONSULTER', <PageStation />) },
           { path: 'journees', element: protegee('REFERENTIEL_CONSULTER', <PageJournees />) },

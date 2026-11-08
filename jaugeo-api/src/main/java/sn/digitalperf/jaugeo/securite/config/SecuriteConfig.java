@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -28,6 +29,8 @@ import org.springframework.security.oauth2.server.resource.web.authentication.Be
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 
 @Configuration(proxyBeanMethods = false)
 @EnableMethodSecurity
@@ -39,14 +42,19 @@ class SecuriteConfig {
             "/api/v1/produits", "/api/v1/produits/**", "/api/v1/cuves/**", "/api/v1/pompes/**", "/api/v1/pistolets/**"};
 
     @Bean
-    SecurityFilterChain chaineSecurite(HttpSecurity http) throws Exception {
+    SecurityFilterChain chaineSecurite(HttpSecurity http, JdbcClient jdbc) throws Exception {
         http
                 // API sans etat, jeton Bearer : pas de session ni de CSRF.
                 // Le cookie de rafraichissement est SameSite=Strict et limite au chemin /api/v1/auth.
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .headers(h -> h.contentSecurityPolicy(csp -> csp.policyDirectives(
-                        "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; frame-ancestors 'none'")))
+                .headers(h -> h
+                        .contentSecurityPolicy(csp -> csp.policyDirectives(
+                                "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; frame-ancestors 'none'"))
+                        // Aucune adresse de l'application transmise aux sites tiers ; HSTS d'un an sur HTTPS
+                        .referrerPolicy(r -> r.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER))
+                        .httpStrictTransportSecurity(hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31_536_000))
+                        .permissionsPolicyHeader(p -> p.policy("geolocation=(), microphone=(), camera=(), payment=()")))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/connexion", "/api/v1/auth/rafraichir",
                                 "/api/v1/auth/deconnexion").permitAll()
@@ -93,6 +101,7 @@ class SecuriteConfig {
                         // Syntheses mensuelles (feuilles d'analyse) : lecture et exports ; observations du controle de gestion
                         .requestMatchers(HttpMethod.GET, "/api/v1/syntheses/**").hasAuthority("REFERENTIEL_CONSULTER")
                         .requestMatchers(HttpMethod.PUT, "/api/v1/syntheses/commentaires").hasAuthority("CLOTURE_MENSUELLE")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/tableau-bord/**").hasAuthority("TABLEAU_BORD_RESEAU")
                         .requestMatchers(HttpMethod.POST, REFERENTIEL).hasAuthority("REFERENTIEL_GERER")
                         .requestMatchers(HttpMethod.PUT, REFERENTIEL).hasAuthority("REFERENTIEL_GERER")
                         .requestMatchers(HttpMethod.GET, REFERENTIEL).hasAuthority("REFERENTIEL_CONSULTER")
@@ -104,7 +113,9 @@ class SecuriteConfig {
                 .exceptionHandling(e -> e
                         .authenticationEntryPoint(nonAuthentifie())
                         .accessDeniedHandler(accesRefuse()))
-                .addFilterAfter(new FiltreMotDePasseAChanger(), BearerTokenAuthenticationFilter.class);
+                .addFilterAfter(new FiltreMotDePasseAChanger(), BearerTokenAuthenticationFilter.class)
+                // Saisies rejouees par la tablette apres une coupure : jamais executees deux fois
+                .addFilterAfter(new FiltreIdempotence(jdbc), AuthorizationFilter.class);
         return http.build();
     }
 

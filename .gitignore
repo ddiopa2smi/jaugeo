@@ -2,6 +2,8 @@
 *.docx
 *.xlsx
 ~$*
+# Rapports de reprise du classeur : donnees financieres des stations
+rapport-reprise*.md
 
 # Environnements locaux
 .env

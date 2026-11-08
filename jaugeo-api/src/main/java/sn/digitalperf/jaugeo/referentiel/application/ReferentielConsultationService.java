@@ -154,7 +154,8 @@ class ReferentielConsultationService implements ReferentielConsultation {
     }
 
     private static StationRef ref(Station s) {
-        return new StationRef(s.getId(), s.getUuid(), s.getCode(), s.getNom(), s.isActif(), s.getDateOuverture());
+        return new StationRef(s.getId(), s.getUuid(), s.getCode(), s.getNom(), s.isActif(), s.getDateOuverture(),
+                s.getLatitude(), s.getLongitude());
     }
 
     private static ProduitRef ref(Produit p) {

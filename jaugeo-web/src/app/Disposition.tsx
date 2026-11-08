@@ -8,6 +8,7 @@ import HistoryIcon from '@mui/icons-material/History'
 import InventoryIcon from '@mui/icons-material/Inventory'
 import LocalGasStationIcon from '@mui/icons-material/LocalGasStation'
 import LogoutIcon from '@mui/icons-material/Logout'
+import MapIcon from '@mui/icons-material/Map'
 import MenuIcon from '@mui/icons-material/Menu'
 import OilBarrelIcon from '@mui/icons-material/OilBarrel'
 import PeopleIcon from '@mui/icons-material/People'
@@ -31,11 +32,14 @@ import Typography from '@mui/material/Typography'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import { useTheme } from '@mui/material/styles'
 import { useQueryClient } from '@tanstack/react-query'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
+import { cles } from '../api/requetes'
 import type { Permission } from '../api/types'
 import { deconnecter } from '../auth/authApi'
 import { aPermission, useSession } from '../auth/session'
+import { demarrerHorsLigne } from '../horsligne/file'
+import { IndicateurHorsLigne } from '../horsligne/IndicateurHorsLigne'
 
 const LARGEUR_MENU = 248
 
@@ -49,7 +53,10 @@ interface EntreeMenu {
 const SECTIONS: { titre: string; entrees: EntreeMenu[] }[] = [
   {
     titre: 'Pilotage',
-    entrees: [{ chemin: '/', libelle: 'Tableau de bord', icone: <DashboardIcon /> }],
+    entrees: [
+      { chemin: '/', libelle: 'Tableau de bord', icone: <DashboardIcon /> },
+      { chemin: '/reseau', libelle: 'Réseau', icone: <MapIcon />, permission: 'TABLEAU_BORD_RESEAU' },
+    ],
   },
   {
     titre: 'Exploitation',
@@ -96,6 +103,17 @@ export function Disposition() {
   const navigate = useNavigate()
   const location = useLocation()
   const queryClient = useQueryClient()
+
+  // Saisies faites hors ligne : envoyées au retour du réseau, écrans de la journée rafraîchis ensuite
+  useEffect(
+    () =>
+      demarrerHorsLigne(() => {
+        // Toutes les clés « journees » : détail, stock, crédit, dépenses, recette et listes des journées
+        queryClient.invalidateQueries({ queryKey: ['journees'] })
+        queryClient.invalidateQueries({ queryKey: cles.tresorerie })
+      }),
+    [queryClient, utilisateur.identifiant],
+  )
 
   const sections = SECTIONS.map((s) => ({
     ...s,
@@ -152,6 +170,7 @@ export function Disposition() {
           <Typography variant="h6" component="div" sx={{ flexGrow: 1, letterSpacing: 0.5 }}>
             Jaugeo
           </Typography>
+          <IndicateurHorsLigne />
           <Box sx={{ display: { xs: 'none', sm: 'block' }, textAlign: 'right', mr: 1.5 }}>
             <Typography variant="body2" sx={{ lineHeight: 1.2 }}>
               {utilisateur.nomComplet}

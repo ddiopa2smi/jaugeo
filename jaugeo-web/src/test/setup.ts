@@ -1,4 +1,6 @@
 import '@testing-library/jest-dom/vitest'
+// IndexedDB (file des saisies hors ligne) : absente de jsdom
+import 'fake-indexeddb/auto'
 import { cleanup, configure } from '@testing-library/react'
 import { afterEach } from 'vitest'
 

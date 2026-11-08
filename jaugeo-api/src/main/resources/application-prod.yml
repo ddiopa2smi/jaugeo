@@ -1,0 +1,34 @@
+# Profil de production et de recette : SPRING_PROFILES_ACTIVE=prod
+# Aucune valeur par defaut pour les secrets : l'application refuse de demarrer s'ils manquent
+# (voir securite.config.ControleConfigurationProduction).
+spring:
+  datasource:
+    url: ${JAUGEO_DB_URL}
+    password: ${JAUGEO_DB_PASSWORD}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+# Documentation de l'API (Swagger) fermee en production ; JAUGEO_API_DOCS=true pour l'ouvrir en recette
+springdoc:
+  api-docs:
+    enabled: ${JAUGEO_API_DOCS:false}
+  swagger-ui:
+    enabled: ${JAUGEO_API_DOCS:false}
+
+jaugeo:
+  securite:
+    jwt-secret: ${JAUGEO_JWT_SECRET}
+    cookie-securise: ${JAUGEO_COOKIE_SECURE:true}
+    admin-mot-de-passe-initial: ${JAUGEO_ADMIN_PASSWORD}
+
+logging:
+  level:
+    root: WARN
+    sn.digitalperf.jaugeo: INFO

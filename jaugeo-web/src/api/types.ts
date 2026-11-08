@@ -1081,3 +1081,46 @@ export interface CommentaireMensuel {
   texte: string | null
   version: number | null
 }
+// ---------------------------------------------------------------- Tableau de bord du réseau
+
+export interface EcartProduitReseau {
+  produitCode: string
+  produitLibelle: string
+  ecartLitres: number | null
+  ecartPct: number | null
+  niveau: NiveauEcart | null
+}
+
+export interface StationReseau {
+  stationId: string
+  code: string
+  nom: string
+  latitude: number | null
+  longitude: number | null
+  niveau: NiveauEcart
+  motifs: string[]
+  derniereCloture: string | null
+  joursSansCloture: number | null
+  journeesAValider: number
+  litresMois: Record<string, number>
+  litresMoisTotal: number
+  litresVeille: number
+  ventesMois: number | null
+  versementsMois: number | null
+  soldeCaisse: number | null
+  ecartsCaisseMois: number | null
+  ecartStockValeurMois: number
+  ecartsStock: EcartProduitReseau[]
+}
+
+export interface TableauReseau {
+  date: string
+  mois: string
+  parNiveau: Record<NiveauEcart, number>
+  litresMois: number
+  litresVeille: number
+  ventesMois: number
+  versementsMois: number
+  ecartStockValeurMois: number
+  stations: StationReseau[]
+}

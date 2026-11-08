@@ -6,10 +6,10 @@ Plateforme de gestion d'un réseau de stations-service (carburants, lubrifiants)
 |---|---|
 | `jaugeo-api/` | API REST — Java 17, Spring Boot 4.1, Spring Modulith, PostgreSQL 18, Flyway |
 | `jaugeo-web/` | Application web — React 19, Vite, Material UI 9, TanStack Query |
-| `scripts/` | Environnement de dev, démarrage, vérification de l'API |
+| `scripts/` | Environnement de dev, démarrage, vérification de l'API, reprise du classeur |
 | `docker-compose.yml` | PostgreSQL 18 en conteneur (optionnel) |
 
-## État : Sprint 5 livré (clients en compte, bons, créances et synthèses mensuelles)
+## État : Sprint 6 livré (reprise du classeur 2026, saisie hors ligne, tableau de bord du réseau, durcissement)
 
 - **Socle** : monolithe modulaire (14 modules déclarés, frontières vérifiées par test), erreurs RFC 9457 avec code métier, verrouillage optimiste (`VERSION_OBSOLETE`), UUID v7.
 - **Sécurité** : jeton d'accès JWT de 15 min gardé en mémoire ; jeton de rafraîchissement de 8 h en cookie HttpOnly, renouvelé à chaque usage. Rejouer un ancien jeton ferme toutes les sessions de l'utilisateur. Le compte est verrouillé 15 min après 5 échecs. Le mot de passe provisoire doit être changé avant tout accès. Il y a 8 rôles et 17 permissions, et le périmètre d'un utilisateur est soit tout le réseau, soit une liste de stations.
@@ -135,7 +135,38 @@ Sprint 5 (modules `clients` et `reporting`, Flyway V9) :
   - le prix d'un bon est celui de l'ouverture de la journée ;
   - le plafond bloque sans dérogation (`CREDIT_DEROGER` n'est pas encore utilisé) ;
   - les véhicules et pirogues autorisés par client, l'échéance, la facturation et la balance âgée sont reportés au lot 2 ;
-  - les créances d'ouverture du classeur sont à saisir en reprise (leur import automatique est prévu au Sprint 6).
+  - les créances d'ouverture du classeur sont reprises par l'outil de reprise du Sprint 6.
+
+Sprint 6 :
+
+- **Reprise du classeur *SUIVI DES STATIONS 2026*** (module `reprise`, outil en ligne de commande) :
+  - lit les six feuilles station et la feuille d'analyse, puis rejoue chaque journée **par l'API**, avec les mêmes règles qu'à l'écran : ouverture, index, réceptions BL, jaugeages, bons à crédit, dépenses avec justificatif, clôture, validation et versements ;
+  - utilise des comptes de reprise à usage unique (gérant, superviseur, comptable), désactivés à la fin ;
+  - reprend le solde de caisse d'ouverture par un arrêté REPRISE, et les créances d'ouverture par une opération de reprise. L'analyse de janvier compte le dépôt de la caisse de décembre parmi ses versements : ce dépôt est reconstitué le 1er janvier ;
+  - rapproche chaque journée du classeur (litres, ventes, montant dû, écart de stock cumulé du mois), puis chaque mois de la feuille d'analyse ;
+  - écrit un rapport Markdown : synthèse, écarts jour par jour, rapprochement mensuel expliqué et particularités du classeur. Les particularités sont les dates en double, les références de bordereau décalées, les index retapés ou en recul, les compléments sans livraison, les jauges absentes ou incompatibles avec les ventes du lendemain, et la colonne CREANCES de Potou ;
+  - **résultat sur janvier-février 2026 : 323 journées sur 323 concordent** pour les 6 stations. Les écarts mensuels qui restent viennent de la feuille d'analyse elle-même (arrondis de la colonne R, bons de la direction classés en « Restant BL », caisse de février de Niandane non saisie).
+
+  ```powershell
+  .\scripts\reprise-classeur.ps1 -Simulation                    # lecture seule : particularités du classeur
+  .\scripts\reprise-classeur.ps1 -Du 2026-01-01 -Au 2026-02-28  # reprise (mot de passe admin demandé)
+  ```
+
+  La reprise commence à la première journée à ouvrir de chaque station : elle se fait sur une base sans journée pour ces stations. Code de sortie : 0 si conforme, 2 en cas d'écart ou d'arrêt, 1 en cas d'erreur.
+- **Saisie hors ligne de la tablette** :
+  - l'application est une PWA : sa coquille est mise en cache par un service worker et elle s'installe sur la tablette. Les réponses de l'API ne sont jamais mises en cache ;
+  - pendant une coupure, les index, les jaugeages et la clôture d'une journée sont gardés dans la tablette (IndexedDB), même si elle est éteinte. Ils partent au retour du réseau, dans l'ordre de saisie ;
+  - chaque envoi porte un en-tête `Idempotency-Key`. Le serveur mémorise la réponse (table `securite.requete_idempotente`, purgée après 7 jours) : un envoi rejoué après une réponse perdue n'est jamais exécuté deux fois. La même clé utilisée pour une autre requête est refusée (`IDEMPOTENCE_CLE_REUTILISEE`) ;
+  - le serveur recalcule tout et refait ses contrôles. Une saisie refusée (journée modifiée entre-temps, clôture impossible…) apparaît comme conflit dans la barre d'application et sur la fiche journée ; les saisies suivantes de la journée attendent qu'elle soit abandonnée ou réessayée ;
+  - limite : la session doit avoir été ouverte en ligne. Après un rechargement de la page sans réseau, il faut se reconnecter au retour du réseau ; les saisies gardées partent alors.
+- **Tableau de bord du réseau** (page *Réseau*, permission `TABLEAU_BORD_RESEAU`) :
+  - un niveau par station (normal, alerte, enquête) avec ses motifs : écart de stock du mois au-delà de la tolérance ou du seuil d'enquête, jours sans journée clôturée, journées à valider, manquant de caisse ;
+  - volumes de la veille et du mois, ventes, versements, valeur des écarts de stock et caisse du gérant ;
+  - carte des stations (fond OpenStreetMap). Les positions chargées par la migration V11 sont celles des localités : à préciser dans la fiche station.
+- **Durcissement** :
+  - profil `prod` (`SPRING_PROFILES_ACTIVE=prod`) : base, secret JWT et mot de passe initial sans valeur par défaut, Swagger fermé (`JAUGEO_API_DOCS=true` pour l'ouvrir en recette), actuator réduit à `health` ;
+  - hors profil `dev`, l'API refuse de démarrer avec le secret JWT de développement (ou trop court ou peu varié), des cookies non sécurisés ou le mot de passe initial par défaut ;
+  - en-têtes de sécurité : CSP, `Referrer-Policy: no-referrer`, `Permissions-Policy`, HSTS d'un an en HTTPS, `X-Frame-Options: DENY`.
 
 ## Prérequis
 
@@ -181,13 +212,15 @@ Documentation de l'API : http://localhost:8080/swagger-ui.html
 | `JAUGEO_DB_PASSWORD` | `jaugeo_dev_2026` | obligatoire |
 | `JAUGEO_JWT_SECRET` | secret de dev | **obligatoire**, ≥ 32 caractères aléatoires |
 | `JAUGEO_COOKIE_SECURE` | `false` | `true` (HTTPS) |
-| `JAUGEO_ADMIN_PASSWORD` | `Jaugeo@2026` | à définir pour le premier démarrage |
+| `JAUGEO_ADMIN_PASSWORD` | `Jaugeo@2026` | **obligatoire**, autre que celui de dev |
+| `SPRING_PROFILES_ACTIVE` | `dev` | `prod` |
+| `JAUGEO_API_DOCS` | Swagger ouvert | `false` (fermé) ; `true` en recette si besoin |
 
 ## Tests
 
 ```powershell
-cd jaugeo-api; mvn test        # 127 tests : unitaires, architecture modulaire, intégration sur PostgreSQL 18 (Testcontainers)
-cd jaugeo-web; npm test        # 42 tests : client API, parcours d'écrans, page Prix, saisie et clôture d'une journée avec jaugeage et recette, page Stocks, trésorerie (versement avec photo du BV, vérification), clients (création, fiche, relevé), bon à crédit avec alerte de plafond, synthèse mensuelle (observation, export), barèmes, échéances
+cd jaugeo-api; mvn test        # 135 tests : unitaires, architecture modulaire, intégration sur PostgreSQL 18 (Testcontainers), dont la reprise d'un classeur synthétique par l'API HTTP
+cd jaugeo-web; npm test        # 49 tests : file des saisies hors ligne (coupure, rejeu, conflit), page Réseau, client API, parcours d'écrans, page Prix, saisie et clôture d'une journée avec jaugeage et recette, page Stocks, trésorerie (versement avec photo du BV, vérification), clients (création, fiche, relevé), bon à crédit avec alerte de plafond, synthèse mensuelle (observation, export), barèmes, échéances
 cd jaugeo-web; npm run lint; npm run build
 ```
 

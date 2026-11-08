@@ -28,15 +28,17 @@ import { useImperativeHandle, useState, type Ref } from 'react'
 import { api } from '../../api/client'
 import { cles, useStockJournee } from '../../api/requetes'
 import type { CuveStock, SaisieJaugeage, SaisieReception, StockJournee } from '../../api/types'
+import { envoyerSaisie } from '../../horsligne/file'
 import { AlerteErreur } from '../../shared/composants'
-import { formaterNombre, formaterPrix, versNombre, videVersNull } from '../../shared/libelles'
+import { formaterDate, formaterNombre, formaterPrix, versNombre, videVersNull } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
 import { apercuEcart, corpsJauge, formaterPct, jaugeInitiale, memeJauge, NIVEAUX_ECART, type SaisieJauge } from '../../shared/stock'
 
 /** Ce que la fiche journée pilote avant la clôture : enregistrer les jaugeages encore en cours de saisie. */
 export interface PoigneeStock {
   modifie: boolean
-  enregistrer: (version: number) => Promise<StockJournee>
+  /** null : réseau coupé, jaugeages gardés dans la tablette jusqu'à l'envoi. */
+  enregistrer: (version: number) => Promise<StockJournee | null>
 }
 
 interface SaisieCuve {
@@ -467,7 +469,7 @@ export function SectionStock({ journeeId, ref }: { journeeId: string; ref?: Ref<
   })
 
   const enregistrement = useMutation({
-    mutationFn: (version: number) => {
+    mutationFn: async (version: number) => {
       const jaugeages: SaisieJaugeage[] = []
       for (const c of modifiees) {
         const x = saisies[c.cuveId]!
@@ -480,9 +482,21 @@ export function SectionStock({ journeeId, ref }: { journeeId: string; ref?: Ref<
           jaugeages.push({ cuveId: c.cuveId, moment: 'CLOTURE', ...corpsJauge(j), observation: observation || null })
         }
       }
-      return api.put<StockJournee>(`/journees/${journeeId}/jaugeages`, { version, jaugeages })
+      const r = await envoyerSaisie<StockJournee>({
+        journeeId,
+        journeeLibelle: `${s!.stationCode} · journée du ${formaterDate(s!.date)}`,
+        type: 'jaugeages',
+        methode: 'PUT',
+        chemin: `/journees/${journeeId}/jaugeages`,
+        corps: { version, jaugeages },
+      })
+      return r.envoye ? r.resultat : null
     },
     onSuccess: (r) => {
+      if (!r) {
+        notifier('Réseau indisponible : jaugeages gardés dans la tablette, envoyés au retour du réseau.', 'warning')
+        return
+      }
       setSaisies({})
       queryClient.setQueryData(cles.stockJournee(journeeId), r)
       queryClient.invalidateQueries({ queryKey: cles.journee(journeeId), exact: true })
@@ -510,6 +524,7 @@ export function SectionStock({ journeeId, ref }: { journeeId: string; ref?: Ref<
               enregistrement
                 .mutateAsync(s.version)
                 .then((r) =>
+                  r &&
                   notifier(
                     r.anomalies > 0 ? `Jaugeages enregistrés. ${r.anomalies} point(s) de stock à régler.` : 'Jaugeages enregistrés.',
                     r.anomalies > 0 ? 'warning' : 'success',

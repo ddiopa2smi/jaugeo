@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { api } from './client'
 import type {
+  TableauReseau,
   Client,
   CreditJournee,
   FicheClient,
@@ -57,6 +58,7 @@ export const cles = {
   stockJournee: (id: string) => ['journees', id, 'stock'] as const,
   stockMensuel: (stationId: string, mois: string) => ['stock', 'mensuel', stationId, mois] as const,
   situationStock: ['stock', 'situation'] as const,
+  tableauReseau: (date: string) => ['tableau-bord', 'reseau', date] as const,
   complements: (statut: string) => ['stock', 'complements', statut] as const,
   naturesDepense: ['depenses', 'natures'] as const,
   depensesJournee: (id: string) => ['journees', id, 'depenses'] as const,
@@ -250,4 +252,10 @@ export const useSyntheseStocks = (mois: string) =>
     queryKey: cles.syntheseStocks(mois),
     queryFn: () => api.get<SyntheseStocks>(`/syntheses/stocks?mois=${mois}`),
     enabled: moisValide(mois),
+  })
+/** Tableau de bord du réseau au jour donné (permission TABLEAU_BORD_RESEAU). */
+export const useTableauReseau = (date: string) =>
+  useQuery({
+    queryKey: cles.tableauReseau(date),
+    queryFn: () => api.get<TableauReseau>(`/tableau-bord/reseau?date=${date}`),
   })
