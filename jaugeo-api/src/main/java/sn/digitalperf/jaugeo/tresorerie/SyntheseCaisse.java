@@ -8,10 +8,10 @@ public interface SyntheseCaisse {
 
     /**
      * Caisse du gerant sur un mois : solde d'ouverture, composantes des recettes figees des journees cloturees
-     * (encaissements = Wave, Orange Money et carte, hors caisse), versements non rejetes, ecarts constates aux
-     * arretes de caisse, solde de fin de mois.
+     * (encaissements = Wave, Orange Money et carte bancaire, cartes = pleins payes par carte prepayee, hors caisse),
+     * versements non rejetes, ecarts constates aux arretes de caisse, solde de fin de mois.
      */
-    record MoisCaisse(BigDecimal soldeDebut, BigDecimal ventes, BigDecimal bonsDirection, BigDecimal bonsGerant,
+    record MoisCaisse(BigDecimal soldeDebut, BigDecimal ventes, BigDecimal bonsDirection, BigDecimal bonsGerant, BigDecimal cartes,
                       BigDecimal depenses, BigDecimal complements, BigDecimal encaissements, BigDecimal recouvrements,
                       BigDecimal montants, BigDecimal versements, BigDecimal ecarts, BigDecimal soldeFin, int joursNonClotures) {
     }

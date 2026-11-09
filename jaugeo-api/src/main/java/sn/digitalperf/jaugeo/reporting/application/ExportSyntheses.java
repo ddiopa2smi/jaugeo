@@ -56,7 +56,8 @@ class ExportSyntheses {
     private static final String[] COLONNES_VENTES = {
         "Recettes du mois (E)", "Solde caisse ouverture (F)", "Créances début (G)", "Recettes totales à verser (H = E+F+G)",
         "Versements bancaires (I)", "Solde caisse gérant (J)", "Créances fin (K)", "Dépenses autorisées (L)",
-        "Compléments citerne (M)", "Règlements reçus au siège (O)", "Total des versements (Q = I+J+K+L+M+O)",
+        "Compléments citerne (M)", "Hors caisse : Wave, OM, cartes, remises (N)", "Règlements reçus au siège (O)",
+        "Total des versements (Q = I+J+K+L+M+N+O)",
         "Écart sur versement (R = Q−H)"};
 
     private static final String[] COLONNES_STOCKS = {
@@ -147,8 +148,9 @@ class ExportSyntheses {
         String k = CellReference.convertNumToColString(colE + 6);
         String lL = CellReference.convertNumToColString(colE + 7);
         String m = CellReference.convertNumToColString(colE + 8);
-        String o = CellReference.convertNumToColString(colE + 9);
-        String q = CellReference.convertNumToColString(colE + 10);
+        String nn = CellReference.convertNumToColString(colE + 9);
+        String o = CellReference.convertNumToColString(colE + 10);
+        String q = CellReference.convertNumToColString(colE + 11);
         nombre(r, colE, l.recettes(), st.francs);
         nombre(r, colE + 1, l.soldeOuverture(), st.francs);
         nombre(r, colE + 2, l.creancesDebut(), st.francs);
@@ -158,10 +160,12 @@ class ExportSyntheses {
         nombre(r, colE + 6, l.creancesFin(), st.francs);
         nombre(r, colE + 7, l.depenses(), st.francs);
         nombre(r, colE + 8, l.complements(), st.francs);
-        nombre(r, colE + 9, l.reglementsSiege(), st.francs);
-        formule(r, colE + 10, i + n + "+" + j + n + "+" + k + n + "+" + lL + n + "+" + m + n + "+" + o + n, st.francsCalcul);
-        formule(r, colE + 11, q + n + "-" + h + n, st.francsCalcul);
-        texte(r, colE + 12, observations(l), st.texteLong);
+        nombre(r, colE + 9, l.horsCaisse(), st.francs);
+        nombre(r, colE + 10, l.reglementsSiege(), st.francs);
+        formule(r, colE + 11, i + n + "+" + j + n + "+" + k + n + "+" + lL + n + "+" + m + n + "+" + nn + n + "+" + o + n,
+                st.francsCalcul);
+        formule(r, colE + 12, q + n + "-" + h + n, st.francsCalcul);
+        texte(r, colE + 13, observations(l), st.texteLong);
     }
 
     static String observations(LigneVentes l) {
@@ -402,7 +406,8 @@ class ExportSyntheses {
         cellule(t, l.stationId() == null ? l.stationCode() : l.stationCode() + " — " + l.stationNom(), f, Element.ALIGN_LEFT, false);
         produits.forEach(p -> cellule(t, litres(l.litres().getOrDefault(p.code(), BigDecimal.ZERO)), f, Element.ALIGN_RIGHT, false));
         for (BigDecimal v : new BigDecimal[] {l.recettes(), l.soldeOuverture(), l.creancesDebut(), l.aVerser(), l.versements(),
-                l.soldeCaisse(), l.creancesFin(), l.depenses(), l.complements(), l.reglementsSiege(), l.totalVersements(), l.ecart()}) {
+                l.soldeCaisse(), l.creancesFin(), l.depenses(), l.complements(), l.horsCaisse(), l.reglementsSiege(), l.totalVersements(),
+                l.ecart()}) {
             cellule(t, francs(v), f, Element.ALIGN_RIGHT, false);
         }
         cellule(t, observations(l), f, Element.ALIGN_LEFT, false);

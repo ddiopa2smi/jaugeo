@@ -1,4 +1,6 @@
 import AddIcon from '@mui/icons-material/Add'
+import CreditCardIcon from '@mui/icons-material/CreditCard'
+import GavelIcon from '@mui/icons-material/Gavel'
 import DeleteIcon from '@mui/icons-material/Delete'
 import EditIcon from '@mui/icons-material/Edit'
 import PaymentsIcon from '@mui/icons-material/Payments'
@@ -22,12 +24,15 @@ import TableRow from '@mui/material/TableRow'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { api } from '../../api/client'
 import { cles, rafraichirJournee, useClients, useCreditJournee } from '../../api/requetes'
-import type { Bon, CreditJournee, SaisieBon } from '../../api/types'
+import type { Bon, CarteDetail, CreditJournee, SaisieBon } from '../../api/types'
+import { usePermission } from '../../auth/session'
 import { AlerteErreur } from '../../shared/composants'
-import { RECOUVREMENTS } from '../../shared/clients'
+import { RECOUVREMENTS, STATUTS_BON } from '../../shared/clients'
+import { LecteurQr } from '../../shared/LecteurQr'
+import { DialogueDecisionBon } from '../clients/DecisionBon'
 import { formaterNombre, formaterPrix, versNombre, videVersNull } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
 
@@ -130,7 +135,7 @@ function DialogueBon({ credit, bon, onFermer }: { credit: CreditJournee; bon: Bo
               sx={{ flex: 1 }}
               error={auDela}
               slotProps={{ htmlInput: { inputMode: 'decimal', autoComplete: 'off' } }}
-              helperText={montant !== null ? `Montant : ${formaterPrix(montant)}` : undefined}
+              helperText={montant !== null ? `Montant à la pompe : ${formaterPrix(montant)} (avant remise du client)` : undefined}
             />
           </Stack>
           <Stack direction="row" spacing={2}>
@@ -150,8 +155,9 @@ function DialogueBon({ credit, bon, onFermer }: { credit: CreditJournee; bon: Bo
             />
           </Stack>
           {auDela && (
-            <Alert severity="error">
-              Plafond dépassé : il reste {formaterPrix(disponible)} disponibles pour ce client. Le bon sera refusé.
+            <Alert severity="warning">
+              Plafond dépassé : il reste {formaterPrix(disponible)} disponibles pour ce client. Le bon sera mis en attente de la
+              dérogation de la Direction, et la journée ne pourra pas être clôturée avant sa décision.
             </Alert>
           )}
         </Stack>
@@ -245,13 +251,128 @@ function DialogueRecouvrement({ credit, onFermer }: { credit: CreditJournee; onF
   )
 }
 
+/** Plein payé par carte prépayée : numéro tapé, lu par une douchette ou scanné ; solde vérifié avant d'enregistrer. */
+function DialogueCarte({ credit, onFermer }: { credit: CreditJournee; onFermer: () => void }) {
+  const maj = useMajCredit(credit.journeeId)
+  const [numero, setNumero] = useState('')
+  const [produitId, setProduitId] = useState(credit.produits.length === 1 ? credit.produits[0]!.id : '')
+  const [litres, setLitres] = useState('')
+  const [reference, setReference] = useState('')
+  const l = versNombre(litres)
+  const produit = credit.produits.find((p) => p.id === produitId)
+  const montant = l !== null && produit?.prixUnitaire != null ? Math.round(l * produit.prixUnitaire) : null
+  const litresValides = l !== null && l > 0 && Math.round(l * 100) === l * 100
+
+  const consultation = useMutation({
+    mutationFn: (n: string) => api.get<CarteDetail>(`/clients/cartes/numero/${encodeURIComponent(n.trim())}`),
+  })
+  const consulter = consultation.mutate
+  const lu = useCallback(
+    (texte: string) => {
+      setNumero(texte)
+      consulter(texte)
+    },
+    [consulter],
+  )
+  const carte = consultation.data?.carte
+  const enregistrement = useMutation({
+    mutationFn: () =>
+      api.post<CreditJournee>(`/journees/${credit.journeeId}/cartes`, {
+        version: credit.version,
+        carte: numero.trim(),
+        produitId,
+        litres: l,
+        reference: videVersNull(reference),
+      }),
+    onSuccess: (r) => {
+      maj(r)
+      notifier('Plein enregistré : débité de la carte.')
+      onFermer()
+    },
+  })
+
+  return (
+    <Dialog open onClose={onFermer} maxWidth="sm" fullWidth>
+      <DialogTitle>Plein payé par carte prépayée</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ pt: 1 }}>
+          <LecteurQr onLu={lu} />
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
+            <TextField
+              label="Numéro de la carte"
+              value={numero}
+              onChange={(e) => setNumero(e.target.value)}
+              onBlur={() => numero.trim() && consulter(numero)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && numero.trim()) consulter(numero)
+              }}
+              required
+              sx={{ flex: 1 }}
+              placeholder="JC…"
+              slotProps={{ htmlInput: { maxLength: 40, autoComplete: 'off' } }}
+            />
+            <Button onClick={() => consulter(numero)} disabled={!numero.trim() || consultation.isPending} sx={{ mt: 1 }}>
+              Vérifier
+            </Button>
+          </Stack>
+          <AlerteErreur erreur={consultation.error} />
+          {carte && (
+            <Alert severity={carte.statut === 'ACTIVE' ? 'info' : 'error'} data-testid="carte-consultee">
+              {carte.porteur} · {carte.clientNom}
+              {carte.immatriculation ? ` · ${carte.immatriculation}` : ''} · solde <strong>{formaterPrix(carte.solde)}</strong>
+              {carte.statut !== 'ACTIVE' && ` · carte ${carte.statut === 'BLOQUEE' ? 'bloquée' : 'annulée'}`}
+            </Alert>
+          )}
+          <Stack direction="row" spacing={2}>
+            <TextField select label="Produit" value={produitId} onChange={(e) => setProduitId(e.target.value)} required sx={{ flex: 1 }}>
+              {credit.produits.map((p) => (
+                <MenuItem key={p.id} value={p.id} disabled={p.prixUnitaire === null}>
+                  {p.libelle} {p.prixUnitaire !== null ? `(${formaterPrix(p.prixUnitaire)}/L)` : '(sans prix)'}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              label="Litres"
+              value={litres}
+              onChange={(e) => setLitres(e.target.value)}
+              required
+              sx={{ flex: 1 }}
+              error={!!carte && montant !== null && montant > carte.solde}
+              slotProps={{ htmlInput: { inputMode: 'decimal', autoComplete: 'off' } }}
+              helperText={montant !== null ? `À la pompe : ${formaterPrix(montant)}` : undefined}
+            />
+          </Stack>
+          <TextField
+            label="Référence (ticket)"
+            value={reference}
+            onChange={(e) => setReference(e.target.value)}
+            slotProps={{ htmlInput: { maxLength: 80 } }}
+          />
+        </Stack>
+        <AlerteErreur erreur={enregistrement.error} />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onFermer}>Annuler</Button>
+        <Button
+          variant="contained"
+          onClick={() => enregistrement.mutate()}
+          disabled={enregistrement.isPending || !numero.trim() || !produitId || !litresValides}
+        >
+          Débiter la carte
+        </Button>
+      </DialogActions>
+    </Dialog>
+  )
+}
+
 /** Récapitulatif des ventes à crédit avant de confirmer la clôture. */
 export function RecapCredit({ credit }: { credit: CreditJournee }) {
-  if (credit.bons.length === 0 && credit.recouvrements.length === 0) return null
+  if (credit.bons.length === 0 && credit.recouvrements.length === 0 && credit.cartes.length === 0) return null
   return (
     <Typography variant="body2" sx={{ mt: 2 }}>
       {credit.bons.length} bon(s) : direction <strong>{formaterPrix(credit.totalBonsDirection)}</strong>, gérant{' '}
       <strong>{formaterPrix(credit.totalBonsGerant)}</strong>
+      {credit.totalCartes > 0 && ` · cartes prépayées : ${formaterPrix(credit.totalCartes)}`}
       {credit.totalRecouvrements > 0 && ` · créances recouvrées : ${formaterPrix(credit.totalRecouvrements)}`}
     </Typography>
   )
@@ -262,6 +383,9 @@ export function SectionCredit({ journeeId }: { journeeId: string }) {
   const maj = useMajCredit(journeeId)
   const [edition, setEdition] = useState<Bon | 'nouveau' | null>(null)
   const [recouvrement, setRecouvrement] = useState(false)
+  const [parCarte, setParCarte] = useState(false)
+  const [aDecider, setADecider] = useState<Bon | null>(null)
+  const peutDeroger = usePermission('CREDIT_DEROGER')
   const c = requete.data
 
   const suppression = useMutation({
@@ -284,6 +408,9 @@ export function SectionCredit({ journeeId }: { journeeId: string }) {
           <Stack direction="row" spacing={1}>
             <Button startIcon={<AddIcon />} onClick={() => setEdition('nouveau')}>
               Ajouter un bon
+            </Button>
+            <Button startIcon={<CreditCardIcon />} onClick={() => setParCarte(true)}>
+              Plein par carte
             </Button>
             <Button startIcon={<PaymentsIcon />} onClick={() => setRecouvrement(true)}>
               Créance recouvrée
@@ -328,16 +455,37 @@ export function SectionCredit({ journeeId }: { journeeId: string }) {
                     {formaterNombre(b.litres)} L
                     <Typography variant="caption" color="text.secondary" component="div">
                       {b.produitLibelle} à {formaterPrix(b.prixUnitaire)}
+                      {b.remiseUnitaire > 0 && ` (remise ${formaterPrix(b.remiseUnitaire)}/L)`}
                     </Typography>
                   </TableCell>
                   <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                     {formaterPrix(b.montant)}
                   </TableCell>
                   <TableCell>
-                    <Chip size="small" variant="outlined" label={b.recouvrement === 'DIRECTION' ? 'Direction' : 'Gérant'} />
+                    <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap' }}>
+                      <Chip size="small" variant="outlined" label={b.recouvrement === 'DIRECTION' ? 'Direction' : 'Gérant'} />
+                      {b.statut !== 'VALIDE' && (
+                        <Chip
+                          size="small"
+                          color={b.statut === 'EN_ATTENTE' ? 'warning' : b.statut === 'ACCORDE' ? 'success' : 'error'}
+                          label={STATUTS_BON[b.statut]}
+                          title={[b.motifBlocage, b.derogationMotif && `Décision : ${b.derogationMotif}`].filter(Boolean).join(' — ')}
+                        />
+                      )}
+                    </Stack>
+                    {b.statut === 'EN_ATTENTE' && b.motifBlocage && (
+                      <Typography variant="caption" color="warning.main" component="div" sx={{ maxWidth: 320 }}>
+                        {b.motifBlocage}
+                      </Typography>
+                    )}
                   </TableCell>
                   <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                    {c.modifiable && (
+                    {peutDeroger && b.statut === 'EN_ATTENTE' && c.statut === 'BROUILLON' && (
+                      <IconButton size="small" aria-label={`Décider du bon ${b.numero}`} onClick={() => setADecider(b)}>
+                        <GavelIcon fontSize="small" />
+                      </IconButton>
+                    )}
+                    {c.modifiable && !b.facture && (
                       <>
                         <IconButton size="small" aria-label={`Corriger le bon ${b.numero}`} onClick={() => setEdition(b)}>
                           <EditIcon fontSize="small" />
@@ -358,6 +506,32 @@ export function SectionCredit({ journeeId }: { journeeId: string }) {
             </TableBody>
           </Table>
         </Box>
+      )}
+      {c.cartes.length > 0 && (
+        <>
+          <Typography variant="overline" color="text.secondary" component="div" sx={{ mt: 1 }}>
+            Pleins payés par carte prépayée
+          </Typography>
+          {c.cartes.map((p) => (
+            <Stack key={p.id} direction="row" spacing={1} sx={{ alignItems: 'center' }} data-testid={`plein-${p.carteNumero}`}>
+              <Typography variant="body2" sx={{ flexGrow: 1 }}>
+                {p.carteNumero} · {p.porteur} ({p.clientNom}) · {formaterNombre(p.litres)} L {p.produitCode} ·{' '}
+                <strong>{formaterPrix(p.montantPompe)}</strong>
+                {p.reference ? ` · ${p.reference}` : ''}
+              </Typography>
+              {c.modifiable && (
+                <IconButton
+                  size="small"
+                  aria-label={`Retirer le plein de la carte ${p.carteNumero}`}
+                  onClick={() => suppression.mutate(`cartes/${p.id}`)}
+                  disabled={suppression.isPending}
+                >
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              )}
+            </Stack>
+          ))}
+        </>
       )}
       {c.recouvrements.length > 0 && (
         <>
@@ -384,11 +558,15 @@ export function SectionCredit({ journeeId }: { journeeId: string }) {
           ))}
         </>
       )}
-      {(c.bons.length > 0 || c.recouvrements.length > 0) && (
+      {(c.bons.length > 0 || c.recouvrements.length > 0 || c.cartes.length > 0) && (
         <Typography variant="body2" sx={{ py: 1 }} data-testid="total-credit">
           Bons direction : <strong>{formaterPrix(c.totalBonsDirection)}</strong> · bons gérant :{' '}
           <strong>{formaterPrix(c.totalBonsGerant)}</strong>
+          {c.totalCartes > 0 && ` · cartes : ${formaterPrix(c.totalCartes)}`}
           {c.totalRecouvrements > 0 && ` · recouvré : ${formaterPrix(c.totalRecouvrements)}`}
+          <Typography variant="caption" color="text.secondary" component="div">
+            Valeurs à la pompe déduites de la recette ; les remises contractuelles réduisent seulement ce que doit le client.
+          </Typography>
         </Typography>
       )}
       {c.anomalies.map((a) => (
@@ -398,6 +576,8 @@ export function SectionCredit({ journeeId }: { journeeId: string }) {
       ))}
       {edition && <DialogueBon credit={c} bon={edition === 'nouveau' ? null : edition} onFermer={() => setEdition(null)} />}
       {recouvrement && <DialogueRecouvrement credit={c} onFermer={() => setRecouvrement(false)} />}
+      {parCarte && <DialogueCarte credit={c} onFermer={() => setParCarte(false)} />}
+      {aDecider && <DialogueDecisionBon bon={aDecider} journeeId={journeeId} onFermer={() => setADecider(null)} />}
     </Paper>
   )
 }

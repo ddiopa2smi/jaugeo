@@ -421,6 +421,7 @@ function Caisse() {
   const station = actives.find((s) => s.id === stationId)
   const depasse = l !== undefined && l.plafondEspeces !== null && l.soldeFin > l.plafondEspeces
   const avecEncaissements = (l?.totalEncaissements ?? 0) > 0
+  const avecCartes = (l?.totalCartes ?? 0) > 0
 
   return (
     <>
@@ -485,6 +486,11 @@ function Caisse() {
               Encaissés par Wave, Orange Money et carte (hors espèces) : {formaterPrix(l.totalEncaissements)}
             </Typography>
           )}
+          {avecCartes && (
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }} data-testid="cartes-mois">
+              Pleins payés par carte carburant prépayée : {formaterPrix(l.totalCartes)}
+            </Typography>
+          )}
           {l.joursNonClotures > 0 && (
             <Alert severity="info" sx={{ mb: 2 }}>
               {l.joursNonClotures} journée(s) du mois non clôturée(s) : leur recette n’entre dans la caisse qu’à la clôture.
@@ -500,6 +506,7 @@ function Caisse() {
                   <TableCell align="right">Dépenses</TableCell>
                   <TableCell align="right">Compléments</TableCell>
                   {avecEncaissements && <TableCell align="right">Wave, OM, carte</TableCell>}
+                  {avecCartes && <TableCell align="right">Cartes carburant</TableCell>}
                   <TableCell align="right">À verser</TableCell>
                   <TableCell align="right">Versé</TableCell>
                   <TableCell align="right">Arrêté</TableCell>
@@ -528,6 +535,7 @@ function Caisse() {
                     <TableCell align="right">{x.depenses ? prix(x.depenses) : ''}</TableCell>
                     <TableCell align="right">{x.complements ? prix(x.complements) : ''}</TableCell>
                     {avecEncaissements && <TableCell align="right">{x.encaissements ? prix(x.encaissements) : ''}</TableCell>}
+                    {avecCartes && <TableCell align="right">{x.cartes ? prix(x.cartes) : ''}</TableCell>}
                     <TableCell align="right" sx={{ fontWeight: 600 }}>
                       {prix(x.montantAVerser)}
                     </TableCell>

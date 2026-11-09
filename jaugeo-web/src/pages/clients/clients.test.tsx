@@ -46,6 +46,8 @@ const client = (surcharge: Partial<Client> = {}): Client => ({
   observation: null,
   encours: 24212721,
   disponible: 5787279,
+  echu: 0,
+  contrat: { adresse: null, email: null, ninea: null, reference: null, debut: null, fin: null, delaiPaiement: null, cautionMontant: null, cautionBanque: null, cautionEcheance: null },
   version: 0,
   ...surcharge,
 })
@@ -53,6 +55,11 @@ const client = (surcharge: Partial<Client> = {}): Client => ({
 const FICHE: FicheClient = {
   client: client(),
   comptes: [{ stationId: 's-hyd', stationCode: 'HYD', stationNom: 'Hydrobase', creance: 24212721, dernierBon: null, dernierReglement: null }],
+  engins: [],
+  remises: [],
+  factures: [],
+  cartes: [],
+  relances: [],
   peutGerer: true,
 }
 
@@ -104,6 +111,7 @@ const ligneVentes = (surcharge: Partial<LigneVentes> = {}): LigneVentes => ({
   creancesFin: 24512721,
   depenses: 0,
   complements: 0,
+  horsCaisse: 0,
   reglementsSiege: 0,
   totalVersements: 25750721,
   ecart: -2000,
@@ -233,10 +241,13 @@ describe('clients en compte et synthèses', () => {
       modifiable: true,
       produits: [{ id: 'p-ep', code: 'ESSENCE_PIROGUE', libelle: 'Essence pirogue', prixUnitaire: 505 }],
       bons: [],
+      cartes: [],
       recouvrements: [],
       totalBonsDirection: 0,
       totalBonsGerant: 0,
+      totalCartes: 0,
       totalRecouvrements: 0,
+      bonsEnAttente: 0,
       anomalies: [],
     }
     useSession.setState({ jeton: 'j', utilisateur: COMPTABLE, statut: 'connecte', motif: null })
@@ -263,12 +274,20 @@ describe('clients en compte et synthèses', () => {
                 produitLibelle: 'Essence pirogue',
                 litres: 100,
                 prixUnitaire: 505,
+                remiseUnitaire: 0,
                 montant: 50500,
+                montantPompe: 50500,
                 recouvrement: 'GERANT',
                 immatriculation: 'PIROGUE 12',
                 porteur: null,
+                statut: 'VALIDE',
+                motifBlocage: null,
+                derogationPar: null,
+                derogationMotif: null,
+                facture: false,
                 creePar: 'gerant',
                 modifieLe: '2026-01-05T10:00:00Z',
+                version: 0,
               },
             ],
           },
@@ -289,7 +308,7 @@ describe('clients en compte et synthèses', () => {
     await u.click(await screen.findByRole('option', { name: /Cheikh Omar/ }))
     await u.type(within(dialogue).getByLabelText(/Numéro du bon/), 'B-17')
     await u.type(within(dialogue).getByLabelText(/Litres/), '250')
-    expect(within(dialogue).getByText('Montant : 126 250 F')).toBeInTheDocument()
+    expect(within(dialogue).getByText(/Montant à la pompe : 126 250 F/)).toBeInTheDocument()
     expect(within(dialogue).getByText(/Plafond dépassé/)).toBeInTheDocument()
     await u.clear(within(dialogue).getByLabelText(/Litres/))
     await u.type(within(dialogue).getByLabelText(/Litres/), '100')

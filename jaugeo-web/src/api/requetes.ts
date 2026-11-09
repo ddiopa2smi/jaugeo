@@ -3,8 +3,14 @@ import { api } from './client'
 import type {
   TableauReseau,
   VueDirection,
+  BalanceAgee,
+  BonEnAttente,
+  CarteCarburant,
+  CarteDetail,
   Client,
   CreditJournee,
+  Facture,
+  FactureDetail,
   FicheClient,
   Releve,
   SyntheseStocks,
@@ -91,6 +97,12 @@ export const cles = {
   ficheClient: (id: string) => ['clients', id] as const,
   releve: (id: string, stationId: string, du: string, au: string) => ['clients', id, 'releve', stationId, du, au] as const,
   creditJournee: (id: string) => ['journees', id, 'credit'] as const,
+  bonsEnAttente: ['clients', 'bons-en-attente'] as const,
+  factures: ['clients', 'factures'] as const,
+  facture: (id: string) => ['clients', 'factures', id] as const,
+  balanceAgee: (au: string) => ['clients', 'balance-agee', au] as const,
+  cartes: ['clients', 'cartes'] as const,
+  carte: (id: string) => ['clients', 'cartes', id] as const,
   syntheses: ['syntheses'] as const,
   syntheseVentes: (mois: string) => ['syntheses', 'ventes', mois] as const,
   syntheseStocks: (mois: string) => ['syntheses', 'stocks', mois] as const,
@@ -253,6 +265,22 @@ export const useReleve = (id: string, stationId: string | null, du: string, au: 
     },
     enabled: !!stationId,
   })
+
+export const useBonsEnAttente = (actif = true) =>
+  useQuery({ queryKey: cles.bonsEnAttente, queryFn: () => api.get<BonEnAttente[]>('/clients/bons-en-attente'), enabled: actif })
+
+export const useFactures = () => useQuery({ queryKey: cles.factures, queryFn: () => api.get<Facture[]>('/clients/factures') })
+
+export const useFacture = (id: string | null) =>
+  useQuery({ queryKey: cles.facture(id ?? ''), queryFn: () => api.get<FactureDetail>(`/clients/factures/${id}`), enabled: !!id })
+
+export const useBalanceAgee = (au: string) =>
+  useQuery({ queryKey: cles.balanceAgee(au), queryFn: () => api.get<BalanceAgee>(`/clients/balance-agee${au ? `?au=${au}` : ''}`) })
+
+export const useCartes = () => useQuery({ queryKey: cles.cartes, queryFn: () => api.get<CarteCarburant[]>('/clients/cartes') })
+
+export const useCarte = (id: string | null) =>
+  useQuery({ queryKey: cles.carte(id ?? ''), queryFn: () => api.get<CarteDetail>(`/clients/cartes/${id}`), enabled: !!id })
 
 export const useCreditJournee = (id: string) =>
   useQuery({ queryKey: cles.creditJournee(id), queryFn: () => api.get<CreditJournee>(`/journees/${id}/credit`) })

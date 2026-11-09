@@ -95,7 +95,7 @@ class CaisseGerant {
      */
     RecetteJournee.Composantes calculer(JourneeRef j, BigDecimal ventes) {
         ComptesClients.TotauxJournee credit = clients.totauxJournee(j.id());
-        return new RecetteJournee.Composantes(ventes, stocks.montantVentesArticles(j.id()), credit.bonsDirection(), credit.bonsGerant(), depenses.totalAutorise(j.id()),
+        return new RecetteJournee.Composantes(ventes, stocks.montantVentesArticles(j.id()), credit.bonsDirection(), credit.bonsGerant(), credit.cartes(), depenses.totalAutorise(j.id()),
                 stocks.montantComplements(j.id()), encaissements(j.id()), credit.recouvrements());
     }
 

@@ -29,7 +29,7 @@ public final class VuesTresorerie {
      */
     public record RecetteVue(UUID journeeId, UUID stationId, String stationCode, LocalDate date, String statut, boolean fige,
                              BigDecimal ventes, BigDecimal ventesArticles, BigDecimal bonsDirection, BigDecimal bonsGerant,
-                             BigDecimal depenses, BigDecimal complements, BigDecimal encaissements,
+                             BigDecimal cartes, BigDecimal depenses, BigDecimal complements, BigDecimal encaissements,
                              BigDecimal recouvrements, BigDecimal montantAVerser, BigDecimal soldeOuverture,
                              List<VersementVue> versements, BigDecimal totalVersements, BigDecimal soldeFin,
                              ArreteVue arrete, boolean peutVerser, BigDecimal plafondEspeces, boolean depassePlafond) {
@@ -42,7 +42,7 @@ public final class VuesTresorerie {
 
     /** Ligne du livre de caisse ; montant a verser nul tant que la journee n'est pas cloturee. */
     public record LigneCaisse(LocalDate date, UUID journeeId, String statutJournee, BigDecimal ventes, BigDecimal bons,
-                              BigDecimal depenses, BigDecimal complements, BigDecimal encaissements, BigDecimal recouvrements,
+                              BigDecimal cartes, BigDecimal depenses, BigDecimal complements, BigDecimal encaissements, BigDecimal recouvrements,
                               BigDecimal montantAVerser, BigDecimal soldeOuverture, BigDecimal versements, BigDecimal soldeTheorique,
                               ArreteVue arrete, BigDecimal ecart, BigDecimal solde) {
     }
@@ -50,7 +50,7 @@ public final class VuesTresorerie {
     /** Livre de caisse mensuel d'une station : ecart de versement (solde non verse) jour par jour. */
     public record LivreCaisse(UUID stationId, String stationCode, String stationNom, YearMonth mois, BigDecimal soldeDebut,
                               BigDecimal totalVentes, BigDecimal totalBonsDirection, BigDecimal totalBonsGerant,
-                              BigDecimal totalDepenses, BigDecimal totalComplements, BigDecimal totalEncaissements,
+                              BigDecimal totalCartes, BigDecimal totalDepenses, BigDecimal totalComplements, BigDecimal totalEncaissements,
                               BigDecimal totalRecouvrements, BigDecimal totalMontants, BigDecimal totalVersements, BigDecimal totalEcarts,
                               BigDecimal soldeFin, int joursNonClotures, List<LigneCaisse> lignes, boolean peutArreter,
                               BigDecimal plafondEspeces) {

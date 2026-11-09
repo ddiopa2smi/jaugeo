@@ -81,6 +81,10 @@ jaugeo:
     seuil-eau-mm: 20
     # Autonomie (jours de ventes moyennes sur 7 jours) sous laquelle une cuve sans seuil en litres est à réapprovisionner
     autonomie-alerte-jours: 3
+  clients:
+    # En-tête des factures et lettres de relance
+    societe: ${JAUGEO_SOCIETE:Société exploitante (à paramétrer)}
+    adresse-societe: ${JAUGEO_SOCIETE_ADRESSE:Dakar, Sénégal}
 
 logging:
   level:

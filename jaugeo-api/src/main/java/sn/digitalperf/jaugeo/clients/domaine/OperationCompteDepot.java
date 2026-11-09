@@ -15,6 +15,8 @@ public interface OperationCompteDepot extends JpaRepository<OperationCompte, Lon
 
     List<OperationCompte> findByJourneeIdOrderByIdAsc(Long journeeId);
 
+    List<OperationCompte> findByClientIdIn(java.util.Collection<Long> clientIds);
+
     List<OperationCompte> findByClientIdAndStationIdAndDateOperationBetweenOrderByDateOperationAscIdAsc(
             Long clientId, Long stationId, LocalDate du, LocalDate au);
 

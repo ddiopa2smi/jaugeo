@@ -142,6 +142,7 @@ public class TresorerieService implements SyntheseCaisse {
                 c.map(RecetteJournee.Composantes::ventesArticles).orElse(BigDecimal.ZERO),
                 c.map(RecetteJournee.Composantes::bonsDirection).orElse(BigDecimal.ZERO),
                 c.map(RecetteJournee.Composantes::bonsGerant).orElse(BigDecimal.ZERO),
+                c.map(RecetteJournee.Composantes::cartes).orElse(BigDecimal.ZERO),
                 c.map(RecetteJournee.Composantes::depenses).orElse(null),
                 c.map(RecetteJournee.Composantes::complements).orElse(null),
                 c.map(RecetteJournee.Composantes::encaissements).orElse(BigDecimal.ZERO),
@@ -159,7 +160,7 @@ public class TresorerieService implements SyntheseCaisse {
     @Override
     public MoisCaisse mois(long stationId, YearMonth mois) {
         LivreCaisse l = livre(referentiel.station(stationId).orElseThrow(() -> ErreurMetier.introuvable("Station")), mois);
-        return new MoisCaisse(l.soldeDebut(), l.totalVentes(), l.totalBonsDirection(), l.totalBonsGerant(), l.totalDepenses(),
+        return new MoisCaisse(l.soldeDebut(), l.totalVentes(), l.totalBonsDirection(), l.totalBonsGerant(), l.totalCartes(), l.totalDepenses(),
                 l.totalComplements(), l.totalEncaissements(), l.totalRecouvrements(), l.totalMontants(), l.totalVersements(), l.totalEcarts(),
                 l.soldeFin(), l.joursNonClotures());
     }
@@ -195,6 +196,7 @@ public class TresorerieService implements SyntheseCaisse {
         BigDecimal ventes = BigDecimal.ZERO;
         BigDecimal bonsDirection = BigDecimal.ZERO;
         BigDecimal bonsGerant = BigDecimal.ZERO;
+        BigDecimal cartes = BigDecimal.ZERO;
         BigDecimal depenses = BigDecimal.ZERO;
         BigDecimal complements = BigDecimal.ZERO;
         BigDecimal encaissements = BigDecimal.ZERO;
@@ -214,6 +216,7 @@ public class TresorerieService implements SyntheseCaisse {
                 ventes = ventes.add(c.ventesTotales());
                 bonsDirection = bonsDirection.add(c.bonsDirection());
                 bonsGerant = bonsGerant.add(c.bonsGerant());
+                cartes = cartes.add(c.cartes());
                 depenses = depenses.add(c.depenses());
                 complements = complements.add(c.complements());
                 encaissements = encaissements.add(c.encaissements());
@@ -226,7 +229,7 @@ public class TresorerieService implements SyntheseCaisse {
                 ecarts = ecarts.add(ecart);
             }
             lignes.add(new LigneCaisse(l.date(), j == null ? null : j.uuid(), j == null ? null : j.statut(),
-                    c == null ? null : c.ventesTotales(), c == null ? null : c.bonsDirection().add(c.bonsGerant()),
+                    c == null ? null : c.ventesTotales(), c == null ? null : c.bonsDirection().add(c.bonsGerant()), c == null ? null : c.cartes(),
                     c == null ? null : c.depenses(), c == null ? null : c.complements(), c == null ? null : c.encaissements(),
                     c == null ? null : c.recouvrements(),
                     l.montantAVerser(),
@@ -235,7 +238,7 @@ public class TresorerieService implements SyntheseCaisse {
         BigDecimal montants = parDate.values().stream().map(RecetteJournee::getMontantAVerser).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal verse = verses.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal soldeFin = lignes.isEmpty() ? soldeDebut : lignes.get(lignes.size() - 1).solde();
-        return new LivreCaisse(s.uuid(), s.code(), s.nom(), mois, soldeDebut, ventes, bonsDirection, bonsGerant, depenses,
+        return new LivreCaisse(s.uuid(), s.code(), s.nom(), mois, soldeDebut, ventes, bonsDirection, bonsGerant, cartes, depenses,
                 complements, encaissements, recouvrements, montants, verse,
                 ecarts, soldeFin, nonCloturees, lignes, aPermission("CAISSE_CONTROLER"), plafond(s.id()));
     }

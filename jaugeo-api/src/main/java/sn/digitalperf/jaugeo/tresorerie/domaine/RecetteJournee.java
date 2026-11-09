@@ -14,18 +14,20 @@ public class RecetteJournee extends EntiteAuditee {
 
     /**
      * Composantes du montant a verser ; ventes = carburant, ventesArticles = lubrifiants et boutique,
-     * encaissements = Wave, Orange Money et carte (hors caisse du gerant).
+     * cartes = pleins payes par carte prepayee (valeur a la pompe), encaissements = Wave, Orange Money et carte
+     * bancaire (hors caisse du gerant).
      */
     public record Composantes(BigDecimal ventes, BigDecimal ventesArticles, BigDecimal bonsDirection, BigDecimal bonsGerant,
-                              BigDecimal depenses, BigDecimal complements, BigDecimal encaissements, BigDecimal recouvrements) {
+                              BigDecimal cartes, BigDecimal depenses, BigDecimal complements, BigDecimal encaissements,
+                              BigDecimal recouvrements) {
 
         public BigDecimal ventesTotales() {
             return ventes.add(ventesArticles);
         }
 
         public BigDecimal montantAVerser() {
-            return CalculCaisse.montantAVerser(ventesTotales(), bonsDirection, bonsGerant, depenses, complements, encaissements,
-                    recouvrements);
+            return CalculCaisse.montantAVerser(ventesTotales(), bonsDirection, bonsGerant, cartes, depenses, complements,
+                    encaissements, recouvrements);
         }
     }
 
@@ -49,6 +51,9 @@ public class RecetteJournee extends EntiteAuditee {
 
     @Column(name = "bons_gerant", nullable = false, updatable = false)
     private BigDecimal bonsGerant;
+
+    @Column(nullable = false, updatable = false)
+    private BigDecimal cartes;
 
     @Column(nullable = false, updatable = false)
     private BigDecimal depenses;
@@ -76,6 +81,7 @@ public class RecetteJournee extends EntiteAuditee {
         this.ventesArticles = c.ventesArticles();
         this.bonsDirection = c.bonsDirection();
         this.bonsGerant = c.bonsGerant();
+        this.cartes = c.cartes();
         this.depenses = c.depenses();
         this.complements = c.complements();
         this.encaissements = c.encaissements();
@@ -84,7 +90,7 @@ public class RecetteJournee extends EntiteAuditee {
     }
 
     public Composantes composantes() {
-        return new Composantes(ventes, ventesArticles, bonsDirection, bonsGerant, depenses, complements, encaissements, recouvrements);
+        return new Composantes(ventes, ventesArticles, bonsDirection, bonsGerant, cartes, depenses, complements, encaissements, recouvrements);
     }
 
     public Long getJourneeId() {
