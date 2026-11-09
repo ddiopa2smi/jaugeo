@@ -1,0 +1,8 @@
+node_modules/
+dist/
+dev-dist/
+coverage/
+e2e/captures/
+*.local
+.env
+.env.*

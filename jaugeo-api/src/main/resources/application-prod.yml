@@ -6,6 +6,10 @@ spring:
     url: ${JAUGEO_DB_URL}
     password: ${JAUGEO_DB_PASSWORD}
 
+# Derriere le proxy HTTPS : X-Forwarded-Proto rend la requete « securisee » (HSTS, cookies), X-Forwarded-For l'adresse du client
+server:
+  forward-headers-strategy: native
+
 management:
   endpoints:
     web:

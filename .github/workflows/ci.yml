@@ -39,3 +39,19 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+
+  images:
+    name: images Docker de recette (API, front)
+    runs-on: ubuntu-latest
+    needs: [api, web]
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t jaugeo-api:${{ github.sha }} jaugeo-api
+      - run: docker build -t jaugeo-web:${{ github.sha }} jaugeo-web
+      # Configuration Nginx valide (l'hôte « api » n'existe que dans le réseau compose)
+      - run: docker run --rm --add-host api:127.0.0.1 jaugeo-web:${{ github.sha }} nginx -t
+      - name: Compose de recette valide
+        working-directory: deploy/recette
+        run: >-
+          JAUGEO_DOMAINE=recette.example JAUGEO_DB_PASSWORD=x JAUGEO_JWT_SECRET=x JAUGEO_ADMIN_PASSWORD=x
+          docker compose config --quiet
