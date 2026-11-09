@@ -1,7 +1,9 @@
 package sn.digitalperf.jaugeo;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -11,6 +13,8 @@ import static sn.digitalperf.jaugeo.OutilsApi.numeroStation;
 
 import com.jayway.jsonpath.JsonPath;
 import java.math.BigDecimal;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -18,6 +22,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpMethod;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
@@ -98,6 +104,22 @@ class TresorerieM5Test {
         return id;
     }
 
+    private ResultActions importer(String jeton, String format, String station, String nom, byte[] contenu) throws Exception {
+        var req = multipart(HttpMethod.POST, "/api/v1/tresorerie/releves").file(new MockMultipartFile("fichier", nom, "text/csv", contenu))
+                .param("format", format).header("Authorization", "Bearer " + jeton);
+        return mvc.perform(station == null ? req : req.param("station", station));
+    }
+
+    private String versement(String date, String reference, long montant) throws Exception {
+        return JsonPath.read(creer(gerant, "/api/v1/tresorerie/versements",
+                "{\"stationId\":\"%s\",\"dateDepot\":\"%s\",\"banque\":\"CBAO\",\"referenceBv\":\"%s\",\"montant\":%d}"
+                        .formatted(station, date, reference, montant)), "$.id");
+    }
+
+    private static Map<String, Object> operation(String rapprochement, String libelle) {
+        return JsonPath.<List<Map<String, Object>>>read(rapprochement, "$.operations[?(@.libelle=='" + libelle + "')]").get(0);
+    }
+
     private ResultActions cloturer(String id) throws Exception {
         String d = lireGet(gerant, "/api/v1/journees/" + id);
         return mvc.perform(avec(post("/api/v1/journees/" + id + "/cloture"), gerant).content("{\"version\":" + JsonPath.read(d, "$.version") + "}"));
@@ -154,5 +176,107 @@ class TresorerieM5Test {
         // Plafond retire : plus d'alerte
         modifier(controleur, "/api/v1/stations/" + station + "/plafond-especes", "{\"plafond\":null}");
         assertThat(JsonPath.<Boolean>read(lireGet(gerant, "/api/v1/journees/" + id + "/tresorerie"), "$.depassePlafond")).isFalse();
+    }
+
+    @Test
+    void releveBancaireLettreLesVersements() throws Exception {
+        creerStation("TRB");
+        String v1 = versement("2026-06-02", "774401", 123_457);
+        String v2 = versement("2026-06-03", "774402", 98_761);
+        String v3 = versement("2026-06-03", "774403", 98_761);
+        String comptable = OutilsApi.creerEtConnecter(mvc, jdbc, "COMPTABLE", "RESEAU", List.of());
+
+        // Format CBAO : point-virgule, dates jj/mm/aaaa, crédit en 5e colonne
+        String format = JsonPath.read(creer(comptable, "/api/v1/tresorerie/formats-releve", """
+                {"code":"cbao-t","libelle":"CBAO compte recettes","nature":"BANQUE","separateur":";","formatDate":"dd/MM/yyyy",
+                 "lignesIgnorees":1,"colDate":1,"colLibelle":2,"colReference":3,"colCredit":5}"""), "$.id");
+        mvc.perform(avec(post("/api/v1/tresorerie/formats-releve"), comptable).content("""
+                {"code":"CBAO-T","libelle":"Doublon","nature":"BANQUE","separateur":";","formatDate":"dd/MM/yyyy",
+                 "lignesIgnorees":1,"colDate":1,"colLibelle":2,"colCredit":5}""")).andExpect(status().isConflict());
+
+        // Export Excel en Windows-1252 : accents, montants à la française, ligne de débit ignorée
+        String csv = """
+                Date;Libellé;Référence;Débit;Crédit
+                03/06/2026;VERSEMENT ESPÈCES BV 774401;;;123 457
+                04/06/2026;VERSEMENT ESPÈCES BV 774402;;;98 761,00
+                04/06/2026;VERSEMENT ESPÈCES;REF-X;;98761
+                05/06/2026;FRAIS TENUE DE COMPTE;;2 500;
+                """;
+        byte[] fichier = csv.getBytes(Charset.forName("windows-1252"));
+        String bilan = lire(importer(comptable, format, null, "cbao-juin.csv", fichier).andExpect(status().isCreated()));
+        assertThat(JsonPath.<Integer>read(bilan, "$.operations")).isEqualTo(3);
+        assertThat(JsonPath.<Integer>read(bilan, "$.ignorees")).isEqualTo(1);
+        // BV cité au libellé, puis seul candidat restant de même montant
+        assertThat(JsonPath.<Integer>read(bilan, "$.lettrees")).isEqualTo(3);
+        importer(comptable, format, null, "cbao-juin.csv", fichier).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("RELEVE_DEJA_IMPORTE"));
+
+        // Relevé qui chevauche : les opérations déjà importées sont ignorées
+        byte[] suite = (csv + "06/06/2026;VERSEMENT ESPÈCES 774499;;;50 000\n").getBytes(Charset.forName("windows-1252"));
+        bilan = lire(importer(comptable, format, null, "cbao-juin-bis.csv", suite).andExpect(status().isCreated()));
+        assertThat(JsonPath.<Integer>read(bilan, "$.operations")).isEqualTo(1);
+        assertThat(JsonPath.<Integer>read(bilan, "$.doublons")).isEqualTo(3);
+        assertThat(JsonPath.<Integer>read(bilan, "$.lettrees")).isZero();
+
+        String r = lireGet(comptable, "/api/v1/tresorerie/rapprochement?mois=2026-06");
+        assertThat(JsonPath.<Map<String, Object>>read(operation(r, "VERSEMENT ESPÈCES BV 774401"), "$.versement").get("id")).isEqualTo(v1);
+        assertThat(JsonPath.<String>read(operation(r, "VERSEMENT ESPÈCES BV 774402"), "$.versement.id")).isEqualTo(v2);
+        assertThat(JsonPath.<String>read(operation(r, "VERSEMENT ESPÈCES"), "$.versement.id")).isEqualTo(v3);
+        Map<String, Object> ouverte = operation(r, "VERSEMENT ESPÈCES 774499");
+        assertThat(ouverte.get("versement")).isNull();
+        assertThat(JsonPath.<Boolean>read(r, "$.peutLettrer")).isTrue();
+        assertThat(nombre(r, "$.taux")).isPositive();
+        // Le versement porte la date de son crédit au relevé
+        String liste = lireGet(gerant, "/api/v1/tresorerie/versements?station=" + station + "&mois=2026-06");
+        assertThat(JsonPath.<List<String>>read(liste, "$[?(@.referenceBv=='774401')].dateReleve")).containsExactly("2026-06-03");
+        // Réservé au siège
+        mvc.perform(avec(get("/api/v1/tresorerie/rapprochement?mois=2026-06"), gerant)).andExpect(status().isForbidden());
+
+        // Versement saisi après coup : lettrage manuel, défait, puis automatique
+        String v4 = versement("2026-06-05", "774499", 50_000);
+        String op = ouverte.get("id").toString();
+        mvc.perform(avec(put("/api/v1/tresorerie/rapprochement/operations/" + op + "/lettrage"), comptable)
+                .content("{\"versementId\":\"" + v1 + "\"}")).andExpect(status().isConflict());
+        String l = modifier(comptable, "/api/v1/tresorerie/rapprochement/operations/" + op + "/lettrage", "{\"versementId\":\"" + v4 + "\"}");
+        assertThat(JsonPath.<String>read(l, "$.modeLettrage")).isEqualTo("MANUEL");
+        lire(mvc.perform(avec(delete("/api/v1/tresorerie/rapprochement/operations/" + op + "/lettrage"), comptable)).andExpect(status().isOk()));
+        String auto = lire(mvc.perform(avec(post("/api/v1/tresorerie/rapprochement/lettrage-automatique"), comptable)).andExpect(status().isOk()));
+        assertThat(JsonPath.<Integer>read(auto, "$.lettrees")).isPositive();
+        r = lireGet(comptable, "/api/v1/tresorerie/rapprochement?mois=2026-06");
+        assertThat(JsonPath.<String>read(operation(r, "VERSEMENT ESPÈCES 774499"), "$.versement.id")).isEqualTo(v4);
+        assertThat(JsonPath.<String>read(operation(r, "VERSEMENT ESPÈCES 774499"), "$.modeLettrage")).isEqualTo("AUTO");
+    }
+
+    @Test
+    void releveWaveComparéAuxEncaissementsDeclares() throws Exception {
+        creerStation("TRW");
+        String id = journee("2026-06-10", true);
+        String e = lireGet(gerant, "/api/v1/journees/" + id + "/encaissements");
+        modifier(gerant, "/api/v1/journees/" + id + "/encaissements",
+                "{\"version\":%s,\"encaissements\":[{\"mode\":\"WAVE\",\"montant\":20000}]}".formatted(JsonPath.read(e, "$.version").toString()));
+        String comptable = OutilsApi.creerEtConnecter(mvc, jdbc, "COMPTABLE", "RESEAU", List.of());
+        String format = JsonPath.read(creer(comptable, "/api/v1/tresorerie/formats-releve", """
+                {"code":"WAVE-T","libelle":"Wave Business","nature":"WAVE","separateur":",","formatDate":"yyyy-MM-dd",
+                 "lignesIgnorees":1,"colDate":1,"colLibelle":2,"colReference":3,"colCredit":4}"""), "$.id");
+        byte[] wave = """
+                date,description,transaction,montant
+                2026-06-10 08:15,Paiement client,T1,12000
+                2026-06-10 19:40,"Paiement client, pompe 2",T2,6500
+                2026-06-11 09:00,Paiement client,T3,4000
+                """.getBytes(StandardCharsets.UTF_8);
+        // Un relevé marchand se rattache à la station du compte Wave
+        importer(comptable, format, null, "wave.csv", wave).andExpect(status().isUnprocessableContent());
+        String bilan = lire(importer(comptable, format, station, "wave.csv", wave).andExpect(status().isCreated()));
+        assertThat(JsonPath.<Integer>read(bilan, "$.operations")).isEqualTo(3);
+
+        String r = lireGet(comptable, "/api/v1/tresorerie/rapprochement/electronique?mois=2026-06");
+        List<Map<String, Object>> lignes = JsonPath.read(r, "$.lignes[?(@.stationCode=='TRW')]");
+        assertThat(lignes).hasSize(2);
+        assertThat(lignes.get(0)).containsEntry("date", "2026-06-10").containsEntry("mode", "WAVE");
+        assertThat(new BigDecimal(lignes.get(0).get("declare").toString())).isEqualByComparingTo("20000");
+        assertThat(new BigDecimal(lignes.get(0).get("releve").toString())).isEqualByComparingTo("18500");
+        assertThat(new BigDecimal(lignes.get(0).get("ecart").toString())).isEqualByComparingTo("-1500");
+        assertThat(new BigDecimal(lignes.get(1).get("ecart").toString())).isEqualByComparingTo("4000");
+        assertThat(JsonPath.<Integer>read(r, "$.ecarts")).isGreaterThanOrEqualTo(2);
     }
 }

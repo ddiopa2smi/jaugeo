@@ -8,6 +8,8 @@ public interface EncaissementJourneeDepot extends JpaRepository<EncaissementJour
 
     List<EncaissementJournee> findByJourneeId(Long journeeId);
 
+    List<EncaissementJournee> findByDateJourBetween(LocalDate du, LocalDate au);
+
     List<EncaissementJournee> findByStationIdAndDateJourBetween(Long stationId, LocalDate du, LocalDate au);
 
     List<EncaissementJournee> findByStationIdAndModeAndDateJourBetween(Long stationId, EncaissementJournee.Mode mode,

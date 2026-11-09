@@ -19,7 +19,8 @@ public final class VuesTresorerie {
     public record VersementVue(UUID id, UUID stationId, String stationCode, LocalDate dateDepot, String banque,
                                String referenceBv, BigDecimal montant, String deposant, String observation, String statut,
                                PieceVue piece, String verifiePar, Instant verifieLe, String motifRejet, String creePar,
-                               Instant creeLe, Integer version, boolean modifiable, boolean verifiable) {
+                               Instant creeLe, Integer version, boolean modifiable, boolean verifiable,
+                               LocalDate dateReleve) {
     }
 
     /**

@@ -49,6 +49,8 @@ import sn.digitalperf.jaugeo.tresorerie.domaine.ArreteCaisseDepot;
 import sn.digitalperf.jaugeo.tresorerie.domaine.CalculCaisse;
 import sn.digitalperf.jaugeo.tresorerie.domaine.ManquantGerant;
 import sn.digitalperf.jaugeo.tresorerie.domaine.ManquantGerantDepot;
+import sn.digitalperf.jaugeo.tresorerie.domaine.OperationReleve;
+import sn.digitalperf.jaugeo.tresorerie.domaine.OperationReleveDepot;
 import sn.digitalperf.jaugeo.tresorerie.domaine.PieceVersement;
 import sn.digitalperf.jaugeo.tresorerie.domaine.PlafondEspeces;
 import sn.digitalperf.jaugeo.tresorerie.domaine.PlafondEspecesDepot;
@@ -74,6 +76,7 @@ public class TresorerieService implements SyntheseCaisse {
     private final ArreteCaisseDepot arretes;
     private final ManquantGerantDepot manquants;
     private final PlafondEspecesDepot plafonds;
+    private final OperationReleveDepot operationsReleve;
     private final CaisseGerant caisse;
     private final JourneesExploitation exploitation;
     private final ReferentielConsultation referentiel;
@@ -85,6 +88,7 @@ public class TresorerieService implements SyntheseCaisse {
 
     public TresorerieService(RecetteJourneeDepot recettes, VersementDepot versements, PieceVersementDepot pieces,
                              ArreteCaisseDepot arretes, ManquantGerantDepot manquants, PlafondEspecesDepot plafonds,
+                             OperationReleveDepot operationsReleve,
                              CaisseGerant caisse,
                              JourneesExploitation exploitation, ReferentielConsultation referentiel,
                              PerimetreCourant perimetre, Clock horloge,
@@ -97,6 +101,7 @@ public class TresorerieService implements SyntheseCaisse {
         this.arretes = arretes;
         this.manquants = manquants;
         this.plafonds = plafonds;
+        this.operationsReleve = operationsReleve;
         this.caisse = caisse;
         this.exploitation = exploitation;
         this.referentiel = referentiel;
@@ -324,22 +329,31 @@ public class TresorerieService implements SyntheseCaisse {
     }
 
     private List<VersementVue> vuesVersements(List<Versement> liste, Map<Long, StationRef> stations) {
-        Map<Long, PieceVersement.Description> descriptions = descriptions(liste.stream().map(Versement::getId).toList());
-        return liste.stream().map(v -> vue(v, stations.get(v.getStationId()), descriptions.get(v.getId()))).toList();
+        List<Long> ids = liste.stream().map(Versement::getId).toList();
+        Map<Long, PieceVersement.Description> descriptions = descriptions(ids);
+        Map<Long, LocalDate> releves = datesReleve(ids);
+        return liste.stream().map(v -> vue(v, stations.get(v.getStationId()), descriptions.get(v.getId()),
+                releves.get(v.getId()))).toList();
     }
 
     private VersementVue vue(Versement v, StationRef s) {
-        return vue(v, s, descriptions(List.of(v.getId())).get(v.getId()));
+        return vue(v, s, descriptions(List.of(v.getId())).get(v.getId()), datesReleve(List.of(v.getId())).get(v.getId()));
     }
 
-    private VersementVue vue(Versement v, StationRef s, PieceVersement.Description p) {
+    /** Date de l'operation du releve bancaire lettree avec chaque versement rapproche. */
+    private Map<Long, LocalDate> datesReleve(Collection<Long> ids) {
+        return ids.isEmpty() ? Map.of() : operationsReleve.findByVersementIdIn(ids).stream()
+                .collect(Collectors.toMap(OperationReleve::getVersementId, OperationReleve::getDateOperation, (a, b) -> a));
+    }
+
+    private VersementVue vue(Versement v, StationRef s, PieceVersement.Description p, LocalDate dateReleve) {
         boolean saisi = v.getStatut() == Versement.Statut.SAISI;
         return new VersementVue(v.getUuid(), s.uuid(), s.code(), v.getDateDepot(), v.getBanque(), v.getReferenceBv(),
                 v.getMontant(), v.getDeposant(), v.getObservation(), v.getStatut().name(),
                 p == null ? null : new PieceVue(p.getNomFichier(), p.getTypeMime(), p.getTaille()),
                 v.getVerifiePar(), v.getVerifieLe(), v.getMotifRejet(), v.getCreePar(), v.getCreeLe(), v.getVersion(),
                 saisi && aPermission("VERSEMENT_SAISIR"),
-                saisi && aPermission("VERSEMENT_VALIDER") && !perimetre.identifiant().equals(v.getCreePar()));
+                saisi && aPermission("VERSEMENT_VALIDER") && !perimetre.identifiant().equals(v.getCreePar()), dateReleve);
     }
 
     private Map<Long, PieceVersement.Description> descriptions(Collection<Long> ids) {

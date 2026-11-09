@@ -47,3 +47,79 @@ ALTER TABLE tresorerie.recette_journee DROP CONSTRAINT ck_recette_calcul;
 ALTER TABLE tresorerie.recette_journee ADD CONSTRAINT ck_recette_calcul
     CHECK (montant_a_verser = ventes + ventes_articles - bons_direction - bons_gerant - depenses - complements
                               - encaissements + recouvrements);
+
+-- ---------------------------------------------------------------------
+-- Releves bancaires et marchands (Wave, Orange Money, carte) importes en CSV ou Excel.
+-- Le format (colonnes, separateur, format de date) est parametre une fois par banque ou operateur.
+-- ---------------------------------------------------------------------
+CREATE TABLE tresorerie.format_releve (
+    id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    uuid            uuid          NOT NULL DEFAULT uuidv7() UNIQUE,
+    code            varchar(20)   NOT NULL UNIQUE,
+    libelle         varchar(80)   NOT NULL,
+    nature          varchar(15)   NOT NULL,
+    separateur      varchar(1)    NOT NULL DEFAULT ';',
+    format_date     varchar(20)   NOT NULL DEFAULT 'dd/MM/yyyy',
+    lignes_ignorees integer       NOT NULL DEFAULT 1 CHECK (lignes_ignorees BETWEEN 0 AND 50),
+    col_date        integer       NOT NULL CHECK (col_date BETWEEN 1 AND 50),
+    col_libelle     integer       NOT NULL CHECK (col_libelle BETWEEN 1 AND 50),
+    col_reference   integer       CHECK (col_reference BETWEEN 1 AND 50),
+    col_credit      integer       NOT NULL CHECK (col_credit BETWEEN 1 AND 50),
+    actif           boolean       NOT NULL DEFAULT true,
+    version         integer       NOT NULL DEFAULT 0,
+    cree_le         timestamptz   NOT NULL DEFAULT now(),
+    cree_par        varchar(50)   NOT NULL,
+    modifie_le      timestamptz   NOT NULL DEFAULT now(),
+    modifie_par     varchar(50)   NOT NULL,
+    CONSTRAINT ck_format_nature CHECK (nature IN ('BANQUE', 'WAVE', 'ORANGE_MONEY', 'CARTE'))
+);
+SELECT audit.activer_audit('tresorerie.format_releve');
+
+-- Un fichier importe ; son empreinte interdit de l'importer deux fois
+CREATE TABLE tresorerie.releve (
+    id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    uuid          uuid          NOT NULL DEFAULT uuidv7() UNIQUE,
+    format_id     bigint        NOT NULL REFERENCES tresorerie.format_releve (id),
+    station_id    bigint        REFERENCES referentiel.station (id),
+    nom_fichier   varchar(200)  NOT NULL,
+    empreinte     varchar(64)   NOT NULL UNIQUE,
+    date_min      date,
+    date_max      date,
+    operations    integer       NOT NULL DEFAULT 0,
+    doublons      integer       NOT NULL DEFAULT 0,
+    version       integer       NOT NULL DEFAULT 0,
+    cree_le       timestamptz   NOT NULL DEFAULT now(),
+    cree_par      varchar(50)   NOT NULL,
+    modifie_le    timestamptz   NOT NULL DEFAULT now(),
+    modifie_par   varchar(50)   NOT NULL
+);
+SELECT audit.activer_audit('tresorerie.releve');
+
+-- Operation au credit d'un releve ; lettree (rapprochee) avec un versement pour les releves bancaires
+CREATE TABLE tresorerie.operation_releve (
+    id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    uuid            uuid          NOT NULL DEFAULT uuidv7() UNIQUE,
+    releve_id       bigint        NOT NULL REFERENCES tresorerie.releve (id),
+    format_id       bigint        NOT NULL REFERENCES tresorerie.format_releve (id),
+    station_id      bigint        REFERENCES referentiel.station (id),
+    date_operation  date          NOT NULL,
+    libelle         varchar(300)  NOT NULL,
+    reference       varchar(80),
+    montant         numeric(15,0) NOT NULL CHECK (montant > 0),
+    cle             varchar(64)   NOT NULL,
+    versement_id    bigint        UNIQUE REFERENCES tresorerie.versement (id),
+    mode_lettrage   varchar(10),
+    lettre_par      varchar(50),
+    lettre_le       timestamptz,
+    version         integer       NOT NULL DEFAULT 0,
+    cree_le         timestamptz   NOT NULL DEFAULT now(),
+    cree_par        varchar(50)   NOT NULL,
+    modifie_le      timestamptz   NOT NULL DEFAULT now(),
+    modifie_par     varchar(50)   NOT NULL,
+    CONSTRAINT uq_operation_cle UNIQUE (format_id, cle),
+    CONSTRAINT ck_operation_lettrage CHECK ((versement_id IS NULL) = (mode_lettrage IS NULL)),
+    CONSTRAINT ck_operation_mode CHECK (mode_lettrage IN ('AUTO', 'MANUEL'))
+);
+CREATE INDEX ix_operation_date ON tresorerie.operation_releve (date_operation);
+CREATE INDEX ix_operation_station_date ON tresorerie.operation_releve (station_id, date_operation);
+SELECT audit.activer_audit('tresorerie.operation_releve');

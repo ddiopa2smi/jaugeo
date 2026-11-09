@@ -92,6 +92,9 @@ class SecuriteConfig {
                                 "/api/v1/stations/*/caisse", "/api/v1/stations/*/arretes").hasAuthority("REFERENTIEL_CONSULTER")
                         .requestMatchers("/api/v1/tresorerie/versements", "/api/v1/tresorerie/versements/**")
                         .hasAuthority("VERSEMENT_SAISIR")
+                        // Rapprochement : releves et lettrage par la comptabilite
+                        .requestMatchers("/api/v1/tresorerie/formats-releve", "/api/v1/tresorerie/formats-releve/*",
+                                "/api/v1/tresorerie/releves", "/api/v1/tresorerie/rapprochement/**").hasAuthority("VERSEMENT_VALIDER")
                         .requestMatchers(HttpMethod.POST, "/api/v1/stations/*/arretes").hasAuthority("CAISSE_CONTROLER")
                         .requestMatchers(HttpMethod.PUT, "/api/v1/stations/*/plafond-especes").hasAuthority("CAISSE_CONTROLER")
                         .requestMatchers(HttpMethod.GET, "/api/v1/journees/*/encaissements").hasAuthority("REFERENTIEL_CONSULTER")
