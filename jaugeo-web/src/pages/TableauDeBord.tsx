@@ -180,6 +180,18 @@ function SituationStocks() {
           label={s.alertes > 0 ? `${s.alertes} écart(s) hors tolérance` : 'Écarts dans la tolérance'}
           data-testid="alertes-stock"
         />
+        {s.cuvesAReapprovisionner > 0 && (
+          <Chip
+            size="small"
+            color="error"
+            label={`${s.cuvesAReapprovisionner} cuve(s) à réapprovisionner`}
+            onClick={() => navigate('/stocks?onglet=autonomie')}
+            data-testid="reappro-stock"
+          />
+        )}
+        {s.cuvesEau > 0 && (
+          <Chip size="small" color="warning" label={`${s.cuvesEau} cuve(s) avec eau`} onClick={() => navigate('/stocks?onglet=autonomie')} />
+        )}
         {s.complementsARegler > 0 && (
           <Chip
             size="small"
@@ -196,6 +208,7 @@ function SituationStocks() {
               <TableCell>Cuve</TableCell>
               <TableCell>Dernier jaugeage</TableCell>
               <TableCell align="right">Stock</TableCell>
+              <TableCell align="right">Autonomie</TableCell>
               <TableCell align="right">Écart du mois</TableCell>
             </TableRow>
           </TableHead>
@@ -212,6 +225,9 @@ function SituationStocks() {
                 </TableCell>
                 <TableCell>{formaterDate(c.date)}</TableCell>
                 <TableCell align="right">{formaterNombre(c.stockPhysique)} L</TableCell>
+                <TableCell align="right" sx={{ color: c.aReapprovisionner ? 'error.main' : undefined }}>
+                  {c.autonomieJours === null ? '—' : `${formaterNombre(c.autonomieJours)} j`}
+                </TableCell>
                 <TableCell align="right">
                   <Chip
                     size="small"

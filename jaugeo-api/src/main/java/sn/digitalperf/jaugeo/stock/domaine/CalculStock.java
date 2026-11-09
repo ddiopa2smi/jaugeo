@@ -104,6 +104,29 @@ public final class CalculStock {
         return manquant.compareTo(seuil) > 0 ? manquant.setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
     }
 
+    // ---------------------------------------------------------------- Autonomie
+
+    /** Autonomie en jours (1 decimale) : stock utilisable (au-dessus du creux) / ventes moyennes par jour. */
+    public static BigDecimal autonomieJours(BigDecimal stock, BigDecimal creux, BigDecimal ventesMoyennes) {
+        if (stock == null || ventesMoyennes == null || ventesMoyennes.signum() <= 0) {
+            return null;
+        }
+        BigDecimal utile = stock.subtract(creux == null ? BigDecimal.ZERO : creux).max(BigDecimal.ZERO);
+        return utile.divide(ventesMoyennes, 1, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * A reapprovisionner : stock au seuil de la cuve quand il est fixe, sinon autonomie sous le nombre de jours
+     * d'alerte du reseau.
+     */
+    public static boolean aReapprovisionner(BigDecimal stock, BigDecimal seuilLitres, BigDecimal autonomie,
+                                            BigDecimal alerteJours) {
+        if (seuilLitres != null) {
+            return stock != null && stock.compareTo(seuilLitres) <= 0;
+        }
+        return autonomie != null && autonomie.compareTo(alerteJours) < 0;
+    }
+
     public static BigDecimal pourcentageLivraison(BigDecimal quantiteBl, BigDecimal quantiteRecue) {
         return pourcentage(quantiteRecue.subtract(quantiteBl), quantiteBl);
     }

@@ -122,6 +122,10 @@ export interface Cuve {
   baremePoints: number
   baremeCertificat: string | null
   baremeDate: string | null
+  /** Eau en fond de cuve (mm) au-delà de laquelle le jaugeage alerte ; null = seuil du réseau */
+  seuilEauMm: number | null
+  /** Stock (L) sous lequel la cuve est à réapprovisionner ; null = jugement sur l'autonomie */
+  seuilReapproLitres: number | null
 }
 
 export interface Pistolet {
@@ -408,10 +412,13 @@ export interface Anomalie {
 
 export interface Jaugeage {
   hauteurMm: number | null
+  /** Volume de produit, eau déduite */
   volumeLitres: number
   observation: string | null
   par: string
   le: string
+  hauteurEauMm: number | null
+  volumeEauLitres: number | null
 }
 
 export interface CuveStock {
@@ -440,7 +447,12 @@ export interface CuveStock {
   niveau: NiveauEcart | null
   observationRequise: boolean
   anomalies: Anomalie[]
+  seuilEauMm: number
+  /** Alertes non bloquantes (eau en fond de cuve) */
+  alertes: Anomalie[]
 }
+
+export type Imputation = 'TRANSPORTEUR' | 'FOURNISSEUR'
 
 export interface Reception {
   id: string
@@ -466,6 +478,13 @@ export interface Reception {
   complementStatut: 'A_REGLER' | 'REGLE' | null
   par: string
   le: string
+  quantiteBl15: number | null
+  facteur15: number | null
+  quantiteRecue15: number | null
+  /** Écart de livraison et complément calculés à 15 °C */
+  compareeA15: boolean
+  scellesIntacts: boolean | null
+  imputation: Imputation
 }
 
 export interface StockJournee {
@@ -498,6 +517,10 @@ export interface SaisieReception {
   temperatureC: number | null
   densite: number | null
   observation: string | null
+  quantiteBl15: number | null
+  scellesIntacts: boolean | null
+  /** null = automatique (fournisseur si scellés intacts, transporteur sinon) */
+  imputation: Imputation | null
 }
 
 export interface SaisieJaugeage {
@@ -506,6 +529,7 @@ export interface SaisieJaugeage {
   hauteurMm: number | null
   volumeLitres: number | null
   observation: string | null
+  hauteurEauMm: number | null
 }
 
 export interface LigneStock {
@@ -570,6 +594,16 @@ export interface SituationCuve {
   tolerancePct: number
   niveau: NiveauEcart
   observation: string | null
+  creuxSecuriteLitres: number | null
+  hauteurEauMm: number | null
+  seuilEauMm: number
+  eauAlerte: boolean
+  /** Ventes moyennes par jour sur les 7 derniers jours figés */
+  ventesMoyennes: number | null
+  joursMoyenne: number
+  autonomieJours: number | null
+  seuilReapproLitres: number | null
+  aReapprovisionner: boolean
 }
 
 export interface SituationStock {
@@ -577,6 +611,9 @@ export interface SituationStock {
   alertes: number
   complementsARegler: number
   montantComplementsARegler: number
+  cuvesEau: number
+  cuvesAReapprovisionner: number
+  autonomieAlerteJours: number
 }
 
 export interface ComplementCiterne {
@@ -601,6 +638,8 @@ export interface ComplementCiterne {
   reglePar: string | null
   version: number
   reglable: boolean
+  imputeA: Imputation
+  a15: boolean
 }
 // ---------------------------------------------------------------- Dépenses (M7)
 
@@ -745,6 +784,8 @@ export interface RecetteJournee {
   statut: StatutJournee
   fige: boolean
   ventes: number | null
+  /** Lubrifiants et articles boutique vendus dans la journée */
+  ventesArticles: number
   bonsDirection: number
   bonsGerant: number
   depenses: number | null
@@ -1174,4 +1215,102 @@ export interface VueDirection {
   produits: ProduitDirection[]
   jours: JourDirection[]
   stations: StationDirection[]
+}
+// ------------------------------------------------------------ Lubrifiants et boutique (lot 2, M4)
+
+export type TypeMouvementArticle = 'ENTREE' | 'VENTE' | 'INVENTAIRE'
+export type StatutEntreeArticle = 'ANNONCEE' | 'RECUE' | 'ANNULEE'
+
+export interface ArticleStation {
+  produitId: string
+  code: string
+  libelle: string
+  unite: string
+  quantite: number
+  ventesEnCours: number
+  disponible: number
+  cmup: number
+  valeur: number
+  prixVente: number | null
+  dernierComptage: string | null
+  aCompter: boolean
+  enRetard: boolean
+}
+
+export interface EntreeArticle {
+  id: string
+  version: number
+  produitId: string
+  produitCode: string
+  produitLibelle: string
+  unite: string
+  quantite: number
+  coutUnitaire: number
+  valeur: number
+  fournisseur: string
+  reference: string
+  statut: StatutEntreeArticle
+  quantiteRecue: number | null
+  recueLe: string | null
+  recuePar: string | null
+  observation: string | null
+  annonceeLe: string
+  annonceePar: string
+}
+
+export interface StockArticles {
+  stationId: string
+  stationCode: string
+  stationNom: string
+  articles: ArticleStation[]
+  valeurStock: number
+  nombreACompter: number
+  entreesAnnoncees: EntreeArticle[]
+  peutAnnoncer: boolean
+  peutRecevoir: boolean
+  peutCompter: boolean
+}
+
+export interface MouvementArticle {
+  date: string
+  produitCode: string
+  produitLibelle: string
+  type: TypeMouvementArticle
+  quantite: number
+  coutUnitaire: number
+  valeur: number
+  stockApres: number
+  cmupApres: number
+  libelle: string | null
+}
+
+export interface MouvementsArticles {
+  stationId: string
+  stationCode: string
+  mois: string
+  mouvements: MouvementArticle[]
+  valeurEntrees: number
+  valeurVentes: number
+  valeurEcarts: number
+}
+
+export interface VenteArticle {
+  produitId: string
+  code: string
+  libelle: string
+  unite: string
+  disponible: number
+  prixUnitaire: number | null
+  quantite: number | null
+  montant: number | null
+  cmup: number | null
+}
+
+export interface VentesArticlesJournee {
+  journeeId: string
+  version: number
+  statut: StatutJournee
+  modifiable: boolean
+  articles: VenteArticle[]
+  total: number
 }

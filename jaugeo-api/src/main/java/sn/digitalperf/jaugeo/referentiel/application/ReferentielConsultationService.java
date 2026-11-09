@@ -139,7 +139,7 @@ class ReferentielConsultationService implements ReferentielConsultation {
         Produit p = c.getProduit();
         return new CuveRef(c.getId(), c.getUuid(), c.getStation().getId(), c.getCode(), p.getId(), p.getCode(),
                 p.getLibelle(), c.getCapaciteLitres(), c.getCreuxSecuriteLitres(), p.getToleranceEcartPct(), bareme,
-                c.isActif());
+                c.isActif(), c.getSeuilEauMm(), c.getSeuilReapproLitres());
     }
 
     private static ChangementCompteur ref(EvenementEquipement e) {

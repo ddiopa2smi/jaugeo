@@ -84,12 +84,16 @@ class ReferentielController {
     record CuveSaisie(@NotBlank @Size(max = 10) @Pattern(regexp = CODE, message = MSG_CODE) String code,
                       @NotBlank String produitCode,
                       @PositiveOrZero @Digits(integer = 10, fraction = 2) BigDecimal capaciteLitres,
-                      @PositiveOrZero @Digits(integer = 10, fraction = 2) BigDecimal creuxSecuriteLitres) {
+                      @PositiveOrZero @Digits(integer = 10, fraction = 2) BigDecimal creuxSecuriteLitres,
+                      @PositiveOrZero @jakarta.validation.constraints.Max(2000) Integer seuilEauMm,
+                      @PositiveOrZero @Digits(integer = 10, fraction = 2) BigDecimal seuilReapproLitres) {
     }
 
     record CuveModification(@PositiveOrZero @Digits(integer = 10, fraction = 2) BigDecimal capaciteLitres,
                             @PositiveOrZero @Digits(integer = 10, fraction = 2) BigDecimal creuxSecuriteLitres,
-                            boolean actif, @NotNull Integer version) {
+                            boolean actif, @NotNull Integer version,
+                            @PositiveOrZero @jakarta.validation.constraints.Max(2000) Integer seuilEauMm,
+                            @PositiveOrZero @Digits(integer = 10, fraction = 2) BigDecimal seuilReapproLitres) {
     }
 
     record PompeSaisie(@NotBlank @Size(max = 10) @Pattern(regexp = CODE, message = MSG_CODE) String code,
@@ -154,13 +158,15 @@ class ReferentielController {
     @PostMapping("/stations/{id}/cuves")
     @ResponseStatus(HttpStatus.CREATED)
     CuveVue creerCuve(@PathVariable UUID id, @Valid @RequestBody CuveSaisie c) {
-        return service.creerCuve(id, c.code(), c.produitCode(), c.capaciteLitres(), c.creuxSecuriteLitres());
+        return service.creerCuve(id, c.code(), c.produitCode(), c.capaciteLitres(), c.creuxSecuriteLitres(),
+                c.seuilEauMm(), c.seuilReapproLitres());
     }
 
     @PreAuthorize(GERER)
     @PutMapping("/cuves/{id}")
     CuveVue modifierCuve(@PathVariable UUID id, @Valid @RequestBody CuveModification c) {
-        return service.modifierCuve(id, c.capaciteLitres(), c.creuxSecuriteLitres(), c.actif(), c.version());
+        return service.modifierCuve(id, c.capaciteLitres(), c.creuxSecuriteLitres(), c.actif(), c.version(),
+                c.seuilEauMm(), c.seuilReapproLitres());
     }
 
     @PreAuthorize(GERER)

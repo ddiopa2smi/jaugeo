@@ -203,7 +203,7 @@ function ArgentDu({ vue }: { vue: Vue }) {
       <Divider />
       <Ligne
         libelle="Compléments citerne à recouvrer"
-        detail={`${stock.data?.complementsARegler ?? 0} livraison(s) avec manquant dû par le transporteur`}
+        detail={`${stock.data?.complementsARegler ?? 0} livraison(s) avec manquant dû par le transporteur ou le fournisseur`}
         valeur={formaterPrix(complements)}
         vers="/stocks?onglet=complements"
       />
@@ -213,7 +213,10 @@ function ArgentDu({ vue }: { vue: Vue }) {
 
 function Risques({ date }: { date: string }) {
   const reseau = useTableauReseau(date)
+  const stock = useSituationStock()
   const navigate = useNavigate()
+  const reappro = (stock.data?.cuves ?? []).filter((c) => c.aReapprovisionner)
+  const eau = (stock.data?.cuves ?? []).filter((c) => c.eauAlerte)
   const t = reseau.data
   if (!t) return <Bloc titre="Risques">{reseau.error ? <AlerteErreur erreur={reseau.error} /> : <Chargement />}</Bloc>
   const aSurveiller = t.stations.filter((s) => s.niveau !== 'NORMAL').sort((a, b) => (a.niveau === 'ENQUETE' ? -1 : 1) - (b.niveau === 'ENQUETE' ? -1 : 1))
@@ -238,6 +241,30 @@ function Risques({ date }: { date: string }) {
         vers="/stocks"
         alerte={t.ecartStockValeurMois < 0}
       />
+      <Divider />
+      <Ligne
+        libelle="Cuves à réapprovisionner"
+        detail={
+          reappro.length > 0
+            ? reappro.map((c) => `${c.stationCode} ${c.produitLibelle}${c.autonomieJours === null ? '' : ` (${formaterNombre(c.autonomieJours)} j)`}`).join(' · ')
+            : 'Autonomie suffisante partout'
+        }
+        valeur={String(reappro.length)}
+        vers="/stocks?onglet=autonomie"
+        alerte={reappro.length > 0}
+      />
+      {eau.length > 0 && (
+        <>
+          <Divider />
+          <Ligne
+            libelle="Eau en fond de cuve"
+            detail={eau.map((c) => `${c.stationCode} ${c.cuveCode} : ${c.hauteurEauMm} mm`).join(' · ')}
+            valeur={String(eau.length)}
+            vers="/stocks?onglet=autonomie"
+            alerte
+          />
+        </>
+      )}
       <Divider sx={{ mb: 1 }} />
       {aSurveiller.length === 0 ? (
         <Typography variant="body2" color="text.secondary">

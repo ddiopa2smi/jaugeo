@@ -102,6 +102,13 @@ class SecuriteConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/syntheses/**").hasAuthority("REFERENTIEL_CONSULTER")
                         .requestMatchers(HttpMethod.PUT, "/api/v1/syntheses/commentaires").hasAuthority("CLOTURE_MENSUELLE")
                         .requestMatchers(HttpMethod.GET, "/api/v1/tableau-bord/**").hasAuthority("TABLEAU_BORD_RESEAU")
+                        // Lubrifiants et boutique : entrees annoncees par la logistique, confirmees et vendues a la station
+                        .requestMatchers(HttpMethod.POST, "/api/v1/stations/*/articles/entrees", "/api/v1/articles/entrees/*/annulation")
+                        .hasAuthority("RECEPTION_VALIDER")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/articles/entrees/*/reception").hasAuthority("JOURNEE_SAISIR")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/stations/*/articles/comptages")
+                        .hasAnyAuthority("JOURNEE_SAISIR", "JOURNEE_VALIDER")
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/journees/*/articles").hasAuthority("JOURNEE_SAISIR")
                         .requestMatchers(HttpMethod.POST, REFERENTIEL).hasAuthority("REFERENTIEL_GERER")
                         .requestMatchers(HttpMethod.PUT, REFERENTIEL).hasAuthority("REFERENTIEL_GERER")
                         .requestMatchers(HttpMethod.GET, REFERENTIEL).hasAuthority("REFERENTIEL_CONSULTER")

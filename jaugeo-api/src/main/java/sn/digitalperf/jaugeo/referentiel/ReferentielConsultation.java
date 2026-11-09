@@ -29,10 +29,14 @@ public interface ReferentielConsultation {
                        boolean actif) {
     }
 
-    /** Cuve avec son produit, la tolerance d'ecart de stock du produit et la presence d'un bareme. */
+    /**
+     * Cuve avec son produit, la tolerance d'ecart de stock du produit, la presence d'un bareme et ses seuils
+     * (eau en fond de cuve, reapprovisionnement ; nuls = valeurs du reseau).
+     */
     record CuveRef(long id, UUID uuid, long stationId, String code, long produitId, String produitCode,
                    String produitLibelle, BigDecimal capaciteLitres, BigDecimal creuxSecuriteLitres,
-                   BigDecimal toleranceEcartPct, boolean bareme, boolean actif) {
+                   BigDecimal toleranceEcartPct, boolean bareme, boolean actif, Integer seuilEauMm,
+                   BigDecimal seuilReapproLitres) {
     }
 
     /** Changement de compteur d'un pistolet : index lu sur l'ancien compteur, index de depart du nouveau. */

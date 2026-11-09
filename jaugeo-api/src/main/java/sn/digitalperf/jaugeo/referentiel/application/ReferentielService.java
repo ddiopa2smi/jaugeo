@@ -158,7 +158,8 @@ public class ReferentielService {
     }
 
     @Transactional
-    public CuveVue creerCuve(UUID stationId, String code, String produitCode, BigDecimal capacite, BigDecimal creux) {
+    public CuveVue creerCuve(UUID stationId, String code, String produitCode, BigDecimal capacite, BigDecimal creux,
+                             Integer seuilEauMm, BigDecimal seuilReapproLitres) {
         Station s = stationAccessible(stationId);
         String c = code.trim().toUpperCase();
         if (cuves.existsByStationIdAndCodeIgnoreCase(s.getId(), c)) {
@@ -168,15 +169,18 @@ public class ReferentielService {
                 .orElseThrow(() -> ErreurMetier.regle("PRODUIT_INCONNU", "Produit inconnu : " + produitCode));
         Cuve cuve = new Cuve(s, c, produit);
         cuve.modifier(capacite, creux, true);
+        cuve.definirSeuils(seuilEauMm, seuilReapproLitres);
         return CuveVue.de(cuves.saveAndFlush(cuve), 0);
     }
 
     @Transactional
-    public CuveVue modifierCuve(UUID cuveId, BigDecimal capacite, BigDecimal creux, boolean actif, Integer version) {
+    public CuveVue modifierCuve(UUID cuveId, BigDecimal capacite, BigDecimal creux, boolean actif, Integer version,
+                                Integer seuilEauMm, BigDecimal seuilReapproLitres) {
         Cuve cuve = cuves.findByUuid(cuveId).orElseThrow(() -> ErreurMetier.introuvable("Cuve"));
         perimetre.exigerStation(cuve.getStation().getId());
         cuve.verifierVersion(version);
         cuve.modifier(capacite, creux, actif);
+        cuve.definirSeuils(seuilEauMm, seuilReapproLitres);
         return CuveVue.de(cuves.saveAndFlush(cuve), baremes.findByCuveIdOrderByHauteurMmAsc(cuve.getId()).size());
     }
 

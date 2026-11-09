@@ -114,6 +114,7 @@ public class TresorerieService implements SyntheseCaisse {
                 .orElse(montant == null ? null : ouverture.add(montant).subtract(verse));
         return new RecetteVue(j.uuid(), s.uuid(), s.code(), j.date(), j.statut(), fige,
                 c.map(RecetteJournee.Composantes::ventes).orElse(null),
+                c.map(RecetteJournee.Composantes::ventesArticles).orElse(BigDecimal.ZERO),
                 c.map(RecetteJournee.Composantes::bonsDirection).orElse(BigDecimal.ZERO),
                 c.map(RecetteJournee.Composantes::bonsGerant).orElse(BigDecimal.ZERO),
                 c.map(RecetteJournee.Composantes::depenses).orElse(null),
@@ -182,7 +183,8 @@ public class TresorerieService implements SyntheseCaisse {
                 nonCloturees++;
             }
             if (c != null) {
-                ventes = ventes.add(c.ventes());
+                // Ventes du livre de caisse : carburant, lubrifiants et boutique
+                ventes = ventes.add(c.ventesTotales());
                 bonsDirection = bonsDirection.add(c.bonsDirection());
                 bonsGerant = bonsGerant.add(c.bonsGerant());
                 depenses = depenses.add(c.depenses());
@@ -196,7 +198,7 @@ public class TresorerieService implements SyntheseCaisse {
                 ecarts = ecarts.add(ecart);
             }
             lignes.add(new LigneCaisse(l.date(), j == null ? null : j.uuid(), j == null ? null : j.statut(),
-                    c == null ? null : c.ventes(), c == null ? null : c.bonsDirection().add(c.bonsGerant()),
+                    c == null ? null : c.ventesTotales(), c == null ? null : c.bonsDirection().add(c.bonsGerant()),
                     c == null ? null : c.depenses(), c == null ? null : c.complements(), c == null ? null : c.recouvrements(),
                     l.montantAVerser(),
                     l.ouverture(), l.versements(), theorique, a == null ? null : vue(a, s), ecart, l.solde()));

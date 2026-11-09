@@ -94,6 +94,8 @@ const schemaCuve = z.object({
   produitCode: z.string().min(1, 'Choisissez un produit'),
   capaciteLitres: quantite(false),
   creuxSecuriteLitres: quantite(false),
+  seuilEauMm: quantite(false),
+  seuilReapproLitres: quantite(false),
   actif: z.boolean(),
 })
 
@@ -112,6 +114,8 @@ export function DialogueCuve({ stationId, cuve, onFermer }: { stationId: string;
         produitCode: cuve?.produitCode ?? '',
         capaciteLitres: cuve?.capaciteLitres?.toString() ?? '',
         creuxSecuriteLitres: cuve?.creuxSecuriteLitres?.toString() ?? '',
+        seuilEauMm: cuve?.seuilEauMm?.toString() ?? '',
+        seuilReapproLitres: cuve?.seuilReapproLitres?.toString() ?? '',
         actif: cuve?.actif ?? true,
       }}
       envoyer={(v) =>
@@ -119,6 +123,8 @@ export function DialogueCuve({ stationId, cuve, onFermer }: { stationId: string;
           ? api.put<Cuve>(`/cuves/${cuve.id}`, {
               capaciteLitres: versNombre(v.capaciteLitres),
               creuxSecuriteLitres: versNombre(v.creuxSecuriteLitres),
+              seuilEauMm: versNombre(v.seuilEauMm),
+              seuilReapproLitres: versNombre(v.seuilReapproLitres),
               actif: v.actif,
               version: cuve.version,
             })
@@ -127,6 +133,8 @@ export function DialogueCuve({ stationId, cuve, onFermer }: { stationId: string;
               produitCode: v.produitCode,
               capaciteLitres: versNombre(v.capaciteLitres),
               creuxSecuriteLitres: versNombre(v.creuxSecuriteLitres),
+              seuilEauMm: versNombre(v.seuilEauMm),
+              seuilReapproLitres: versNombre(v.seuilReapproLitres),
             })
       }
     >
@@ -140,6 +148,13 @@ export function DialogueCuve({ stationId, cuve, onFermer }: { stationId: string;
           </ChampTexte>
           <ChampTexte control={control} nom="capaciteLitres" libelle="Capacité (litres)" aide="Volume utile de la cuve" />
           <ChampTexte control={control} nom="creuxSecuriteLitres" libelle="Creux de sécurité (litres)" aide="Volume minimal à ne pas pomper" />
+          <ChampTexte
+            control={control}
+            nom="seuilReapproLitres"
+            libelle="Seuil de réapprovisionnement (litres)"
+            aide="Vide : alerte sur l'autonomie en jours"
+          />
+          <ChampTexte control={control} nom="seuilEauMm" libelle="Seuil d'eau en fond de cuve (mm)" aide="Vide : seuil du réseau" />
           {cuve && <ChampInterrupteur control={control} nom="actif" libelle="Cuve en service" />}
         </>
       )}

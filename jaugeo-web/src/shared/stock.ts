@@ -40,6 +40,27 @@ export function apercuEcart(theorique: number | null, s: SaisieJauge): number | 
   return Math.round((v - theorique) * 100) / 100
 }
 
+/**
+ * Facteur de correction à 15 °C (ASTM D1250, table 54B), identique au calcul de l'API, pour l'aperçu de saisie.
+ * Densité à 15 °C en kg/L ; null hors du domaine de la table.
+ */
+export function facteur15(temperatureC: number, densite15: number): number | null {
+  const rho = densite15 * 1000
+  if (rho < 610.5 || rho > 1075) return null
+  const alpha =
+    rho < 770.5
+      ? 346.4228 / (rho * rho) + 0.4388 / rho
+      : rho < 787.5
+        ? -0.00336312 + 2680.3206 / (rho * rho)
+        : rho < 839
+          ? 594.5418 / (rho * rho)
+          : 186.9696 / (rho * rho) + 0.4862 / rho
+  const dt = temperatureC - 15
+  return Math.round(Math.exp(-alpha * dt * (1 + 0.8 * alpha * dt)) * 100000) / 100000
+}
+
+export const IMPUTATIONS = { TRANSPORTEUR: 'transporteur', FOURNISSEUR: 'fournisseur' } as const
+
 export function formaterPct(v: number | null | undefined): string {
   if (v === null || v === undefined) return '—'
   return `${v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %`

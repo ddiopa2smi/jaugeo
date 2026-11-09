@@ -10,17 +10,26 @@ import sn.digitalperf.jaugeo.commun.ErreurMetier;
 
 /**
  * Reception citerne liee a un bon de livraison (BL), saisie dans la journee du depotage.
- * La quantite recue entre en stock ; le manquant au-dela de la tolerance transport devient un complement citerne.
+ * La quantite recue (ambiante) entre en stock. La livraison se juge a 15 °C quand le BL porte la quantite a 15 °C
+ * et que la temperature et la densite a 15 °C sont relevees : la quantite recue est alors corrigee (table 54B).
+ * Le manquant au-dela de la tolerance transport devient un complement citerne, a la charge du transporteur
+ * ou du fournisseur (imputation).
  */
 @Entity
 @Table(schema = "stock", name = "reception")
 public class Reception extends EntiteAuditee {
 
-    /** Donnees saisies d'une reception. */
+    /**
+     * A qui revient un manquant de livraison. Par defaut : le fournisseur si la citerne est arrivee scelles intacts
+     * (le manquant vient du chargement au depot), le transporteur sinon.
+     */
+    public enum Imputation { TRANSPORTEUR, FOURNISSEUR }
+
+    /** Donnees saisies d'une reception ; densite = masse volumique a 15 °C (kg/L), portee sur le BL. */
     public record Donnees(String numeroBl, String fournisseur, String transporteur, String chauffeur,
                           String immatriculation, String scelles, BigDecimal quantiteBl, BigDecimal jaugeAvant,
                           BigDecimal jaugeApres, BigDecimal quantiteRecue, BigDecimal temperatureC, BigDecimal densite,
-                          String observation) {
+                          String observation, BigDecimal quantiteBl15, Boolean scellesIntacts, Imputation imputation) {
     }
 
     @Column(name = "journee_id", nullable = false, updatable = false)
@@ -68,6 +77,22 @@ public class Reception extends EntiteAuditee {
 
     private String observation;
 
+    @Column(name = "quantite_bl_15")
+    private BigDecimal quantiteBl15;
+
+    @Column(name = "facteur_15")
+    private BigDecimal facteur15;
+
+    @Column(name = "quantite_recue_15")
+    private BigDecimal quantiteRecue15;
+
+    @Column(name = "scelles_intacts")
+    private Boolean scellesIntacts;
+
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    @Column(nullable = false)
+    private Imputation imputation = Imputation.TRANSPORTEUR;
+
     protected Reception() {
     }
 
@@ -104,6 +129,39 @@ public class Reception extends EntiteAuditee {
         this.temperatureC = d.temperatureC();
         this.densite = d.densite();
         this.observation = texte(d.observation());
+        if (d.quantiteBl15() != null && d.quantiteBl15().signum() <= 0) {
+            throw ErreurMetier.regle("QUANTITE_BL_INVALIDE", "La quantité à 15 °C du BL doit être positive.");
+        }
+        this.quantiteBl15 = d.quantiteBl15();
+        if (d.temperatureC() != null && d.densite() != null) {
+            if (d.densite().compareTo(Correction15.DENSITE_MIN) < 0 || d.densite().compareTo(Correction15.DENSITE_MAX) > 0) {
+                throw ErreurMetier.regle("DENSITE_INVALIDE", "La densité à 15 °C doit être comprise entre 0,6105 et 1,075 "
+                        + "(par exemple 0,745 pour le super, 0,840 pour le gasoil).");
+            }
+            this.facteur15 = Correction15.facteur(d.temperatureC(), d.densite());
+            this.quantiteRecue15 = Correction15.volume15(recue, facteur15);
+        } else {
+            this.facteur15 = null;
+            this.quantiteRecue15 = null;
+        }
+        this.scellesIntacts = d.scellesIntacts();
+        this.imputation = d.imputation() != null ? d.imputation()
+                : Boolean.TRUE.equals(d.scellesIntacts()) ? Imputation.FOURNISSEUR : Imputation.TRANSPORTEUR;
+    }
+
+    /** La livraison se juge a 15 °C : quantite du BL a 15 °C et quantite recue corrigee toutes deux connues. */
+    public boolean compareeA15() {
+        return quantiteBl15 != null && quantiteRecue15 != null;
+    }
+
+    /** Quantite annoncee par le BL, dans la base de comparaison (15 °C ou ambiante). */
+    public BigDecimal quantiteLivree() {
+        return compareeA15() ? quantiteBl15 : quantiteBl;
+    }
+
+    /** Quantite mesuree a la station, dans la meme base que {@link #quantiteLivree()}. */
+    public BigDecimal quantiteMesuree() {
+        return compareeA15() ? quantiteRecue15 : quantiteRecue;
     }
 
     private static String texte(String s) {
@@ -180,5 +238,25 @@ public class Reception extends EntiteAuditee {
 
     public String getObservation() {
         return observation;
+    }
+
+    public BigDecimal getQuantiteBl15() {
+        return quantiteBl15;
+    }
+
+    public BigDecimal getFacteur15() {
+        return facteur15;
+    }
+
+    public BigDecimal getQuantiteRecue15() {
+        return quantiteRecue15;
+    }
+
+    public Boolean getScellesIntacts() {
+        return scellesIntacts;
+    }
+
+    public Imputation getImputation() {
+        return imputation;
     }
 }

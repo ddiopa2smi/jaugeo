@@ -33,6 +33,7 @@ import { AlerteErreur, Chargement } from '../../shared/composants'
 import { apercu, memeSaisie, saisieInitiale, STATUTS_JOURNEE, type SaisieLigne } from '../../shared/journee'
 import { formaterDate, formaterDateHeureCourte, formaterNombre, formaterPrix, versNombre } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
+import { SectionArticles } from './SectionArticles'
 import { RecapCredit, SectionCredit } from './SectionCredit'
 import { RecapDepenses, SectionDepenses } from './SectionDepenses'
 import { DetailMontant, SectionRecette } from './SectionRecette'
@@ -401,6 +402,7 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
             </Paper>
           ))}
           <SectionStock journeeId={journee.id} ref={poigneeStock} />
+          <SectionArticles journeeId={journee.id} />
           <SectionCredit journeeId={journee.id} />
           <SectionDepenses journeeId={journee.id} />
         </Stack>

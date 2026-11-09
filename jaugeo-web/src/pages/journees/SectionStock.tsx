@@ -27,12 +27,22 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useImperativeHandle, useState, type Ref } from 'react'
 import { api } from '../../api/client'
 import { cles, useStockJournee } from '../../api/requetes'
-import type { CuveStock, SaisieJaugeage, SaisieReception, StockJournee } from '../../api/types'
+import type { CuveStock, Imputation, SaisieJaugeage, SaisieReception, StockJournee } from '../../api/types'
 import { envoyerSaisie } from '../../horsligne/file'
 import { AlerteErreur } from '../../shared/composants'
 import { formaterDate, formaterNombre, formaterPrix, versNombre, videVersNull } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
-import { apercuEcart, corpsJauge, formaterPct, jaugeInitiale, memeJauge, NIVEAUX_ECART, type SaisieJauge } from '../../shared/stock'
+import {
+  apercuEcart,
+  corpsJauge,
+  facteur15,
+  formaterPct,
+  IMPUTATIONS,
+  jaugeInitiale,
+  memeJauge,
+  NIVEAUX_ECART,
+  type SaisieJauge,
+} from '../../shared/stock'
 
 /** Ce que la fiche journée pilote avant la clôture : enregistrer les jaugeages encore en cours de saisie. */
 export interface PoigneeStock {
@@ -45,7 +55,11 @@ interface SaisieCuve {
   ouverture?: SaisieJauge
   cloture?: SaisieJauge
   observation?: string
+  /** Hauteur d'eau en fond de cuve (mm) relevée au jaugeage de fin */
+  eau?: string
 }
+
+const eauInitiale = (c: CuveStock) => (c.cloture?.hauteurEauMm == null ? '' : String(c.cloture.hauteurEauMm))
 
 const litres = (v: number | null | undefined) => (v === null || v === undefined ? '—' : `${formaterNombre(v)} L`)
 
@@ -115,7 +129,8 @@ function CarteCuve({
   const cloture = saisie.cloture ?? jaugeInitiale(cuve, cuve.cloture)
   const ouverture = saisie.ouverture ?? jaugeInitiale(cuve, cuve.ouverture)
   const observation = saisie.observation ?? cuve.cloture?.observation ?? ''
-  const retouchee = saisie.cloture !== undefined || saisie.ouverture !== undefined
+  const eau = saisie.eau ?? eauInitiale(cuve)
+  const retouchee = saisie.cloture !== undefined || saisie.ouverture !== undefined || saisie.eau !== undefined
   const ecart = retouchee ? apercuEcart(saisie.ouverture ? null : cuve.stockTheorique, cloture) : cuve.ecartLitres
   const niveau = !retouchee && cuve.niveau ? NIVEAUX_ECART[cuve.niveau] : null
 
@@ -155,6 +170,14 @@ function CarteCuve({
           modifiable={modifiable}
           onChange={(s) => onChange({ ...saisie, cloture: s })}
         />
+        <TextField
+          label={`Eau (mm) · seuil ${cuve.seuilEauMm}`}
+          value={eau}
+          onChange={(e) => onChange({ ...saisie, eau: e.target.value })}
+          disabled={!modifiable}
+          slotProps={{ htmlInput: { inputMode: 'numeric', autoComplete: 'off', 'aria-label': `Eau en fond de cuve ${cuve.cuveCode}` } }}
+          sx={{ width: 170, '& input': { fontSize: 18 } }}
+        />
         <Valeur
           libelle="Écart"
           valeur={ecart === null ? (retouchee ? 'à l’enregistrement' : '—') : `${ecart > 0 ? '+' : ''}${formaterNombre(ecart)} L`}
@@ -166,6 +189,7 @@ function CarteCuve({
       {!retouchee && cuve.cloture && (
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
           {cuve.cloture.hauteurMm !== null && `${formaterNombre(cuve.cloture.hauteurMm)} mm = ${litres(cuve.cloture.volumeLitres)} · `}
+          {cuve.cloture.volumeEauLitres ? `eau déduite ${litres(cuve.cloture.volumeEauLitres)} · ` : ''}
           Écart du jour {formaterPct(cuve.ecartPctJour)}
           {cuve.ecartValeur !== null && ` (${formaterPrix(cuve.ecartValeur)})`} · cumul du mois {litres(cuve.cumulEcartMois)} sur{' '}
           {litres(cuve.cumulSortiesMois)} vendus, soit <strong>{formaterPct(cuve.ecartPctMois)}</strong> (tolérance{' '}
@@ -193,6 +217,12 @@ function CarteCuve({
             {a.message.charAt(0).toUpperCase() + a.message.slice(1)}
           </Alert>
         ))}
+      {!retouchee &&
+        cuve.alertes.map((a) => (
+          <Alert key={a.code} severity="warning" sx={{ mt: 1 }}>
+            {a.message.charAt(0).toUpperCase() + a.message.slice(1)}
+          </Alert>
+        ))}
     </Box>
   )
 }
@@ -212,6 +242,11 @@ const receptionVide = (cuveId: string) => ({
   temperatureC: '',
   densite: '',
   observation: '',
+  quantiteBl15: '',
+  /** 'oui' | 'non' | '' (non vérifié) */
+  scellesIntacts: '',
+  /** '' = automatique */
+  imputation: '',
 })
 
 type FormulaireReception = ReturnType<typeof receptionVide>
@@ -238,6 +273,9 @@ function DialogueReception({ stock, onFermer }: { stock: StockJournee; onFermer:
         temperatureC: versNombre(f.temperatureC),
         densite: versNombre(f.densite),
         observation: videVersNull(f.observation),
+        quantiteBl15: versNombre(f.quantiteBl15),
+        scellesIntacts: f.scellesIntacts === '' ? null : f.scellesIntacts === 'oui',
+        imputation: f.imputation === '' ? null : (f.imputation as Imputation),
       } satisfies SaisieReception),
     onSuccess: (s) => {
       queryClient.setQueryData(cles.stockJournee(s.journeeId), s)
@@ -245,7 +283,7 @@ function DialogueReception({ stock, onFermer }: { stock: StockJournee; onFermer:
       const r = s.receptions[s.receptions.length - 1]
       notifier(
         r?.complementLitres
-          ? `Réception enregistrée. Manquant de ${formaterNombre(r.complementLitres)} L : un complément citerne sera réclamé au transporteur.`
+          ? `Réception enregistrée. Manquant de ${formaterNombre(r.complementLitres)} L${r.compareeA15 ? ' à 15 °C' : ''} : un complément citerne sera réclamé au ${IMPUTATIONS[r.imputation]}.`
           : 'Réception enregistrée.',
         r?.complementLitres ? 'warning' : 'success',
       )
@@ -257,8 +295,22 @@ function DialogueReception({ stock, onFermer }: { stock: StockJournee; onFermer:
   const avant = versNombre(f.jaugeAvant)
   const apres = versNombre(f.jaugeApres)
   const recue = versNombre(f.quantiteRecue) ?? (avant !== null && apres !== null ? apres - avant : bl)
-  const manquant = bl !== null && recue !== null ? bl - recue : null
-  const horsTolerance = manquant !== null && bl !== null && manquant > (bl * stock.toleranceTransportPct) / 100
+  // Livraison jugée à 15 °C quand le BL porte la quantité à 15 °C et que température et densité sont relevées
+  const temperature = versNombre(f.temperatureC)
+  const densite = versNombre(f.densite)
+  const vcf = temperature !== null && densite !== null ? facteur15(temperature, densite) : null
+  const bl15 = versNombre(f.quantiteBl15)
+  const recue15 = vcf !== null && recue !== null ? Math.round(recue * vcf * 100) / 100 : null
+  const a15 = bl15 !== null && recue15 !== null
+  const livre = a15 ? bl15 : bl
+  const mesure = a15 ? recue15 : recue
+  const manquant = livre !== null && mesure !== null ? Math.round((livre - mesure) * 100) / 100 : null
+  const horsTolerance = manquant !== null && livre !== null && manquant > (livre * stock.toleranceTransportPct) / 100
+  const imputation: Imputation = f.imputation
+    ? (f.imputation as Imputation)
+    : f.scellesIntacts === 'oui'
+      ? 'FOURNISSEUR'
+      : 'TRANSPORTEUR'
 
   return (
     <Dialog open onClose={onFermer} maxWidth="sm" fullWidth>
@@ -278,7 +330,19 @@ function DialogueReception({ stock, onFermer }: { stock: StockJournee; onFermer:
           <TextField label="Chauffeur" value={f.chauffeur} onChange={maj('chauffeur')} slotProps={{ htmlInput: { maxLength: 80 } }} />
           <TextField label="Immatriculation" value={f.immatriculation} onChange={maj('immatriculation')} slotProps={{ htmlInput: { maxLength: 20 } }} />
           <TextField label="Scellés" value={f.scelles} onChange={maj('scelles')} slotProps={{ htmlInput: { maxLength: 120 } }} />
+          <TextField select label="Scellés à l'arrivée" value={f.scellesIntacts} onChange={maj('scellesIntacts')}>
+            <MenuItem value="">Non vérifiés</MenuItem>
+            <MenuItem value="oui">Intacts</MenuItem>
+            <MenuItem value="non">Rompus ou absents</MenuItem>
+          </TextField>
           <TextField label="Quantité BL (L)" value={f.quantiteBl} onChange={maj('quantiteBl')} required slotProps={{ htmlInput: { inputMode: 'decimal' } }} />
+          <TextField
+            label="Quantité BL à 15 °C (L)"
+            value={f.quantiteBl15}
+            onChange={maj('quantiteBl15')}
+            helperText="Si le BL l'indique : l'écart se juge alors à 15 °C"
+            slotProps={{ htmlInput: { inputMode: 'decimal' } }}
+          />
           <TextField label="Jauge avant dépotage (L)" value={f.jaugeAvant} onChange={maj('jaugeAvant')} slotProps={{ htmlInput: { inputMode: 'decimal' } }} />
           <TextField label="Jauge après dépotage (L)" value={f.jaugeApres} onChange={maj('jaugeApres')} slotProps={{ htmlInput: { inputMode: 'decimal' } }} />
           <TextField
@@ -289,16 +353,36 @@ function DialogueReception({ stock, onFermer }: { stock: StockJournee; onFermer:
             slotProps={{ htmlInput: { inputMode: 'decimal' } }}
           />
           <Stack direction="row" spacing={2}>
-            <TextField label="Température (°C)" value={f.temperatureC} onChange={maj('temperatureC')} slotProps={{ htmlInput: { inputMode: 'decimal' } }} />
-            <TextField label="Densité" value={f.densite} onChange={maj('densite')} slotProps={{ htmlInput: { inputMode: 'decimal' } }} />
+            <TextField
+              label="Température (°C)"
+              value={f.temperatureC}
+              onChange={maj('temperatureC')}
+              helperText="Du produit au dépotage"
+              slotProps={{ htmlInput: { inputMode: 'decimal' } }}
+            />
+            <TextField
+              label="Densité à 15 °C"
+              value={f.densite}
+              onChange={maj('densite')}
+              helperText="Portée sur le BL"
+              error={densite !== null && vcf === null && temperature !== null}
+              slotProps={{ htmlInput: { inputMode: 'decimal' } }}
+            />
           </Stack>
+          <TextField select label="Manquant à la charge de" value={f.imputation} onChange={maj('imputation')}>
+            <MenuItem value="">Automatique ({IMPUTATIONS[f.scellesIntacts === 'oui' ? 'FOURNISSEUR' : 'TRANSPORTEUR']})</MenuItem>
+            <MenuItem value="TRANSPORTEUR">Transporteur</MenuItem>
+            <MenuItem value="FOURNISSEUR">Fournisseur</MenuItem>
+          </TextField>
         </Box>
         <TextField label="Observation" value={f.observation} onChange={maj('observation')} fullWidth multiline sx={{ mt: 2 }} slotProps={{ htmlInput: { maxLength: 500 } }} />
         {recue !== null && bl !== null && (
-          <Alert severity={horsTolerance ? 'warning' : 'info'} sx={{ mt: 2 }}>
+          <Alert severity={horsTolerance ? 'warning' : 'info'} sx={{ mt: 2 }} data-testid="apercu-reception">
             Entrée en stock : {litres(recue)}.{' '}
+            {recue15 !== null && `À 15 °C : ${litres(recue15)} (facteur ${vcf!.toLocaleString('fr-FR', { minimumFractionDigits: 4 })}). `}
+            {a15 ? 'Comparaison à 15 °C. ' : ''}
             {manquant! > 0
-              ? `Manquant ${litres(manquant)}${horsTolerance ? ` au-delà de la tolérance transport (${formaterPct(stock.toleranceTransportPct)}) : complément citerne à la charge du transporteur.` : ', dans la tolérance transport.'}`
+              ? `Manquant ${litres(manquant)}${horsTolerance ? ` au-delà de la tolérance transport (${formaterPct(stock.toleranceTransportPct)}) : complément citerne à la charge du ${IMPUTATIONS[imputation]}.` : ', dans la tolérance transport.'}`
               : manquant! < 0
                 ? `Excédent ${litres(-manquant!)}.`
                 : 'Conforme au BL.'}
@@ -366,7 +450,7 @@ function Receptions({ stock }: { stock: StockJournee }) {
             <TableBody>
               {stock.receptions.map((r) => (
                 <TableRow key={r.id}>
-                  <TableCell>
+                  <TableCell sx={{ whiteSpace: 'nowrap' }}>
                     {r.numeroBl}
                     <Typography variant="caption" color="text.secondary" component="div">
                       {r.fournisseur}
@@ -381,17 +465,36 @@ function Receptions({ stock }: { stock: StockJournee }) {
                       </Typography>
                     )}
                   </TableCell>
-                  <TableCell align="right">{formaterNombre(r.quantiteBl)}</TableCell>
-                  <TableCell align="right">{formaterNombre(r.quantiteRecue)}</TableCell>
+                  <TableCell align="right">
+                    {formaterNombre(r.quantiteBl)}
+                    {r.quantiteBl15 !== null && (
+                      <Typography variant="caption" color="text.secondary" component="div">
+                        à 15 °C {formaterNombre(r.quantiteBl15)}
+                      </Typography>
+                    )}
+                  </TableCell>
+                  <TableCell align="right">
+                    {formaterNombre(r.quantiteRecue)}
+                    {r.quantiteRecue15 !== null && (
+                      <Typography variant="caption" color="text.secondary" component="div">
+                        à 15 °C {formaterNombre(r.quantiteRecue15)}
+                      </Typography>
+                    )}
+                  </TableCell>
                   <TableCell align="right">
                     {formaterNombre(r.ecartLivraison)} ({formaterPct(r.ecartLivraisonPct)})
+                    {r.compareeA15 && (
+                      <Typography variant="caption" color="text.secondary" component="div">
+                        à 15 °C
+                      </Typography>
+                    )}
                     {r.complementLitres && (
                       <Chip
                         size="small"
                         sx={{ ml: 1 }}
                         color={r.complementStatut === 'REGLE' ? 'success' : 'warning'}
                         icon={<LocalShippingIcon />}
-                        label={`Complément ${formaterNombre(r.complementLitres)} L${r.complementStatut === 'REGLE' ? ' réglé' : ''}`}
+                        label={`Complément ${formaterNombre(r.complementLitres)} L · ${IMPUTATIONS[r.imputation]}${r.complementStatut === 'REGLE' ? ' · réglé' : ''}`}
                       />
                     )}
                   </TableCell>
@@ -462,6 +565,7 @@ export function SectionStock({ journeeId, ref }: { journeeId: string; ref?: Ref<
     const x = saisies[c.cuveId]
     if (!x) return false
     return (
+      (x.eau !== undefined && versNombre(x.eau) !== versNombre(eauInitiale(c))) ||
       (x.cloture !== undefined && !memeJauge(x.cloture, jaugeInitiale(c, c.cloture))) ||
       (x.ouverture !== undefined && !memeJauge(x.ouverture, jaugeInitiale(c, c.ouverture))) ||
       (x.observation !== undefined && x.observation.trim() !== (c.cloture?.observation ?? ''))
@@ -474,12 +578,25 @@ export function SectionStock({ journeeId, ref }: { journeeId: string; ref?: Ref<
       for (const c of modifiees) {
         const x = saisies[c.cuveId]!
         if (x.ouverture !== undefined && !c.departReporte) {
-          jaugeages.push({ cuveId: c.cuveId, moment: 'OUVERTURE', ...corpsJauge(x.ouverture), observation: null })
+          jaugeages.push({
+            cuveId: c.cuveId,
+            moment: 'OUVERTURE',
+            ...corpsJauge(x.ouverture),
+            observation: null,
+            hauteurEauMm: c.ouverture?.hauteurEauMm ?? null,
+          })
         }
-        if (x.cloture !== undefined || x.observation !== undefined) {
+        if (x.cloture !== undefined || x.observation !== undefined || x.eau !== undefined) {
           const j = x.cloture ?? jaugeInitiale(c, c.cloture)
           const observation = (x.observation ?? c.cloture?.observation ?? '').trim()
-          jaugeages.push({ cuveId: c.cuveId, moment: 'CLOTURE', ...corpsJauge(j), observation: observation || null })
+          const eau = versNombre(x.eau ?? eauInitiale(c))
+          jaugeages.push({
+            cuveId: c.cuveId,
+            moment: 'CLOTURE',
+            ...corpsJauge(j),
+            observation: observation || null,
+            hauteurEauMm: eau === null ? null : Math.round(eau),
+          })
         }
       }
       const r = await envoyerSaisie<StockJournee>({

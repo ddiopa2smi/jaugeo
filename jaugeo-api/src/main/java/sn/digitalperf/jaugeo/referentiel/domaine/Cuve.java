@@ -34,6 +34,14 @@ public class Cuve extends EntiteAuditee {
     @Column(nullable = false)
     private boolean actif = true;
 
+    /** Hauteur d'eau en fond de cuve (mm) au-dela de laquelle le jaugeage leve une alerte ; nul = seuil du reseau. */
+    @Column(name = "seuil_eau_mm")
+    private Integer seuilEauMm;
+
+    /** Stock (litres) sous lequel la cuve est a reapprovisionner ; nul = jugement sur l'autonomie en jours. */
+    @Column(name = "seuil_reappro_litres")
+    private BigDecimal seuilReapproLitres;
+
     @Column(name = "bareme_certificat")
     private String baremeCertificat;
 
@@ -61,6 +69,22 @@ public class Cuve extends EntiteAuditee {
         this.capaciteLitres = capaciteLitres;
         this.creuxSecuriteLitres = creux;
         this.actif = actif;
+    }
+
+    public void definirSeuils(Integer seuilEauMm, BigDecimal seuilReapproLitres) {
+        if (seuilReapproLitres != null && capaciteLitres != null && seuilReapproLitres.compareTo(capaciteLitres) >= 0) {
+            throw ErreurMetier.regle("SEUIL_SUPERIEUR_CAPACITE", "Le seuil de réapprovisionnement doit être inférieur à la capacité.");
+        }
+        this.seuilEauMm = seuilEauMm;
+        this.seuilReapproLitres = seuilReapproLitres == null || seuilReapproLitres.signum() == 0 ? null : seuilReapproLitres;
+    }
+
+    public Integer getSeuilEauMm() {
+        return seuilEauMm;
+    }
+
+    public BigDecimal getSeuilReapproLitres() {
+        return seuilReapproLitres;
     }
 
     /**

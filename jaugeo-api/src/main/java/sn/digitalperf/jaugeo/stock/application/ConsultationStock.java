@@ -14,6 +14,8 @@ import sn.digitalperf.jaugeo.stock.domaine.ComplementCiterne;
 import sn.digitalperf.jaugeo.stock.domaine.ComplementCiterneDepot;
 import sn.digitalperf.jaugeo.stock.domaine.Reception;
 import sn.digitalperf.jaugeo.stock.domaine.ReceptionDepot;
+import sn.digitalperf.jaugeo.stock.domaine.VenteArticle;
+import sn.digitalperf.jaugeo.stock.domaine.VenteArticleDepot;
 import sn.digitalperf.jaugeo.tarification.Tarification;
 
 @Component
@@ -25,9 +27,11 @@ class ConsultationStock implements StocksJournee {
     private final ReceptionDepot receptions;
     private final Tarification tarification;
     private final ClotureStock cloture;
+    private final VenteArticleDepot ventesArticles;
 
     ConsultationStock(JourneesExploitation exploitation, ComplementCiterneDepot complements, ReceptionDepot receptions,
-                      Tarification tarification, ClotureStock cloture) {
+                      Tarification tarification, ClotureStock cloture, VenteArticleDepot ventesArticles) {
+        this.ventesArticles = ventesArticles;
         this.exploitation = exploitation;
         this.complements = complements;
         this.receptions = receptions;
@@ -45,7 +49,7 @@ class ConsultationStock implements StocksJournee {
         }
         BigDecimal total = BigDecimal.ZERO;
         for (Reception r : receptions.findByJourneeIdOrderByIdAsc(journeeId)) {
-            BigDecimal manquant = CalculStock.complement(r.getQuantiteBl(), r.getQuantiteRecue(), cloture.toleranceTransportPct());
+            BigDecimal manquant = CalculStock.complement(r.quantiteLivree(), r.quantiteMesuree(), cloture.toleranceTransportPct());
             if (manquant.signum() > 0) {
                 BigDecimal prix = tarification.prixEnVigueur(j.stationId(), r.getProduitId(), j.fin().minusSeconds(1)).orElse(null);
                 if (prix != null) {
@@ -54,5 +58,11 @@ class ConsultationStock implements StocksJournee {
             }
         }
         return total;
+    }
+
+    @Override
+    public BigDecimal montantVentesArticles(long journeeId) {
+        return ventesArticles.findByJourneeIdOrderByIdAsc(journeeId).stream().map(VenteArticle::getMontant)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 }

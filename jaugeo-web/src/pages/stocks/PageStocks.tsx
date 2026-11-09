@@ -22,12 +22,12 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { api } from '../../api/client'
-import { useComplements, useStations, useStockMensuel } from '../../api/requetes'
+import { useComplements, useSituationStock, useStations, useStockMensuel } from '../../api/requetes'
 import type { ComplementCiterne } from '../../api/types'
 import { AlerteErreur, Chargement, EnTetePage } from '../../shared/composants'
 import { formaterDate, formaterNombre, formaterPrix } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
-import { formaterPct, moisCourant, NIVEAUX_ECART } from '../../shared/stock'
+import { formaterPct, IMPUTATIONS, moisCourant, NIVEAUX_ECART } from '../../shared/stock'
 
 function AnalyseMensuelle() {
   const stations = useStations()
@@ -161,6 +161,95 @@ function AnalyseMensuelle() {
   )
 }
 
+const CACHE_TELEPHONE = { xs: 'none', sm: 'table-cell' }
+
+/** Autonomie de chaque cuve : dernier stock jaugé / ventes moyennes des 7 derniers jours clôturés. */
+function Autonomie() {
+  const situation = useSituationStock()
+  const navigate = useNavigate()
+  const s = situation.data
+  if (situation.isLoading) return <Chargement />
+  if (!s) return <AlerteErreur erreur={situation.error} />
+  if (s.cuves.length === 0) return <Alert severity="info">Aucune cuve jaugée à une clôture.</Alert>
+  // Les cuves à réapprovisionner d'abord, puis par autonomie croissante
+  const cuves = [...s.cuves].sort(
+    (a, b) =>
+      Number(b.aReapprovisionner) - Number(a.aReapprovisionner) ||
+      (a.autonomieJours ?? Infinity) - (b.autonomieJours ?? Infinity) ||
+      a.stationCode.localeCompare(b.stationCode),
+  )
+  return (
+    <>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        Autonomie = stock au-dessus du creux de sécurité ÷ ventes moyennes des 7 derniers jours clôturés. Une cuve est à
+        réapprovisionner sous son seuil en litres, ou, sans seuil, sous {formaterNombre(s.autonomieAlerteJours)} jours
+        d'autonomie.
+      </Typography>
+      <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+        <Table size="small" aria-label="Autonomie des cuves" sx={{ '& td, & th': { px: { xs: 1, sm: 2 } } }}>
+          <TableHead>
+            <TableRow>
+              <TableCell>Cuve</TableCell>
+              <TableCell align="right">Stock</TableCell>
+              <TableCell align="right" sx={{ display: CACHE_TELEPHONE }}>
+                Ventes / jour
+              </TableCell>
+              <TableCell align="right">Autonomie</TableCell>
+              <TableCell align="right" sx={{ display: CACHE_TELEPHONE }}>
+                Eau
+              </TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {cuves.map((c) => (
+              <TableRow
+                key={c.cuveId}
+                hover
+                sx={{ cursor: 'pointer' }}
+                onClick={() => navigate(`/stocks?station=${c.stationId}&mois=${c.date.slice(0, 7)}`)}
+                data-testid={`autonomie-${c.stationCode}-${c.cuveCode}`}
+              >
+                <TableCell>
+                  {c.stationCode} · {c.cuveCode} · {c.produitLibelle}
+                  <Typography variant="caption" color="text.secondary" component="div">
+                    jaugé le {formaterDate(c.date)}
+                  </Typography>
+                  <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', rowGap: 0.5, mt: 0.5 }}>
+                    {c.aReapprovisionner && <Chip size="small" color="error" label="À réapprovisionner" />}
+                    {c.eauAlerte && <Chip size="small" color="warning" label={`Eau ${c.hauteurEauMm} mm > ${c.seuilEauMm} mm`} />}
+                  </Stack>
+                </TableCell>
+                <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                  {formaterNombre(c.stockPhysique)} L
+                  {c.seuilReapproLitres !== null && (
+                    <Typography variant="caption" color="text.secondary" component="div">
+                      seuil {formaterNombre(c.seuilReapproLitres)} L
+                    </Typography>
+                  )}
+                </TableCell>
+                <TableCell align="right" sx={{ display: CACHE_TELEPHONE, whiteSpace: 'nowrap' }}>
+                  {c.ventesMoyennes === null ? '—' : `${formaterNombre(Math.round(c.ventesMoyennes))} L`}
+                  {c.joursMoyenne > 0 && c.joursMoyenne < 7 && (
+                    <Typography variant="caption" color="text.secondary" component="div">
+                      sur {c.joursMoyenne} j
+                    </Typography>
+                  )}
+                </TableCell>
+                <TableCell align="right" sx={{ fontWeight: 600, whiteSpace: 'nowrap', color: c.aReapprovisionner ? 'error.main' : undefined }}>
+                  {c.autonomieJours === null ? '—' : `${formaterNombre(c.autonomieJours)} j`}
+                </TableCell>
+                <TableCell align="right" sx={{ display: CACHE_TELEPHONE, whiteSpace: 'nowrap', color: c.eauAlerte ? 'warning.dark' : undefined }}>
+                  {c.hauteurEauMm === null ? '—' : `${c.hauteurEauMm} mm`}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Paper>
+    </>
+  )
+}
+
 function DialogueReglement({ complement, onFermer }: { complement: ComplementCiterne; onFermer: () => void }) {
   const queryClient = useQueryClient()
   const [reference, setReference] = useState('')
@@ -183,7 +272,9 @@ function DialogueReglement({ complement, onFermer }: { complement: ComplementCit
       <DialogTitle>Règlement du complément</DialogTitle>
       <DialogContent>
         <Typography variant="body2" sx={{ mb: 2 }}>
-          BL {complement.numeroBl} · {complement.transporteur ?? 'transporteur'} : {formaterNombre(complement.litres)} L, soit{' '}
+          BL {complement.numeroBl} ·{' '}
+          {complement.imputeA === 'FOURNISSEUR' ? complement.fournisseur : (complement.transporteur ?? 'transporteur')} :{' '}
+          {formaterNombre(complement.litres)} L{complement.a15 ? ' à 15 °C' : ''}, soit{' '}
           {formaterPrix(complement.montant)}.
         </Typography>
         <Stack spacing={2}>
@@ -227,6 +318,7 @@ function Complements() {
                 <TableCell>Station</TableCell>
                 <TableCell>BL</TableCell>
                 <TableCell>Transporteur</TableCell>
+                <TableCell>À la charge du</TableCell>
                 <TableCell align="right">BL / reçu</TableCell>
                 <TableCell align="right">Manquant</TableCell>
                 <TableCell align="right">Montant</TableCell>
@@ -248,10 +340,18 @@ function Complements() {
                     </Typography>
                   </TableCell>
                   <TableCell>{[c.transporteur, c.immatriculation].filter(Boolean).join(' · ') || '—'}</TableCell>
+                  <TableCell>{IMPUTATIONS[c.imputeA]}</TableCell>
                   <TableCell align="right">
                     {formaterNombre(c.quantiteBl)} / {formaterNombre(c.quantiteRecue)}
                   </TableCell>
-                  <TableCell align="right">{formaterNombre(c.litres)} L</TableCell>
+                  <TableCell align="right">
+                    {formaterNombre(c.litres)} L
+                    {c.a15 && (
+                      <Typography variant="caption" color="text.secondary" component="div">
+                        à 15 °C
+                      </Typography>
+                    )}
+                  </TableCell>
                   <TableCell align="right">{formaterPrix(c.montant)}</TableCell>
                   <TableCell>
                     {c.statut === 'REGLE' ? (
@@ -280,10 +380,11 @@ function Complements() {
 
 export function PageStocks() {
   const [params, setParams] = useSearchParams()
-  const onglet = params.get('onglet') === 'complements' ? 'complements' : 'analyse'
+  const o = params.get('onglet')
+  const onglet = o === 'complements' || o === 'autonomie' ? o : 'analyse'
   return (
     <>
-      <EnTetePage titre="Stocks" sousTitre="Stock théorique contre jauges, écarts du mois par cuve, compléments citerne." />
+      <EnTetePage titre="Stocks" sousTitre="Stock théorique contre jauges, écarts du mois par cuve, autonomie, compléments citerne." />
       <Tabs
         value={onglet}
         onChange={(_e, v) => {
@@ -294,9 +395,10 @@ export function PageStocks() {
         sx={{ mb: 2 }}
       >
         <Tab value="analyse" label="Analyse mensuelle" />
+        <Tab value="autonomie" label="Autonomie" />
         <Tab value="complements" label="Compléments citerne" />
       </Tabs>
-      {onglet === 'analyse' ? <AnalyseMensuelle /> : <Complements />}
+      {onglet === 'analyse' ? <AnalyseMensuelle /> : onglet === 'autonomie' ? <Autonomie /> : <Complements />}
     </>
   )
 }

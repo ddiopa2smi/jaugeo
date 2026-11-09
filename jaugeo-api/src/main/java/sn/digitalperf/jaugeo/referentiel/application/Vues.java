@@ -48,11 +48,13 @@ public final class Vues {
 
     public record CuveVue(UUID id, String code, String produitCode, String produitLibelle,
                           BigDecimal capaciteLitres, BigDecimal creuxSecuriteLitres, boolean actif, Integer version,
-                          int baremePoints, String baremeCertificat, LocalDate baremeDate) {
+                          int baremePoints, String baremeCertificat, LocalDate baremeDate, Integer seuilEauMm,
+                          BigDecimal seuilReapproLitres) {
         public static CuveVue de(Cuve c, long baremePoints) {
             return new CuveVue(c.getUuid(), c.getCode(), c.getProduit().getCode(), c.getProduit().getLibelle(),
                     c.getCapaciteLitres(), c.getCreuxSecuriteLitres(), c.isActif(), c.getVersion(),
-                    (int) baremePoints, c.getBaremeCertificat(), c.getBaremeDate());
+                    (int) baremePoints, c.getBaremeCertificat(), c.getBaremeDate(), c.getSeuilEauMm(),
+                    c.getSeuilReapproLitres());
         }
     }
 

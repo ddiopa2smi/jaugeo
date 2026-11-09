@@ -115,7 +115,7 @@ describe('saisie et clôture d’une journée', () => {
             receptions: 0,
             sorties,
             stockTheorique: theorique,
-            cloture: jaugeFin === null ? null : { hauteurMm: null, volumeLitres: jaugeFin, observation: null, par: 'gerant.nia', le: '2026-08-16T21:00:00Z' },
+            cloture: jaugeFin === null ? null : { hauteurMm: null, volumeLitres: jaugeFin, observation: null, par: 'gerant.nia', le: '2026-08-16T21:00:00Z', hauteurEauMm: null, volumeEauLitres: null },
             ecartLitres: ecart,
             ecartPctJour: null,
             prixUnitaire: 755,
@@ -127,6 +127,8 @@ describe('saisie et clôture d’une journée', () => {
             niveau: ecart === null ? null : 'NORMAL',
             observationRequise: false,
             anomalies,
+            seuilEauMm: 20,
+            alertes: [],
           },
         ],
       }
@@ -192,6 +194,7 @@ describe('saisie et clôture d’une journée', () => {
         statut: courante.statut,
         fige: courante.statut !== 'BROUILLON',
         ventes: courante.montant,
+        ventesArticles: 0,
         bonsDirection: 0,
         bonsGerant: 0,
         depenses: 5000,
@@ -210,6 +213,11 @@ describe('saisie et clôture d’une journée', () => {
       if (chemin === '/journees/j1/depenses') return { status: 200, corps: depenses() }
       if (chemin === '/journees/j1/tresorerie') return { status: 200, corps: recette() }
       if (chemin === '/journees/j1/credit') return { status: 200, corps: credit() }
+      if (chemin === '/journees/j1/articles')
+        return {
+          status: 200,
+          corps: { journeeId: 'j1', version: courante.version, statut: courante.statut, modifiable: courante.statut === 'BROUILLON', articles: [], total: 0 },
+        }
       if (chemin === '/auth/rafraichir') return { status: 200, corps: sessionTest('j', GERANT) }
       if (chemin === '/journees/j1' && methode === 'GET') return { status: 200, corps: courante }
       if (chemin === '/journees/j1/releves') {
@@ -286,7 +294,7 @@ describe('saisie et clôture d’une journée', () => {
       version: 3,
       releves: [{ pistoletId: 'p1', indexArrivee: 89716.5, remiseCuve: 20 }, { indexArrivee: 141003 }],
     })
-    expect(jaugeages).toEqual([{ version: 4, jaugeages: [{ cuveId: 'c1', moment: 'CLOTURE', hauteurMm: null, volumeLitres: 8714, observation: null }] }])
+    expect(jaugeages).toEqual([{ version: 4, jaugeages: [{ cuveId: 'c1', moment: 'CLOTURE', hauteurMm: null, hauteurEauMm: null, volumeLitres: 8714, observation: null }] }])
     expect(within(dialogue).getByTestId('total-journee')).toHaveTextContent('966 778 F')
     expect(within(dialogue).getByTestId('recap-ecart-C1')).toHaveTextContent(/5,5 L/)
     // Montant à verser = ventes − dépenses autorisées

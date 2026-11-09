@@ -10,7 +10,10 @@ import java.time.LocalDate;
 import sn.digitalperf.jaugeo.commun.EntiteAuditee;
 import sn.digitalperf.jaugeo.commun.ErreurMetier;
 
-/** Manquant de livraison a la charge du transporteur, suivi jusqu'a son reglement. */
+/**
+ * Manquant de livraison a la charge du transporteur ou du fournisseur (imputation de la reception), suivi jusqu'a
+ * son reglement. Litres a 15 °C quand la livraison a ete jugee a 15 °C.
+ */
 @Entity
 @Table(schema = "stock", name = "complement_citerne")
 public class ComplementCiterne extends EntiteAuditee {
@@ -31,6 +34,13 @@ public class ComplementCiterne extends EntiteAuditee {
 
     @Column(nullable = false, updatable = false)
     private BigDecimal litres;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "impute_a", nullable = false, updatable = false)
+    private Reception.Imputation imputeA = Reception.Imputation.TRANSPORTEUR;
+
+    @Column(name = "a_15", nullable = false, updatable = false)
+    private boolean a15;
 
     @Column(name = "prix_unitaire", updatable = false)
     private BigDecimal prixUnitaire;
@@ -60,6 +70,8 @@ public class ComplementCiterne extends EntiteAuditee {
         this.stationId = r.getStationId();
         this.dateJour = r.getDateJour();
         this.litres = litres;
+        this.imputeA = r.getImputation();
+        this.a15 = r.compareeA15();
         this.prixUnitaire = prixUnitaire;
         this.montant = prixUnitaire == null ? null : litres.multiply(prixUnitaire).setScale(0, java.math.RoundingMode.HALF_UP);
     }
@@ -98,6 +110,14 @@ public class ComplementCiterne extends EntiteAuditee {
 
     public BigDecimal getLitres() {
         return litres;
+    }
+
+    public Reception.Imputation getImputeA() {
+        return imputeA;
+    }
+
+    public boolean isA15() {
+        return a15;
     }
 
     public BigDecimal getPrixUnitaire() {

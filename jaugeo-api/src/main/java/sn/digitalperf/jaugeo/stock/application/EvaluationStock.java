@@ -37,7 +37,8 @@ class EvaluationStock {
     /** Etat calcule d'une cuve ; anomalies = points bloquants pour la cloture. */
     record CuveEvaluee(CuveRef cuve, boolean departReporte, BigDecimal depart, Jaugeage ouverture,
                        BigDecimal receptions, BigDecimal sorties, Jaugeage cloture, BigDecimal prixUnitaire,
-                       BigDecimal cumulSortiesAvant, CalculStock.Resultat resultat, List<AnomalieVue> anomalies) {
+                       BigDecimal cumulSortiesAvant, CalculStock.Resultat resultat, List<AnomalieVue> anomalies,
+                       List<AnomalieVue> alertes) {
 
         boolean ouvertureRequise() {
             return !departReporte;
@@ -56,10 +57,13 @@ class EvaluationStock {
     private final ReceptionDepot receptions;
     private final EcartStockDepot ecarts;
     private final BigDecimal seuilEnquetePct;
+    private final int seuilEauMm;
 
     EvaluationStock(ReferentielConsultation referentiel, Tarification tarification, JaugeageDepot jaugeages,
                     ReceptionDepot receptions, EcartStockDepot ecarts,
-                    @Value("${jaugeo.stock.seuil-enquete-pct:2}") BigDecimal seuilEnquetePct) {
+                    @Value("${jaugeo.stock.seuil-enquete-pct:2}") BigDecimal seuilEnquetePct,
+                    @Value("${jaugeo.stock.seuil-eau-mm:20}") int seuilEauMm) {
+        this.seuilEauMm = seuilEauMm;
         this.referentiel = referentiel;
         this.tarification = tarification;
         this.jaugeages = jaugeages;
@@ -117,13 +121,36 @@ class EvaluationStock {
                         + ", au-delà de la tolérance de " + pct(c.toleranceEcartPct()) + " : une observation est obligatoire."));
             }
             r.add(new CuveEvaluee(c, veille.isPresent(), depart, ouverture, recu, sorties, cloture, prix,
-                    avant.getSorties(), res, anomalies));
+                    avant.getSorties(), res, anomalies, alertesEau(c, ouverture, cloture)));
         }
         return r;
     }
 
     BigDecimal seuilEnquetePct() {
         return seuilEnquetePct;
+    }
+
+    /** Seuil d'eau de la cuve, ou celui du reseau. */
+    int seuilEauMm(CuveRef c) {
+        return c.seuilEauMm() != null ? c.seuilEauMm() : seuilEauMm;
+    }
+
+    boolean eauAuDela(CuveRef c, Jaugeage m) {
+        return m != null && m.getHauteurEauMm() != null && m.getHauteurEauMm() > seuilEauMm(c);
+    }
+
+    /** Alertes non bloquantes : eau en fond de cuve au-dela du seuil. */
+    List<AnomalieVue> alertesEau(CuveRef c, Jaugeage... mesures) {
+        List<AnomalieVue> a = new ArrayList<>();
+        for (Jaugeage m : mesures) {
+            if (eauAuDela(c, m)) {
+                a.add(new AnomalieVue("EAU_FOND_CUVE", m.getHauteurEauMm() + " mm d'eau en fond de cuve"
+                        + (m.getVolumeEauLitres() == null ? "" : " (" + litres(m.getVolumeEauLitres()) + ")")
+                        + ", au-delà du seuil de " + seuilEauMm(c) + " mm : faites purger la cuve et prévenez la logistique."));
+                break;
+            }
+        }
+        return a;
     }
 
     private static Jaugeage trouver(List<Jaugeage> mesures, long cuveId, Jaugeage.Moment moment) {
