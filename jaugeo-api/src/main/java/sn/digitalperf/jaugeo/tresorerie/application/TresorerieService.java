@@ -50,6 +50,8 @@ import sn.digitalperf.jaugeo.tresorerie.domaine.CalculCaisse;
 import sn.digitalperf.jaugeo.tresorerie.domaine.ManquantGerant;
 import sn.digitalperf.jaugeo.tresorerie.domaine.ManquantGerantDepot;
 import sn.digitalperf.jaugeo.tresorerie.domaine.PieceVersement;
+import sn.digitalperf.jaugeo.tresorerie.domaine.PlafondEspeces;
+import sn.digitalperf.jaugeo.tresorerie.domaine.PlafondEspecesDepot;
 import sn.digitalperf.jaugeo.tresorerie.domaine.PieceVersementDepot;
 import sn.digitalperf.jaugeo.tresorerie.domaine.RecetteJournee;
 import sn.digitalperf.jaugeo.tresorerie.domaine.RecetteJourneeDepot;
@@ -71,23 +73,30 @@ public class TresorerieService implements SyntheseCaisse {
     private final PieceVersementDepot pieces;
     private final ArreteCaisseDepot arretes;
     private final ManquantGerantDepot manquants;
+    private final PlafondEspecesDepot plafonds;
     private final CaisseGerant caisse;
     private final JourneesExploitation exploitation;
     private final ReferentielConsultation referentiel;
     private final PerimetreCourant perimetre;
     private final Clock horloge;
     private final int delaiVersementJours;
+    /** Plafond d'especes des stations sans plafond propre (null : aucun). */
+    private final BigDecimal plafondReseau;
 
     public TresorerieService(RecetteJourneeDepot recettes, VersementDepot versements, PieceVersementDepot pieces,
-                             ArreteCaisseDepot arretes, ManquantGerantDepot manquants, CaisseGerant caisse,
+                             ArreteCaisseDepot arretes, ManquantGerantDepot manquants, PlafondEspecesDepot plafonds,
+                             CaisseGerant caisse,
                              JourneesExploitation exploitation, ReferentielConsultation referentiel,
                              PerimetreCourant perimetre, Clock horloge,
-                             @Value("${jaugeo.tresorerie.delai-versement-jours:3}") int delaiVersementJours) {
+                             @Value("${jaugeo.tresorerie.delai-versement-jours:3}") int delaiVersementJours,
+                             @Value("${jaugeo.tresorerie.plafond-especes:#{null}}") BigDecimal plafondReseau) {
+        this.plafondReseau = plafondReseau;
         this.recettes = recettes;
         this.versements = versements;
         this.pieces = pieces;
         this.arretes = arretes;
         this.manquants = manquants;
+        this.plafonds = plafonds;
         this.caisse = caisse;
         this.exploitation = exploitation;
         this.referentiel = referentiel;
@@ -119,9 +128,10 @@ public class TresorerieService implements SyntheseCaisse {
                 c.map(RecetteJournee.Composantes::bonsGerant).orElse(BigDecimal.ZERO),
                 c.map(RecetteJournee.Composantes::depenses).orElse(null),
                 c.map(RecetteJournee.Composantes::complements).orElse(null),
+                c.map(RecetteJournee.Composantes::encaissements).orElse(BigDecimal.ZERO),
                 c.map(RecetteJournee.Composantes::recouvrements).orElse(BigDecimal.ZERO),
                 montant, ouverture, vues, verse, soldeFin, arrete.map(a -> vue(a, s)).orElse(null),
-                aPermission("VERSEMENT_SAISIR"));
+                aPermission("VERSEMENT_SAISIR"), plafond(s.id()), CalculCaisse.depassePlafond(soldeFin, plafond(s.id())));
     }
 
     // ---------------------------------------------------------------- Livre de caisse (ecart de versement jour par jour)
@@ -134,7 +144,7 @@ public class TresorerieService implements SyntheseCaisse {
     public MoisCaisse mois(long stationId, YearMonth mois) {
         LivreCaisse l = livre(referentiel.station(stationId).orElseThrow(() -> ErreurMetier.introuvable("Station")), mois);
         return new MoisCaisse(l.soldeDebut(), l.totalVentes(), l.totalBonsDirection(), l.totalBonsGerant(), l.totalDepenses(),
-                l.totalComplements(), l.totalRecouvrements(), l.totalMontants(), l.totalVersements(), l.totalEcarts(),
+                l.totalComplements(), l.totalEncaissements(), l.totalRecouvrements(), l.totalMontants(), l.totalVersements(), l.totalEcarts(),
                 l.soldeFin(), l.joursNonClotures());
     }
 
@@ -171,6 +181,7 @@ public class TresorerieService implements SyntheseCaisse {
         BigDecimal bonsGerant = BigDecimal.ZERO;
         BigDecimal depenses = BigDecimal.ZERO;
         BigDecimal complements = BigDecimal.ZERO;
+        BigDecimal encaissements = BigDecimal.ZERO;
         BigDecimal recouvrements = BigDecimal.ZERO;
         BigDecimal ecarts = BigDecimal.ZERO;
         int nonCloturees = 0;
@@ -189,6 +200,7 @@ public class TresorerieService implements SyntheseCaisse {
                 bonsGerant = bonsGerant.add(c.bonsGerant());
                 depenses = depenses.add(c.depenses());
                 complements = complements.add(c.complements());
+                encaissements = encaissements.add(c.encaissements());
                 recouvrements = recouvrements.add(c.recouvrements());
             }
             // Un arrete garde l'ecart constate le jour ou il a ete dresse
@@ -199,7 +211,8 @@ public class TresorerieService implements SyntheseCaisse {
             }
             lignes.add(new LigneCaisse(l.date(), j == null ? null : j.uuid(), j == null ? null : j.statut(),
                     c == null ? null : c.ventesTotales(), c == null ? null : c.bonsDirection().add(c.bonsGerant()),
-                    c == null ? null : c.depenses(), c == null ? null : c.complements(), c == null ? null : c.recouvrements(),
+                    c == null ? null : c.depenses(), c == null ? null : c.complements(), c == null ? null : c.encaissements(),
+                    c == null ? null : c.recouvrements(),
                     l.montantAVerser(),
                     l.ouverture(), l.versements(), theorique, a == null ? null : vue(a, s), ecart, l.solde()));
         }
@@ -207,8 +220,8 @@ public class TresorerieService implements SyntheseCaisse {
         BigDecimal verse = verses.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal soldeFin = lignes.isEmpty() ? soldeDebut : lignes.get(lignes.size() - 1).solde();
         return new LivreCaisse(s.uuid(), s.code(), s.nom(), mois, soldeDebut, ventes, bonsDirection, bonsGerant, depenses,
-                complements, recouvrements, montants, verse,
-                ecarts, soldeFin, nonCloturees, lignes, aPermission("CAISSE_CONTROLER"));
+                complements, encaissements, recouvrements, montants, verse,
+                ecarts, soldeFin, nonCloturees, lignes, aPermission("CAISSE_CONTROLER"), plafond(s.id()));
     }
 
     // ---------------------------------------------------------------- Versements
@@ -445,17 +458,42 @@ public class TresorerieService implements SyntheseCaisse {
                     delaiVersementJours);
             Optional<ArreteCaisse> arrete = arretes.findFirstByStationIdOrderByDateJourDesc(s.id());
             List<ManquantGerant> m = ouverts.getOrDefault(s.id(), List.of());
+            BigDecimal plafond = plafond(s.id());
             lignes.add(new SituationStation(s.uuid(), s.code(), s.nom(), solde, derniereRecette, dernierDepot, sansVersement,
                     retard, aVerifier.getOrDefault(s.id(), 0), m.size(),
                     m.stream().map(ManquantGerant::getMontant).reduce(BigDecimal.ZERO, BigDecimal::add),
-                    arrete.map(ArreteCaisse::getDateJour).orElse(null), arrete.map(ArreteCaisse::getEcart).orElse(null)));
+                    arrete.map(ArreteCaisse::getDateJour).orElse(null), arrete.map(ArreteCaisse::getEcart).orElse(null),
+                    plafond, CalculCaisse.depassePlafond(solde, plafond)));
         }
         lignes.sort(Comparator.comparing(SituationStation::stationCode));
         return new Situation(lignes, (int) lignes.stream().filter(SituationStation::retard).count(),
                 lignes.stream().mapToInt(SituationStation::versementsAVerifier).sum(),
                 lignes.stream().mapToInt(SituationStation::manquantsOuverts).sum(),
                 lignes.stream().map(SituationStation::montantManquants).reduce(BigDecimal.ZERO, BigDecimal::add),
-                delaiVersementJours);
+                delaiVersementJours, (int) lignes.stream().filter(SituationStation::depassePlafond).count());
+    }
+
+    // ---------------------------------------------------------------- Plafond d'especes
+
+    /** Plafond d'especes non versees de la station, ou celui du reseau ; null = pas de plafond. */
+    BigDecimal plafond(long stationId) {
+        return plafonds.findByStationId(stationId).map(PlafondEspeces::getPlafond).orElse(plafondReseau);
+    }
+
+    @Transactional
+    public BigDecimal fixerPlafond(UUID stationUuid, BigDecimal plafond) {
+        StationRef s = stationAccessible(stationUuid);
+        if (plafond == null) {
+            plafonds.findByStationId(s.id()).ifPresent(plafonds::delete);
+            return plafondReseau;
+        }
+        if (plafond.signum() <= 0 || plafond.stripTrailingZeros().scale() > 0) {
+            throw ErreurMetier.regle("MONTANT_INVALIDE", "Le plafond est un nombre entier de francs, supérieur à zéro.");
+        }
+        PlafondEspeces p = plafonds.findByStationId(s.id()).orElseGet(() -> new PlafondEspeces(s.id()));
+        p.fixer(plafond);
+        plafonds.save(p);
+        return plafond;
     }
 
     // ---------------------------------------------------------------- Outils

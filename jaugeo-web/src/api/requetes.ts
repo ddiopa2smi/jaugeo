@@ -13,6 +13,7 @@ import type {
   ArreteCaisse,
   DepenseAValider,
   DepensesJournee,
+  EncaissementsJournee,
   LivreCaisse,
   Manquant,
   NatureDepense,
@@ -69,6 +70,7 @@ export const cles = {
   stockArticles: (stationId: string) => ['articles', 'stock', stationId] as const,
   mouvementsArticles: (stationId: string, mois: string) => ['articles', 'mouvements', stationId, mois] as const,
   ventesArticles: (id: string) => ['journees', id, 'articles'] as const,
+  encaissements: (id: string) => ['journees', id, 'encaissements'] as const,
   naturesDepense: ['depenses', 'natures'] as const,
   depensesJournee: (id: string) => ['journees', id, 'depenses'] as const,
   depensesAValider: ['depenses', 'a-valider'] as const,
@@ -290,3 +292,6 @@ export const useMouvementsArticles = (stationId: string | null, mois: string) =>
 
 export const useVentesArticles = (id: string) =>
   useQuery({ queryKey: cles.ventesArticles(id), queryFn: () => api.get<VentesArticlesJournee>(`/journees/${id}/articles`) })
+
+export const useEncaissements = (id: string) =>
+  useQuery({ queryKey: cles.encaissements(id), queryFn: () => api.get<EncaissementsJournee>(`/journees/${id}/encaissements`) })

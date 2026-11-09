@@ -50,6 +50,7 @@ const ligne = (date: string, montant: number | null, versements: number, ouvertu
   bons: 0,
   depenses: montant === null ? null : 5000,
   complements: 0,
+  encaissements: 0,
   recouvrements: 0,
   montantAVerser: montant,
   soldeOuverture: ouverture,
@@ -71,6 +72,7 @@ const LIVRE: LivreCaisse = {
   totalBonsGerant: 0,
   totalDepenses: 5000,
   totalComplements: 0,
+  totalEncaissements: 0,
   totalRecouvrements: 0,
   totalMontants: 500000,
   totalVersements: 0,
@@ -79,6 +81,7 @@ const LIVRE: LivreCaisse = {
   joursNonClotures: 1,
   lignes: [ligne('2026-01-01', 500000, 0, 39760), ligne('2026-01-02', null, 0, 539760)],
   peutArreter: false,
+  plafondEspeces: null,
 }
 
 const versement = (surcharge: Partial<Versement> = {}): Versement => ({

@@ -34,6 +34,7 @@ import { apercu, memeSaisie, saisieInitiale, STATUTS_JOURNEE, type SaisieLigne }
 import { formaterDate, formaterDateHeureCourte, formaterNombre, formaterPrix, versNombre } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
 import { SectionArticles } from './SectionArticles'
+import { SectionEncaissements } from './SectionEncaissements'
 import { RecapCredit, SectionCredit } from './SectionCredit'
 import { RecapDepenses, SectionDepenses } from './SectionDepenses'
 import { DetailMontant, SectionRecette } from './SectionRecette'
@@ -403,6 +404,7 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
           ))}
           <SectionStock journeeId={journee.id} ref={poigneeStock} />
           <SectionArticles journeeId={journee.id} />
+          <SectionEncaissements journeeId={journee.id} />
           <SectionCredit journeeId={journee.id} />
           <SectionDepenses journeeId={journee.id} />
         </Stack>

@@ -153,12 +153,23 @@ function ArgentDu({ vue }: { vue: Vue }) {
   const manquants = tresorerie.data?.montantManquants ?? 0
   const complements = stock.data?.montantComplementsARegler ?? 0
   const total = vue.soldeCaisse + creances + manquants + complements
+  const auDelaPlafond = (tresorerie.data?.stations ?? []).filter((s) => s.depassePlafond)
 
   return (
     <Bloc titre="Argent dû au réseau" action={<Typography sx={{ fontWeight: 700 }}>{formaterPrix(total)}</Typography>}>
       <Ligne
         libelle="Caisse non versée des gérants"
-        detail={`Ce mois : ${formaterPrix(vue.versements)} versés sur ${formaterPrix(vue.montantDu)} dus`}
+        detail={
+          <>
+            Ce mois : {formaterPrix(vue.versements)} versés sur {formaterPrix(vue.montantDu)} dus
+            {auDelaPlafond.length > 0 && (
+              <Box component="span" sx={{ display: 'block', color: 'warning.main' }} data-testid="direction-plafond">
+                Espèces au-delà du plafond : {auDelaPlafond.map((s) => s.stationCode).join(', ')}
+              </Box>
+            )}
+          </>
+        }
+        alerte={auDelaPlafond.length > 0}
         valeur={formaterPrix(vue.soldeCaisse)}
         vers="/tresorerie"
       />

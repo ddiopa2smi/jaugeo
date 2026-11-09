@@ -790,6 +790,8 @@ export interface RecetteJournee {
   bonsGerant: number
   depenses: number | null
   complements: number | null
+  /** Wave, Orange Money et carte : hors caisse du gérant */
+  encaissements: number
   recouvrements: number
   montantAVerser: number | null
   soldeOuverture: number
@@ -798,6 +800,8 @@ export interface RecetteJournee {
   soldeFin: number | null
   arrete: ArreteCaisse | null
   peutVerser: boolean
+  plafondEspeces: number | null
+  depassePlafond: boolean
 }
 
 export interface LigneCaisse {
@@ -808,6 +812,7 @@ export interface LigneCaisse {
   bons: number | null
   depenses: number | null
   complements: number | null
+  encaissements: number | null
   recouvrements: number | null
   montantAVerser: number | null
   soldeOuverture: number
@@ -829,6 +834,7 @@ export interface LivreCaisse {
   totalBonsGerant: number
   totalDepenses: number
   totalComplements: number
+  totalEncaissements: number
   totalRecouvrements: number
   totalMontants: number
   totalVersements: number
@@ -837,6 +843,7 @@ export interface LivreCaisse {
   joursNonClotures: number
   lignes: LigneCaisse[]
   peutArreter: boolean
+  plafondEspeces: number | null
 }
 
 export type StatutManquant = 'OUVERT' | 'SOLDE'
@@ -873,6 +880,8 @@ export interface SituationCaisse {
   montantManquants: number
   dernierArrete: string | null
   dernierEcart: number | null
+  plafondEspeces: number | null
+  depassePlafond: boolean
 }
 
 export interface SituationTresorerie {
@@ -882,6 +891,18 @@ export interface SituationTresorerie {
   manquantsOuverts: number
   montantManquants: number
   delaiVersementJours: number
+  depassementsPlafond: number
+}
+
+export type ModeEncaissement = 'WAVE' | 'ORANGE_MONEY' | 'CARTE'
+
+export interface EncaissementsJournee {
+  journeeId: string
+  version: number
+  statut: StatutJournee
+  modifiable: boolean
+  lignes: { mode: ModeEncaissement; libelle: string; montant: number | null }[]
+  total: number
 }
 
 // ---------------------------------------------------------------- Clients en compte (Sprint 5)

@@ -38,6 +38,16 @@ class ClotureTresorerie implements ParticipantCloture {
     @Override
     public List<String> controler(ContexteCloture contexte) {
         // Ventes incompletes et depenses en attente : deja signalees par l'exploitation et les depenses
+        JourneeRef j = contexte.journee();
+        BigDecimal electroniques = caisse.encaissements(j.id());
+        BigDecimal ventes = exploitation.montantVentes(j.id()).orElse(null);
+        if (ventes != null && electroniques.signum() > 0) {
+            BigDecimal total = caisse.calculer(j, ventes).ventesTotales();
+            if (electroniques.compareTo(total) > 0) {
+                return List.of("Encaissements Wave, Orange Money et carte (" + Libelles.francs(electroniques)
+                        + ") supérieurs aux ventes de la journée (" + Libelles.francs(total) + ").");
+            }
+        }
         return List.of();
     }
 

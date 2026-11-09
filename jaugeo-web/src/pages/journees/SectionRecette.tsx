@@ -1,4 +1,5 @@
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance'
+import Alert from '@mui/material/Alert'
 import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
 import Paper from '@mui/material/Paper'
@@ -44,6 +45,9 @@ export function DetailMontant({ recette }: { recette: RecetteJournee }) {
         <Ligne libelle="Bons gérant" valeur={moins(recette.bonsGerant)} />
         <Ligne libelle="Dépenses autorisées" valeur={moins(recette.depenses)} />
         <Ligne libelle="Compléments citerne" valeur={moins(recette.complements)} />
+        {recette.encaissements > 0 && (
+          <Ligne libelle="Wave, Orange Money, carte" valeur={moins(recette.encaissements)} testid="encaissements" />
+        )}
         {recette.recouvrements > 0 && <Ligne libelle="Créances recouvrées" valeur={`+ ${formaterPrix(recette.recouvrements)}`} />}
         <Ligne libelle="Montant à verser" valeur={formaterPrix(recette.montantAVerser)} gras testid="montant-a-verser" />
       </TableBody>
@@ -86,6 +90,11 @@ export function SectionRecette({ journeeId }: { journeeId: string }) {
           <Ligne libelle="Solde non versé" valeur={formaterPrix(r.soldeFin)} gras testid="solde-fin" />
         </TableBody>
       </Table>
+      {r.depassePlafond && r.plafondEspeces !== null && (
+        <Alert severity="warning" sx={{ mt: 1 }} data-testid="alerte-plafond">
+          Espèces non versées au-delà du plafond de la station ({formaterPrix(r.plafondEspeces)}) : versez au plus tôt.
+        </Alert>
+      )}
 
       {r.versements.map((v) => (
         <Stack key={v.id} direction="row" spacing={1} sx={{ alignItems: 'center', mt: 1 }}>

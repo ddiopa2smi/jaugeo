@@ -105,7 +105,8 @@ public class SyntheseService {
         BigDecimal o = somme(creances, CreanceClient::reglementsSiege);
         BigDecimal gerantFin = somme(creances.stream().filter(c -> "GERANT".equals(c.recouvrement())).toList(), CreanceClient::fin);
         BigDecimal h = m.ventes().add(m.soldeDebut()).add(g);
-        BigDecimal q = m.versements().add(m.soldeFin()).add(k).add(m.depenses()).add(m.complements()).add(o);
+        // Les encaissements electroniques justifient une part des ventes, comme les versements
+        BigDecimal q = m.versements().add(m.encaissements()).add(m.soldeFin()).add(k).add(m.depenses()).add(m.complements()).add(o);
         BigDecimal r = q.subtract(h);
         Map<String, BigDecimal> parProduit = new LinkedHashMap<>();
         produits.values().forEach(p -> {

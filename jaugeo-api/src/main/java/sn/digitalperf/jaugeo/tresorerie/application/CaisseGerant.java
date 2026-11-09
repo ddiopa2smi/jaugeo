@@ -11,6 +11,8 @@ import sn.digitalperf.jaugeo.exploitation.JourneesExploitation.JourneeRef;
 import sn.digitalperf.jaugeo.stock.StocksJournee;
 import sn.digitalperf.jaugeo.tresorerie.domaine.ArreteCaisse;
 import sn.digitalperf.jaugeo.tresorerie.domaine.ArreteCaisseDepot;
+import sn.digitalperf.jaugeo.tresorerie.domaine.EncaissementJournee;
+import sn.digitalperf.jaugeo.tresorerie.domaine.EncaissementJourneeDepot;
 import sn.digitalperf.jaugeo.tresorerie.domaine.RecetteJournee;
 import sn.digitalperf.jaugeo.tresorerie.domaine.RecetteJourneeDepot;
 import sn.digitalperf.jaugeo.tresorerie.domaine.VersementDepot;
@@ -36,10 +38,12 @@ class CaisseGerant {
     private final DepensesJournee depenses;
     private final StocksJournee stocks;
     private final ComptesClients clients;
+    private final EncaissementJourneeDepot encaissements;
 
     CaisseGerant(RecetteJourneeDepot recettes, VersementDepot versements, ArreteCaisseDepot arretes,
                  JourneesExploitation exploitation, DepensesJournee depenses, StocksJournee stocks,
-                 ComptesClients clients) {
+                 ComptesClients clients, EncaissementJourneeDepot encaissements) {
+        this.encaissements = encaissements;
         this.recettes = recettes;
         this.versements = versements;
         this.arretes = arretes;
@@ -92,6 +96,12 @@ class CaisseGerant {
     RecetteJournee.Composantes calculer(JourneeRef j, BigDecimal ventes) {
         ComptesClients.TotauxJournee credit = clients.totauxJournee(j.id());
         return new RecetteJournee.Composantes(ventes, stocks.montantVentesArticles(j.id()), credit.bonsDirection(), credit.bonsGerant(), depenses.totalAutorise(j.id()),
-                stocks.montantComplements(j.id()), credit.recouvrements());
+                stocks.montantComplements(j.id()), encaissements(j.id()), credit.recouvrements());
+    }
+
+    /** Total des encaissements electroniques (Wave, Orange Money, carte) saisis dans la journee. */
+    BigDecimal encaissements(long journeeId) {
+        return encaissements.findByJourneeId(journeeId).stream().map(EncaissementJournee::getMontant)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 }

@@ -103,6 +103,14 @@ function SituationTresorerie() {
             onClick={() => navigate('/tresorerie?onglet=verification')}
           />
         )}
+        {s.depassementsPlafond > 0 && (
+          <Chip
+            size="small"
+            color="warning"
+            label={`${s.depassementsPlafond} station(s) au-delà du plafond d’espèces`}
+            data-testid="depassements-plafond"
+          />
+        )}
         {s.manquantsOuverts > 0 && (
           <Chip
             size="small"
@@ -132,6 +140,7 @@ function SituationTresorerie() {
                 <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                   {formaterPrix(x.soldeNonVerse)}
                   {x.retard && <Chip size="small" color="error" sx={{ ml: 1 }} label="Retard" />}
+                  {x.depassePlafond && <Chip size="small" color="warning" sx={{ ml: 1 }} label="Plafond" />}
                 </TableCell>
                 <TableCell>
                   {x.dernierVersement ? formaterDate(x.dernierVersement) : '—'}

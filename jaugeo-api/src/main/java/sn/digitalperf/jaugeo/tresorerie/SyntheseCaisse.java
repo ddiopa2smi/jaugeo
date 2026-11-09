@@ -7,12 +7,13 @@ import java.time.YearMonth;
 public interface SyntheseCaisse {
 
     /**
-     * Caisse du gerant sur un mois : solde d'ouverture, composantes des recettes figees des journees cloturees,
-     * versements non rejetes, ecarts constates aux arretes de caisse, solde de fin de mois.
+     * Caisse du gerant sur un mois : solde d'ouverture, composantes des recettes figees des journees cloturees
+     * (encaissements = Wave, Orange Money et carte, hors caisse), versements non rejetes, ecarts constates aux
+     * arretes de caisse, solde de fin de mois.
      */
     record MoisCaisse(BigDecimal soldeDebut, BigDecimal ventes, BigDecimal bonsDirection, BigDecimal bonsGerant,
-                      BigDecimal depenses, BigDecimal complements, BigDecimal recouvrements, BigDecimal montants,
-                      BigDecimal versements, BigDecimal ecarts, BigDecimal soldeFin, int joursNonClotures) {
+                      BigDecimal depenses, BigDecimal complements, BigDecimal encaissements, BigDecimal recouvrements,
+                      BigDecimal montants, BigDecimal versements, BigDecimal ecarts, BigDecimal soldeFin, int joursNonClotures) {
     }
 
     /** Aucun filtrage par perimetre : c'est au module appelant de l'appliquer. */
