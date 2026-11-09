@@ -59,7 +59,16 @@ public final class VuesTresorerie {
     public record ManquantVue(UUID id, UUID stationId, String stationCode, LocalDate date, BigDecimal montant,
                               String responsable, String observation, String statut, String modeReglement,
                               String referenceReglement, LocalDate regleLe, String reglePar, Integer version,
-                              boolean reglable) {
+                              boolean reglable, BigDecimal montantRegle, BigDecimal reste,
+                              String reconnaissanceReference, LocalDate reconnuLe, List<EcheanceVue> echeances,
+                              List<PaiementVue> paiements, LocalDate prochaineEcheance, BigDecimal retard) {
+    }
+
+    /** Echeance d'un manquant ; regle = part couverte par les reglements, imputes dans l'ordre des echeances. */
+    public record EcheanceVue(int rang, LocalDate date, BigDecimal montant, BigDecimal regle, String statut) {
+    }
+
+    public record PaiementVue(LocalDate date, BigDecimal montant, String mode, String reference, String par) {
     }
 
     /** Situation de caisse d'une station au jour. */

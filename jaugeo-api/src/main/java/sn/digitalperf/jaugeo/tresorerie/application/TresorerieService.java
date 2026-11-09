@@ -49,6 +49,12 @@ import sn.digitalperf.jaugeo.tresorerie.domaine.ArreteCaisseDepot;
 import sn.digitalperf.jaugeo.tresorerie.domaine.CalculCaisse;
 import sn.digitalperf.jaugeo.tresorerie.domaine.ManquantGerant;
 import sn.digitalperf.jaugeo.tresorerie.domaine.ManquantGerantDepot;
+import sn.digitalperf.jaugeo.tresorerie.domaine.EcheanceManquant;
+import sn.digitalperf.jaugeo.tresorerie.domaine.EcheanceManquantDepot;
+import sn.digitalperf.jaugeo.tresorerie.domaine.PaiementManquant;
+import sn.digitalperf.jaugeo.tresorerie.domaine.PaiementManquantDepot;
+import sn.digitalperf.jaugeo.tresorerie.application.VuesTresorerie.EcheanceVue;
+import sn.digitalperf.jaugeo.tresorerie.application.VuesTresorerie.PaiementVue;
 import sn.digitalperf.jaugeo.tresorerie.domaine.OperationReleve;
 import sn.digitalperf.jaugeo.tresorerie.domaine.OperationReleveDepot;
 import sn.digitalperf.jaugeo.tresorerie.domaine.PieceVersement;
@@ -77,6 +83,8 @@ public class TresorerieService implements SyntheseCaisse {
     private final ManquantGerantDepot manquants;
     private final PlafondEspecesDepot plafonds;
     private final OperationReleveDepot operationsReleve;
+    private final EcheanceManquantDepot echeances;
+    private final PaiementManquantDepot paiements;
     private final CaisseGerant caisse;
     private final JourneesExploitation exploitation;
     private final ReferentielConsultation referentiel;
@@ -88,7 +96,8 @@ public class TresorerieService implements SyntheseCaisse {
 
     public TresorerieService(RecetteJourneeDepot recettes, VersementDepot versements, PieceVersementDepot pieces,
                              ArreteCaisseDepot arretes, ManquantGerantDepot manquants, PlafondEspecesDepot plafonds,
-                             OperationReleveDepot operationsReleve,
+                             OperationReleveDepot operationsReleve, EcheanceManquantDepot echeances,
+                             PaiementManquantDepot paiements,
                              CaisseGerant caisse,
                              JourneesExploitation exploitation, ReferentielConsultation referentiel,
                              PerimetreCourant perimetre, Clock horloge,
@@ -102,6 +111,8 @@ public class TresorerieService implements SyntheseCaisse {
         this.manquants = manquants;
         this.plafonds = plafonds;
         this.operationsReleve = operationsReleve;
+        this.echeances = echeances;
+        this.paiements = paiements;
         this.caisse = caisse;
         this.exploitation = exploitation;
         this.referentiel = referentiel;
@@ -415,17 +426,72 @@ public class TresorerieService implements SyntheseCaisse {
                 .filter(m -> statut == null || statut.isBlank() || m.getStatut().name().equalsIgnoreCase(statut)).toList();
         Map<Long, ArreteCaisse> parArrete = arretes.findAllById(liste.stream().map(ManquantGerant::getArreteId).toList())
                 .stream().collect(Collectors.toMap(ArreteCaisse::getId, Function.identity()));
-        return liste.stream().map(m -> vue(m, stations.get(m.getStationId()), parArrete.get(m.getArreteId()))).toList();
+        List<Long> ids = liste.stream().map(ManquantGerant::getId).toList();
+        Map<Long, List<EcheanceManquant>> plans = ids.isEmpty() ? Map.of()
+                : echeances.findByManquantIdInOrderByManquantIdAscRangAsc(ids).stream().collect(Collectors.groupingBy(EcheanceManquant::getManquantId));
+        Map<Long, List<PaiementManquant>> regles = ids.isEmpty() ? Map.of()
+                : paiements.findByManquantIdInOrderByDatePaiementAscIdAsc(ids).stream().collect(Collectors.groupingBy(PaiementManquant::getManquantId));
+        return liste.stream().map(m -> vue(m, stations.get(m.getStationId()), parArrete.get(m.getArreteId()),
+                plans.getOrDefault(m.getId(), List.of()), regles.getOrDefault(m.getId(), List.of()))).toList();
+    }
+
+    /** Reconnaissance de dette du gerant et echeancier mensuel du reste du (remplace l'echeancier precedent). */
+    @Transactional
+    public ManquantVue echeancier(UUID id, Integer version, String reference, LocalDate reconnuLe, int nombre, LocalDate premiere) {
+        ManquantGerant m = manquantAccessible(id, version);
+        m.reconnaitre(reference, reconnuLe);
+        if (premiere != null && premiere.isBefore(m.getDateJour())) {
+            throw ErreurMetier.regle("DATE_INVALIDE", "La première échéance ne peut pas précéder le constat du manquant.");
+        }
+        List<EcheanceManquant> anciennes = echeances.findByManquantIdOrderByRangAsc(m.getId());
+        echeances.deleteAll(anciennes);
+        echeances.flush();
+        // Les reglements deja recus restent imputes : l'echeancier couvre le montant total
+        BigDecimal deja = m.getMontantRegle();
+        List<EcheanceManquant> plan = new ArrayList<>();
+        if (deja.signum() > 0) {
+            plan.add(new EcheanceManquant(m.getId(), 1, m.getDateJour(), deja));
+        }
+        int decalage = plan.size();
+        for (EcheanceManquant e : EcheanceManquant.plan(m.getId(), m.reste(), nombre, premiere)) {
+            plan.add(new EcheanceManquant(m.getId(), e.getRang() + decalage, e.getDateEcheance(), e.getMontant()));
+        }
+        echeances.saveAll(plan);
+        manquants.saveAndFlush(m);
+        return vue(m);
+    }
+
+    /** Reglement partiel ou total d'un manquant (remboursement, retenue sur salaire ou perte). */
+    @Transactional
+    public ManquantVue payerManquant(UUID id, Integer version, BigDecimal montant, ManquantGerant.Mode mode, String reference,
+                                     LocalDate le) {
+        ManquantGerant m = manquantAccessible(id, version);
+        m.payer(montant, mode, reference, le, perimetre.identifiant());
+        paiements.save(new PaiementManquant(m.getId(), le, montant, mode, reference));
+        manquants.saveAndFlush(m);
+        return vue(m);
+    }
+
+    private ManquantGerant manquantAccessible(UUID id, Integer version) {
+        ManquantGerant m = manquants.findByUuid(id).orElseThrow(() -> ErreurMetier.introuvable("Manquant"));
+        perimetre.exigerStation(m.getStationId());
+        m.verifierVersion(version);
+        return m;
+    }
+
+    private ManquantVue vue(ManquantGerant m) {
+        return vue(m, referentiel.station(m.getStationId()).orElseThrow(), arretes.findById(m.getArreteId()).orElse(null),
+                echeances.findByManquantIdOrderByRangAsc(m.getId()),
+                paiements.findByManquantIdInOrderByDatePaiementAscIdAsc(List.of(m.getId())));
     }
 
     @Transactional
     public ManquantVue reglerManquant(UUID id, Integer version, ManquantGerant.Mode mode, String reference, LocalDate le) {
-        ManquantGerant m = manquants.findByUuid(id).orElseThrow(() -> ErreurMetier.introuvable("Manquant"));
-        perimetre.exigerStation(m.getStationId());
-        m.verifierVersion(version);
-        m.regler(mode, reference, le, perimetre.identifiant());
+        ManquantGerant m = manquantAccessible(id, version);
+        BigDecimal reste = m.regler(mode, reference, le, perimetre.identifiant());
+        paiements.save(new PaiementManquant(m.getId(), le, reste, mode, reference));
         manquants.saveAndFlush(m);
-        return vue(m, referentiel.station(m.getStationId()).orElseThrow(), arretes.findById(m.getArreteId()).orElse(null));
+        return vue(m);
     }
 
     private ArreteVue vue(ArreteCaisse a, StationRef s) {
@@ -435,12 +501,36 @@ public class TresorerieService implements SyntheseCaisse {
                 m.map(ManquantGerant::getUuid).orElse(null), m.map(x -> x.getStatut().name()).orElse(null));
     }
 
-    private ManquantVue vue(ManquantGerant m, StationRef s, ArreteCaisse a) {
+    private ManquantVue vue(ManquantGerant m, StationRef s, ArreteCaisse a, List<EcheanceManquant> plan,
+                            List<PaiementManquant> regles) {
+        LocalDate aujourdhui = aujourdhui();
+        BigDecimal aImputer = m.getMontantRegle();
+        BigDecimal retard = BigDecimal.ZERO;
+        LocalDate prochaine = null;
+        List<EcheanceVue> vues = new ArrayList<>();
+        for (EcheanceManquant e : plan) {
+            BigDecimal regle = aImputer.min(e.getMontant());
+            aImputer = aImputer.subtract(regle);
+            boolean payee = regle.compareTo(e.getMontant()) == 0;
+            boolean echue = !e.getDateEcheance().isAfter(aujourdhui);
+            if (!payee && echue) {
+                retard = retard.add(e.getMontant().subtract(regle));
+            }
+            if (!payee && prochaine == null) {
+                prochaine = e.getDateEcheance();
+            }
+            vues.add(new EcheanceVue(e.getRang(), e.getDateEcheance(), e.getMontant(), regle,
+                    payee ? "PAYEE" : echue ? "EN_RETARD" : "A_VENIR"));
+        }
+        boolean ouvert = m.getStatut() == ManquantGerant.Statut.OUVERT;
         return new ManquantVue(m.getUuid(), s.uuid(), s.code(), m.getDateJour(), m.getMontant(), m.getResponsable(),
                 a == null ? null : a.getObservation(), m.getStatut().name(),
                 m.getModeReglement() == null ? null : m.getModeReglement().name(), m.getReferenceReglement(),
-                m.getRegleLe(), m.getReglePar(), m.getVersion(),
-                m.getStatut() == ManquantGerant.Statut.OUVERT && aPermission("VERSEMENT_VALIDER"));
+                m.getRegleLe(), m.getReglePar(), m.getVersion(), ouvert && aPermission("VERSEMENT_VALIDER"),
+                m.getMontantRegle(), m.reste(), m.getReconnaissanceReference(), m.getReconnuLe(), vues,
+                regles.stream().map(p -> new PaiementVue(p.getDatePaiement(), p.getMontant(), p.getMode().name(), p.getReference(),
+                        p.getCreePar())).toList(),
+                ouvert ? prochaine : null, ouvert ? retard : BigDecimal.ZERO);
     }
 
     // ---------------------------------------------------------------- Situation du reseau
@@ -475,7 +565,7 @@ public class TresorerieService implements SyntheseCaisse {
             BigDecimal plafond = plafond(s.id());
             lignes.add(new SituationStation(s.uuid(), s.code(), s.nom(), solde, derniereRecette, dernierDepot, sansVersement,
                     retard, aVerifier.getOrDefault(s.id(), 0), m.size(),
-                    m.stream().map(ManquantGerant::getMontant).reduce(BigDecimal.ZERO, BigDecimal::add),
+                    m.stream().map(ManquantGerant::reste).reduce(BigDecimal.ZERO, BigDecimal::add),
                     arrete.map(ArreteCaisse::getDateJour).orElse(null), arrete.map(ArreteCaisse::getEcart).orElse(null),
                     plafond, CalculCaisse.depassePlafond(solde, plafond)));
         }

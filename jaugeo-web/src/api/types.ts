@@ -964,6 +964,15 @@ export interface Manquant {
   reglePar: string | null
   version: number
   reglable: boolean
+  montantRegle: number
+  reste: number
+  reconnaissanceReference: string | null
+  reconnuLe: string | null
+  echeances: { rang: number; date: string; montant: number; regle: number; statut: 'PAYEE' | 'EN_RETARD' | 'A_VENIR' }[]
+  paiements: { date: string; montant: number; mode: ModeReglementManquant; reference: string | null; par: string }[]
+  prochaineEcheance: string | null
+  /** Échéances échues non honorées */
+  retard: number
 }
 
 export interface SituationCaisse {

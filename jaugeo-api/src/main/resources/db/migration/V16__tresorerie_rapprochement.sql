@@ -123,3 +123,56 @@ CREATE TABLE tresorerie.operation_releve (
 CREATE INDEX ix_operation_date ON tresorerie.operation_releve (date_operation);
 CREATE INDEX ix_operation_station_date ON tresorerie.operation_releve (station_id, date_operation);
 SELECT audit.activer_audit('tresorerie.operation_releve');
+
+-- ---------------------------------------------------------------------
+-- Manquants des gerants : reconnaissance de dette, echeancier, reglements partiels
+-- (remboursement, retenue sur salaire) ; le manquant est solde quand le cumul atteint son montant.
+-- ---------------------------------------------------------------------
+ALTER TABLE tresorerie.manquant_gerant
+    ADD COLUMN montant_regle            numeric(15,0) NOT NULL DEFAULT 0,
+    ADD COLUMN reconnaissance_reference varchar(80),
+    ADD COLUMN reconnu_le               date;
+UPDATE tresorerie.manquant_gerant SET montant_regle = montant WHERE statut = 'SOLDE';
+ALTER TABLE tresorerie.manquant_gerant
+    ADD CONSTRAINT ck_manquant_regle CHECK (montant_regle >= 0 AND montant_regle <= montant),
+    ADD CONSTRAINT ck_manquant_solde CHECK ((statut = 'SOLDE') = (montant_regle = montant)),
+    ADD CONSTRAINT ck_manquant_reconnaissance CHECK ((reconnu_le IS NULL) = (reconnaissance_reference IS NULL));
+
+CREATE TABLE tresorerie.echeance_manquant (
+    id             bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    uuid           uuid          NOT NULL DEFAULT uuidv7() UNIQUE,
+    manquant_id    bigint        NOT NULL REFERENCES tresorerie.manquant_gerant (id),
+    rang           integer       NOT NULL CHECK (rang > 0),
+    date_echeance  date          NOT NULL,
+    montant        numeric(15,0) NOT NULL CHECK (montant > 0),
+    version        integer       NOT NULL DEFAULT 0,
+    cree_le        timestamptz   NOT NULL DEFAULT now(),
+    cree_par       varchar(50)   NOT NULL,
+    modifie_le     timestamptz   NOT NULL DEFAULT now(),
+    modifie_par    varchar(50)   NOT NULL,
+    CONSTRAINT uq_echeance_rang UNIQUE (manquant_id, rang)
+);
+SELECT audit.activer_audit('tresorerie.echeance_manquant');
+
+CREATE TABLE tresorerie.paiement_manquant (
+    id             bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    uuid           uuid          NOT NULL DEFAULT uuidv7() UNIQUE,
+    manquant_id    bigint        NOT NULL REFERENCES tresorerie.manquant_gerant (id),
+    date_paiement  date          NOT NULL,
+    montant        numeric(15,0) NOT NULL CHECK (montant > 0),
+    mode           varchar(20)   NOT NULL,
+    reference      varchar(80),
+    version        integer       NOT NULL DEFAULT 0,
+    cree_le        timestamptz   NOT NULL DEFAULT now(),
+    cree_par       varchar(50)   NOT NULL,
+    modifie_le     timestamptz   NOT NULL DEFAULT now(),
+    modifie_par    varchar(50)   NOT NULL,
+    CONSTRAINT ck_paiement_mode CHECK (mode IN ('REMBOURSEMENT', 'RETENUE', 'PERTE'))
+);
+CREATE INDEX ix_paiement_manquant ON tresorerie.paiement_manquant (manquant_id);
+SELECT audit.activer_audit('tresorerie.paiement_manquant');
+
+-- Historique : les manquants deja soldes ont un reglement unique
+INSERT INTO tresorerie.paiement_manquant (manquant_id, date_paiement, montant, mode, reference, cree_par, modifie_par)
+SELECT id, regle_le, montant, mode_reglement, reference_reglement, coalesce(regle_par, 'migration'), 'migration'
+FROM tresorerie.manquant_gerant WHERE statut = 'SOLDE';

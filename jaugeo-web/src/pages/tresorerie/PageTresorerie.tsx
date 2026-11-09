@@ -37,7 +37,7 @@ import {
   useStations,
   useVersements,
 } from '../../api/requetes'
-import type { DepenseAValider, LivreCaisse, Manquant, ModeReglementManquant, TypeArrete, Versement } from '../../api/types'
+import type { DepenseAValider, LivreCaisse, Manquant, TypeArrete, Versement } from '../../api/types'
 import { usePermission, useSession } from '../../auth/session'
 import { AlerteErreur, Chargement, EnTetePage } from '../../shared/composants'
 import { formaterDate, formaterPrix, versNombre, videVersNull } from '../../shared/libelles'
@@ -45,6 +45,7 @@ import { notifier } from '../../shared/notifications'
 import { BoutonPiece, VoirPiece } from '../../shared/PieceJointe'
 import { moisCourant } from '../../shared/stock'
 import { aujourdhui, formaterEcart, MODES_REGLEMENT, STATUTS_MANQUANT, STATUTS_VERSEMENT, TYPES_ARRETE } from '../../shared/tresorerie'
+import { DialogueManquant } from './DialogueManquant'
 import { DialogueVersement } from './DialogueVersement'
 import { OngletRapprochement } from './OngletRapprochement'
 
@@ -697,56 +698,6 @@ function DepensesAValider() {
 
 // ------------------------------------------------------------------ Manquants
 
-function DialogueReglementManquant({ manquant, onFermer }: { manquant: Manquant; onFermer: () => void }) {
-  const rafraichir = useRafraichirTresorerie()
-  const [mode, setMode] = useState<ModeReglementManquant>('REMBOURSEMENT')
-  const [reference, setReference] = useState('')
-  const [date, setDate] = useState(aujourdhui())
-  const reglement = useMutation({
-    mutationFn: () =>
-      api.post<Manquant>(`/tresorerie/manquants/${manquant.id}/reglement`, {
-        version: manquant.version,
-        mode,
-        reference: videVersNull(reference),
-        date,
-      }),
-    onSuccess: () => {
-      rafraichir()
-      notifier('Manquant soldé.')
-      onFermer()
-    },
-  })
-  return (
-    <Dialog open onClose={onFermer} maxWidth="xs" fullWidth>
-      <DialogTitle>Solder le manquant</DialogTitle>
-      <DialogContent>
-        <Typography variant="body2" sx={{ mb: 2 }}>
-          {manquant.stationCode} · arrêté du {formaterDate(manquant.date)}
-          {manquant.responsable ? ` · ${manquant.responsable}` : ''} : {formaterPrix(manquant.montant)}
-        </Typography>
-        <Stack spacing={2}>
-          <TextField select label="Mode" value={mode} onChange={(e) => setMode(e.target.value as ModeReglementManquant)}>
-            {Object.entries(MODES_REGLEMENT).map(([v, l]) => (
-              <MenuItem key={v} value={v}>
-                {l}
-              </MenuItem>
-            ))}
-          </TextField>
-          <TextField label="Référence (reçu, bulletin…)" value={reference} onChange={(e) => setReference(e.target.value)} slotProps={{ htmlInput: { maxLength: 80 } }} />
-          <TextField type="date" label="Date" value={date} onChange={(e) => setDate(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
-        </Stack>
-        <AlerteErreur erreur={reglement.error} />
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onFermer}>Annuler</Button>
-        <Button variant="contained" onClick={() => reglement.mutate()} disabled={reglement.isPending || !date}>
-          Enregistrer
-        </Button>
-      </DialogActions>
-    </Dialog>
-  )
-}
-
 function Manquants() {
   const [statut, setStatut] = useState('OUVERT')
   const liste = useManquants(statut)
@@ -770,6 +721,7 @@ function Manquants() {
                 <TableCell>Station</TableCell>
                 <TableCell>Responsable</TableCell>
                 <TableCell align="right">Montant</TableCell>
+                <TableCell align="right">Reste dû</TableCell>
                 <TableCell>Statut</TableCell>
                 <TableCell />
               </TableRow>
@@ -787,8 +739,19 @@ function Manquants() {
                       </Typography>
                     )}
                   </TableCell>
-                  <TableCell align="right">{formaterPrix(m.montant)}</TableCell>
+                  <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                    {formaterPrix(m.montant)}
+                  </TableCell>
+                  <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontWeight: 600 }} data-testid={`reste-${m.id}`}>
+                    {formaterPrix(m.reste)}
+                    {m.prochaineEcheance && (
+                      <Typography variant="caption" color="text.secondary" component="div">
+                        échéance du {formaterDate(m.prochaineEcheance)}
+                      </Typography>
+                    )}
+                  </TableCell>
                   <TableCell>
+                    {m.retard > 0 && <Chip size="small" color="error" variant="outlined" label="Échéance en retard" sx={{ mr: 0.5 }} />}
                     <Chip
                       size="small"
                       color={STATUTS_MANQUANT[m.statut].couleur}
@@ -800,11 +763,9 @@ function Manquants() {
                     />
                   </TableCell>
                   <TableCell>
-                    {m.reglable && (
-                      <Button size="small" onClick={() => setARegler(m)}>
-                        Solder
-                      </Button>
-                    )}
+                    <Button size="small" onClick={() => setARegler(m)}>
+                      {m.reglable ? 'Gérer' : 'Détail'}
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -812,7 +773,7 @@ function Manquants() {
           </Table>
         </Paper>
       )}
-      {aRegler && <DialogueReglementManquant manquant={aRegler} onFermer={() => setARegler(null)} />}
+      {aRegler && <DialogueManquant manquant={aRegler} onFermer={() => setARegler(null)} />}
     </>
   )
 }

@@ -79,6 +79,14 @@ class TresorerieController {
     record Encaissements(@NotNull Integer version, @NotNull @Size(max = 10) List<@Valid @NotNull Encaissement> encaissements) {
     }
 
+    record Echeancier(@NotNull Integer version, @NotBlank @Size(max = 80) String reference, @NotNull LocalDate reconnuLe,
+                      @NotNull @Positive Integer nombre, @NotNull LocalDate premiereEcheance) {
+    }
+
+    record PaiementSaisi(@NotNull Integer version, @NotNull @Positive @Digits(integer = 15, fraction = 0) BigDecimal montant,
+                         @NotNull ManquantGerant.Mode mode, @Size(max = 80) String reference, @NotNull LocalDate date) {
+    }
+
     record Plafond(@Positive @Digits(integer = 15, fraction = 0) BigDecimal plafond) {
     }
 
@@ -202,6 +210,20 @@ class TresorerieController {
     @PreAuthorize("hasAuthority('VERSEMENT_VALIDER')")
     ManquantVue regler(@PathVariable UUID id, @Valid @RequestBody Reglement r) {
         return service.reglerManquant(id, r.version(), r.mode(), r.reference(), r.date());
+    }
+
+    @Operation(summary = "Reconnaissance de dette et échéancier mensuel de remboursement d'un manquant")
+    @PutMapping("/tresorerie/manquants/{id}/echeancier")
+    @PreAuthorize("hasAuthority('VERSEMENT_VALIDER')")
+    ManquantVue echeancier(@PathVariable UUID id, @Valid @RequestBody Echeancier e) {
+        return service.echeancier(id, e.version(), e.reference(), e.reconnuLe(), e.nombre(), e.premiereEcheance());
+    }
+
+    @Operation(summary = "Enregistre un règlement partiel ou total d'un manquant (remboursement, retenue sur salaire, perte)")
+    @PostMapping("/tresorerie/manquants/{id}/paiements")
+    @PreAuthorize("hasAuthority('VERSEMENT_VALIDER')")
+    ManquantVue payer(@PathVariable UUID id, @Valid @RequestBody PaiementSaisi p) {
+        return service.payerManquant(id, p.version(), p.montant(), p.mode(), p.reference(), p.date());
     }
 
     @Operation(summary = "Solde non versé de chaque station, retards de versement, versements à vérifier, manquants")

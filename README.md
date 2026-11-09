@@ -181,6 +181,16 @@ Sprint M4 (module `stock`, Flyway V14 et V15) :
 - **Lubrifiants et boutique** (produits sans suivi en cuve) : stock par station valorisé au coût moyen unitaire pondéré (CMUP). La logistique annonce les entrées avec leur coût d'achat (livraison ou stock initial) ; elles n'entrent en stock qu'à la confirmation du gérant, observation obligatoire si la quantité reçue diffère. Les ventes se saisissent dans la journée au prix du jour (sans dépasser le stock, à l'unité pour les articles comptés à l'unité) et s'ajoutent au montant à verser ; elles sortent du stock au CMUP à la clôture et y rentrent au renvoi.
 - **Inventaire tournant** : chaque semaine, un quart des articles est proposé au comptage (les plus anciennement comptés), plus tout article non compté depuis 30 jours. L'écart, valorisé au CMUP, exige une explication ; les ventes d'une journée en cours sont déduites du stock attendu. Page « Lubrifiants et boutique » : stock, entrées à confirmer, inventaire, mouvements du mois.
 
+Sprint M5 (module `tresorerie`, Flyway V16) :
+
+- **Encaissements Wave, Orange Money et carte** : le gérant saisit dans la journée le total encaissé par mode. Ces montants ne passent pas par sa caisse : ils sont déduits des espèces à verser et figés dans la recette à la clôture (refusée s'ils dépassent les ventes). Livre de caisse et synthèse mensuelle les présentent à part.
+- **Plafond d'espèces** : fixé par station par le contrôle (`CAISSE_CONTROLER`), sinon `jaugeo.tresorerie.plafond-especes` pour tout le réseau (aucun par défaut). Au-delà, alerte sur la journée, le livre de caisse, le tableau de bord et la vue Direction, sans blocage.
+- **Relevés bancaires et marchands** : format paramétré une fois par banque ou opérateur (colonnes, séparateur, format de date, lignes d'en-tête) ; import CSV (UTF-8 ou Windows-1252) ou Excel. Seuls les crédits sont retenus ; un fichier déjà importé est refusé et les opérations déjà connues sont ignorées quand deux relevés se chevauchent.
+- **Lettrage des versements** : chaque crédit bancaire est rapproché du versement (BV) de même montant déposé dans les 7 jours qui précèdent (ou le lendemain) : celui dont la référence du BV figure au libellé, sinon le seul candidat possible. Les cas ambigus se lettrent à la main ; taux de rapprochement du mois, versements non retrouvés au relevé, date du relevé sur chaque versement.
+- **Wave, Orange Money, carte** : le relevé marchand d'une station est comparé jour par jour aux encaissements déclarés ; l'écart n'est calculé que sur la période couverte par un relevé importé.
+- **Manquants des gérants** : reconnaissance de dette (référence du document signé) et échéancier mensuel ; règlements partiels par remboursement ou retenue, imputés dans l'ordre des échéances ; le manquant est soldé quand le cumul atteint son montant. Les échéances échues non honorées sont signalées ; la situation de trésorerie ne compte plus que le reste dû.
+- **Écrans** : section « Wave, Orange Money et carte » de la fiche journée ; colonne et plafond dans l'onglet Caisse ; onglet « Rapprochement » de la trésorerie (siège : comptabilité, contrôle) ; fiche d'un manquant (échéancier, règlements).
+
 ## Prérequis
 
 - JDK 17 (sur ce poste, `JAVA_HOME` système pointe vers un JDK 8 : utilisez `scripts/env-dev.ps1`)
@@ -240,8 +250,8 @@ Documentation de l'API : http://localhost:8080/swagger-ui.html
 ## Tests
 
 ```powershell
-cd jaugeo-api; mvn test        # 149 tests : unitaires, architecture modulaire, intégration sur PostgreSQL 18 (Testcontainers), dont la reprise d'un classeur synthétique par l'API HTTP
-cd jaugeo-web; npm test        # 57 tests : file des saisies hors ligne (coupure, rejeu, conflit), page Réseau, client API, parcours d'écrans, page Prix, saisie et clôture d'une journée avec jaugeage et recette, page Stocks, lubrifiants et boutique (réception, inventaire, ventes de la journée), trésorerie (versement avec photo du BV, vérification), clients (création, fiche, relevé), bon à crédit avec alerte de plafond, synthèse mensuelle (observation, export), barèmes, échéances
+cd jaugeo-api; mvn test        # 153 tests : unitaires, architecture modulaire, intégration sur PostgreSQL 18 (Testcontainers), dont la reprise d'un classeur synthétique par l'API HTTP
+cd jaugeo-web; npm test        # 60 tests : file des saisies hors ligne (coupure, rejeu, conflit), page Réseau, client API, parcours d'écrans, page Prix, saisie et clôture d'une journée avec jaugeage et recette, page Stocks, lubrifiants et boutique (réception, inventaire, ventes de la journée), trésorerie (versement avec photo du BV, vérification, encaissements Wave / Orange Money / carte, rapprochement bancaire, échéancier d’un manquant), clients (création, fiche, relevé), bon à crédit avec alerte de plafond, synthèse mensuelle (observation, export), barèmes, échéances
 cd jaugeo-web; npm run lint; npm run build
 ```
 

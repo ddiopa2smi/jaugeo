@@ -179,6 +179,53 @@ class TresorerieM5Test {
     }
 
     @Test
+    void manquantRembourseSelonUnEcheancier() throws Exception {
+        creerStation("TRE");
+        String id = journee("2026-07-01", true);
+        cloturer(id).andExpect(status().isOk());
+        String comptable = OutilsApi.creerEtConnecter(mvc, jdbc, "COMPTABLE", "RESEAU", List.of());
+        // Arrete : 75 500 F attendus, 45 500 F comptes, manquant de 30 000 F
+        creer(comptable, "/api/v1/stations/" + station + "/arretes", """
+                {"date":"2026-07-01","type":"CONTROLE","especesComptees":45500,"responsable":"Keba Mbaye","observation":"Billets manquants"}""");
+        String liste = lireGet(comptable, "/api/v1/tresorerie/manquants?statut=OUVERT");
+        Map<String, Object> m = JsonPath.<List<Map<String, Object>>>read(liste, "$[?(@.stationCode=='TRE')]").get(0);
+        String url = "/api/v1/tresorerie/manquants/" + m.get("id");
+        assertThat(new BigDecimal(m.get("reste").toString())).isEqualByComparingTo("30000");
+
+        // Reconnaissance de dette et trois echeances mensuelles de 10 000 F
+        mvc.perform(avec(put(url + "/echeancier"), gerant).content("{}")).andExpect(status().isForbidden());
+        String e = modifier(comptable, url + "/echeancier", """
+                {"version":%s,"reference":"RD-2026-014","reconnuLe":"2026-07-02","nombre":3,"premiereEcheance":"2026-07-31"}"""
+                .formatted(m.get("version")));
+        assertThat(JsonPath.<String>read(e, "$.reconnaissanceReference")).isEqualTo("RD-2026-014");
+        assertThat(JsonPath.<List<String>>read(e, "$.echeances[*].date")).containsExactly("2026-07-31", "2026-08-31", "2026-09-30");
+        assertThat(JsonPath.<List<Integer>>read(e, "$.echeances[*].montant")).containsExactly(10000, 10000, 10000);
+
+        // Retenue partielle de 12 000 F : premiere echeance payee, la deuxieme entamee
+        e = lire(mvc.perform(avec(post(url + "/paiements"), comptable).content("""
+                {"version":%s,"montant":12000,"mode":"RETENUE","reference":"Paie juillet","date":"2026-07-31"}"""
+                .formatted(JsonPath.read(e, "$.version").toString()))).andExpect(status().isOk()));
+        assertThat(JsonPath.<String>read(e, "$.statut")).isEqualTo("OUVERT");
+        assertThat(nombre(e, "$.reste")).isEqualByComparingTo("18000");
+        assertThat(JsonPath.<List<String>>read(e, "$.echeances[*].statut").get(0)).isEqualTo("PAYEE");
+        assertThat(JsonPath.<List<Integer>>read(e, "$.echeances[*].regle")).containsExactly(10000, 2000, 0);
+        // Pas plus que le reste du
+        mvc.perform(avec(post(url + "/paiements"), comptable).content("""
+                {"version":%s,"montant":20000,"mode":"REMBOURSEMENT","reference":"Recu 12","date":"2026-08-10"}"""
+                .formatted(JsonPath.read(e, "$.version").toString()))).andExpect(status().isUnprocessableContent());
+        String situation = lireGet(comptable, "/api/v1/tresorerie/situation");
+        assertThat(JsonPath.<List<Integer>>read(situation, "$.stations[?(@.stationCode=='TRE')].montantManquants")).containsExactly(18000);
+
+        // Le solde du reste clot le manquant
+        e = lire(mvc.perform(avec(post(url + "/reglement"), comptable).content("""
+                {"version":%s,"mode":"REMBOURSEMENT","reference":"Recu 13","date":"2026-08-20"}"""
+                .formatted(JsonPath.read(e, "$.version").toString()))).andExpect(status().isOk()));
+        assertThat(JsonPath.<String>read(e, "$.statut")).isEqualTo("SOLDE");
+        assertThat(JsonPath.<List<Integer>>read(e, "$.paiements[*].montant")).containsExactly(12000, 18000);
+        assertThat(JsonPath.<List<String>>read(e, "$.echeances[*].statut")).containsOnly("PAYEE");
+    }
+
+    @Test
     void releveBancaireLettreLesVersements() throws Exception {
         creerStation("TRB");
         String v1 = versement("2026-06-02", "774401", 123_457);
