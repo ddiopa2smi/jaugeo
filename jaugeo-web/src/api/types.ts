@@ -744,6 +744,106 @@ export interface Versement {
   version: number
   modifiable: boolean
   verifiable: boolean
+  /** Date du crédit au relevé bancaire lettré avec ce versement */
+  dateReleve?: string | null
+}
+
+export type NatureReleve = 'BANQUE' | 'WAVE' | 'ORANGE_MONEY' | 'CARTE'
+
+export interface FormatReleve {
+  id: string
+  code: string
+  libelle: string
+  nature: NatureReleve
+  separateur: string
+  formatDate: string
+  lignesIgnorees: number
+  colDate: number
+  colLibelle: number
+  colReference: number | null
+  colCredit: number
+  actif: boolean
+  version: number
+}
+
+export interface BilanImport {
+  releveId: string
+  nomFichier: string
+  format: string
+  dateMin: string | null
+  dateMax: string | null
+  operations: number
+  doublons: number
+  ignorees: number
+  lettrees: number
+}
+
+export interface VersementResume {
+  id: string
+  stationCode: string | null
+  dateDepot: string
+  banque: string
+  referenceBv: string
+  montant: number
+  statut: StatutVersement
+}
+
+export interface OperationReleve {
+  id: string
+  date: string
+  libelle: string
+  reference: string | null
+  montant: number
+  format: string
+  versement: VersementResume | null
+  modeLettrage: 'AUTO' | 'MANUEL' | null
+  lettrePar: string | null
+  candidats: VersementResume[]
+}
+
+export interface ReleveImporte {
+  id: string
+  nomFichier: string
+  format: string
+  nature: NatureReleve
+  stationCode: string | null
+  dateMin: string | null
+  dateMax: string | null
+  operations: number
+  doublons: number
+  importePar: string
+  importeLe: string
+}
+
+export interface Rapprochement {
+  mois: string
+  versements: number
+  montantVersements: number
+  versementsLettres: number
+  montantLettre: number
+  taux: number | null
+  operations: OperationReleve[]
+  versementsNonLettres: VersementResume[]
+  releves: ReleveImporte[]
+  peutLettrer: boolean
+}
+
+export interface RapprochementElectronique {
+  mois: string
+  lignes: {
+    stationId: string
+    stationCode: string
+    date: string
+    mode: ModeEncaissement
+    libelle: string
+    declare: number
+    releve: number | null
+    ecart: number | null
+  }[]
+  totalDeclare: number
+  totalReleve: number
+  ecarts: number
+  nonCouverts: number
 }
 
 export interface SaisieVersement {

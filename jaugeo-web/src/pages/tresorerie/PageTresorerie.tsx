@@ -38,7 +38,7 @@ import {
   useVersements,
 } from '../../api/requetes'
 import type { DepenseAValider, LivreCaisse, Manquant, ModeReglementManquant, TypeArrete, Versement } from '../../api/types'
-import { usePermission } from '../../auth/session'
+import { usePermission, useSession } from '../../auth/session'
 import { AlerteErreur, Chargement, EnTetePage } from '../../shared/composants'
 import { formaterDate, formaterPrix, versNombre, videVersNull } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
@@ -46,6 +46,7 @@ import { BoutonPiece, VoirPiece } from '../../shared/PieceJointe'
 import { moisCourant } from '../../shared/stock'
 import { aujourdhui, formaterEcart, MODES_REGLEMENT, STATUTS_MANQUANT, STATUTS_VERSEMENT, TYPES_ARRETE } from '../../shared/tresorerie'
 import { DialogueVersement } from './DialogueVersement'
+import { OngletRapprochement } from './OngletRapprochement'
 
 const prix = (v: number | null | undefined) => (v === null || v === undefined ? '' : formaterPrix(v))
 
@@ -822,11 +823,14 @@ export function PageTresorerie() {
   const [params, setParams] = useSearchParams()
   const verifie = usePermission('VERSEMENT_VALIDER')
   const decide = usePermission('DEPENSE_VALIDER')
+  const controle = usePermission('CAISSE_CONTROLER')
+  const reseau = useSession((e) => e.utilisateur?.perimetre === 'RESEAU')
   const onglets = [
     { valeur: 'caisse', libelle: 'Caisse du gérant' },
     ...(verifie ? [{ valeur: 'verification', libelle: 'Versements à vérifier' }] : []),
     ...(decide ? [{ valeur: 'depenses', libelle: 'Dépenses à valider' }] : []),
     { valeur: 'manquants', libelle: 'Manquants' },
+    ...(reseau && (verifie || controle) ? [{ valeur: 'rapprochement', libelle: 'Rapprochement' }] : []),
   ]
   const demande = params.get('onglet')
   const onglet = onglets.some((o) => o.valeur === demande) ? demande! : 'caisse'
@@ -856,6 +860,7 @@ export function PageTresorerie() {
       {onglet === 'verification' && <AVerifier />}
       {onglet === 'depenses' && <DepensesAValider />}
       {onglet === 'manquants' && <Manquants />}
+      {onglet === 'rapprochement' && <OngletRapprochement />}
     </>
   )
 }

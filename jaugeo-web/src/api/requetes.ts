@@ -14,6 +14,9 @@ import type {
   DepenseAValider,
   DepensesJournee,
   EncaissementsJournee,
+  FormatReleve,
+  Rapprochement,
+  RapprochementElectronique,
   LivreCaisse,
   Manquant,
   NatureDepense,
@@ -78,6 +81,9 @@ export const cles = {
   tresorerie: ['tresorerie'] as const,
   livreCaisse: (stationId: string, mois: string) => ['tresorerie', 'caisse', stationId, mois] as const,
   versements: (stationId: string, mois: string) => ['tresorerie', 'versements', stationId, mois] as const,
+  formatsReleve: ['tresorerie', 'formats-releve'] as const,
+  rapprochement: (mois: string) => ['tresorerie', 'rapprochement', mois] as const,
+  rapprochementElectronique: (mois: string) => ['tresorerie', 'rapprochement-electronique', mois] as const,
   arretes: (stationId: string) => ['tresorerie', 'arretes', stationId] as const,
   manquants: (statut: string) => ['tresorerie', 'manquants', statut] as const,
   situationTresorerie: ['tresorerie', 'situation'] as const,
@@ -295,3 +301,20 @@ export const useVentesArticles = (id: string) =>
 
 export const useEncaissements = (id: string) =>
   useQuery({ queryKey: cles.encaissements(id), queryFn: () => api.get<EncaissementsJournee>(`/journees/${id}/encaissements`) })
+
+export const useFormatsReleve = () =>
+  useQuery({ queryKey: cles.formatsReleve, queryFn: () => api.get<FormatReleve[]>('/tresorerie/formats-releve') })
+
+export const useRapprochement = (mois: string) =>
+  useQuery({
+    queryKey: cles.rapprochement(mois),
+    queryFn: () => api.get<Rapprochement>(`/tresorerie/rapprochement?mois=${mois}`),
+    enabled: moisValide(mois),
+  })
+
+export const useRapprochementElectronique = (mois: string) =>
+  useQuery({
+    queryKey: cles.rapprochementElectronique(mois),
+    queryFn: () => api.get<RapprochementElectronique>(`/tresorerie/rapprochement/electronique?mois=${mois}`),
+    enabled: moisValide(mois),
+  })
