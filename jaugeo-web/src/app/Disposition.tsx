@@ -40,6 +40,7 @@ import { deconnecter } from '../auth/authApi'
 import { aPermission, useSession } from '../auth/session'
 import { demarrerHorsLigne } from '../horsligne/file'
 import { IndicateurHorsLigne } from '../horsligne/IndicateurHorsLigne'
+import { Marque } from '../shared/Marque'
 
 const LARGEUR_MENU = 248
 
@@ -167,9 +168,7 @@ export function Disposition() {
             </IconButton>
           )}
           <Box component="img" src="/favicon.svg" alt="" sx={{ width: 28, height: 28, mr: 1.5 }} />
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1, letterSpacing: 0.5 }}>
-            Jaugeo
-          </Typography>
+          <Marque variant="h6" component="div" sx={{ flexGrow: 1 }} />
           <IndicateurHorsLigne />
           <Box sx={{ display: { xs: 'none', sm: 'block' }, textAlign: 'right', mr: 1.5 }}>
             <Typography variant="body2" sx={{ lineHeight: 1.2 }}>
