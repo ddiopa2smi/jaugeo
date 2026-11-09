@@ -8,6 +8,9 @@ rapport-reprise*.md
 # Environnements locaux
 .env
 .env.*
+!.env.exemple
+# Sauvegardes de la base sur le serveur de recette
+deploy/recette/sauvegardes/
 *.local
 
 # Editeurs

@@ -1,0 +1,11 @@
+# Proxy HTTPS de Jaugeo : certificat Let's Encrypt automatique pour le domaine (JAUGEO_DOMAINE).
+# Avec JAUGEO_DOMAINE=localhost, Caddy utilise sa propre autorité locale (essai sur un poste).
+{$JAUGEO_DOMAINE} {
+	encode zstd gzip
+	reverse_proxy web:80
+	header -Server
+	log {
+		output stdout
+		format console
+	}
+}

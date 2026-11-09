@@ -1,0 +1,90 @@
+﻿# Environnement de recette (et modèle de la production) de Jaugeo, sur un serveur Linux avec Docker.
+#
+#   cp .env.exemple .env   # puis renseigner les secrets (voir README.md de ce dossier)
+#   docker compose up -d --build
+#
+# Seul Caddy est exposé (80 et 443) : il obtient le certificat HTTPS du domaine et relaie vers le front,
+# qui sert l'application et relaie /api vers l'API. La base n'est joignable que depuis le réseau interne.
+name: jaugeo-recette
+
+services:
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: jaugeo
+      POSTGRES_USER: jaugeo
+      POSTGRES_PASSWORD: ${JAUGEO_DB_PASSWORD:?JAUGEO_DB_PASSWORD manquant dans .env}
+      TZ: Africa/Dakar
+    volumes:
+      - donnees:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jaugeo -d jaugeo"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: ../../jaugeo-api
+    image: jaugeo-api:${JAUGEO_VERSION:-recette}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      JAUGEO_DB_URL: jdbc:postgresql://postgres:5432/jaugeo
+      JAUGEO_DB_PASSWORD: ${JAUGEO_DB_PASSWORD}
+      JAUGEO_JWT_SECRET: ${JAUGEO_JWT_SECRET:?JAUGEO_JWT_SECRET manquant dans .env}
+      JAUGEO_ADMIN_PASSWORD: ${JAUGEO_ADMIN_PASSWORD:?JAUGEO_ADMIN_PASSWORD manquant dans .env}
+      JAUGEO_COOKIE_SECURE: "true"
+      JAUGEO_API_DOCS: ${JAUGEO_API_DOCS:-false}
+
+  web:
+    build: ../../jaugeo-web
+    image: jaugeo-web:${JAUGEO_VERSION:-recette}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      JAUGEO_DOMAINE: ${JAUGEO_DOMAINE:?JAUGEO_DOMAINE manquant dans .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-donnees:/data
+      - caddy-config:/config
+
+  # Sauvegarde quotidienne de la base (pg_dump compressé), conservée JAUGEO_SAUVEGARDE_JOURS jours.
+  # Elle attend l'API : la première sauvegarde contient les schémas créés par Flyway.
+  sauvegarde:
+    image: postgres:18
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGUSER: jaugeo
+      PGPASSWORD: ${JAUGEO_DB_PASSWORD}
+      PGDATABASE: jaugeo
+      HEURE_SAUVEGARDE: ${JAUGEO_SAUVEGARDE_HEURE:-02}
+      JOURS_CONSERVES: ${JAUGEO_SAUVEGARDE_JOURS:-30}
+      TZ: Africa/Dakar
+    volumes:
+      - ./sauvegarde.sh:/usr/local/bin/sauvegarde.sh:ro
+      - ${JAUGEO_SAUVEGARDE_DOSSIER:-./sauvegardes}:/sauvegardes
+    entrypoint: ["sh", "/usr/local/bin/sauvegarde.sh"]
+
+volumes:
+  donnees:
+  caddy-donnees:
+  caddy-config:

@@ -8,6 +8,7 @@ Plateforme de gestion d'un réseau de stations-service (carburants, lubrifiants)
 | `jaugeo-web/` | Application web — React 19, Vite, Material UI 9, TanStack Query |
 | `scripts/` | Environnement de dev, démarrage, vérification de l'API, reprise du classeur |
 | `docker-compose.yml` | PostgreSQL 18 en conteneur (optionnel) |
+| `deploy/recette/` | Environnement de recette et de production : images Docker, HTTPS (Caddy), sauvegardes ; voir son [README](deploy/recette/README.md) |
 
 ## État : Sprint 6 livré (reprise du classeur 2026, saisie hors ligne, tableau de bord du réseau, durcissement)
 
