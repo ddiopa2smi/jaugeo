@@ -1124,3 +1124,54 @@ export interface TableauReseau {
   ecartStockValeurMois: number
   stations: StationReseau[]
 }
+
+// Vue de la Direction : mois arrêté à la veille, comparé à la même période du mois précédent
+export interface PeriodeDirection {
+  du: string
+  au: string
+  litres: number
+  ventes: number
+}
+
+export interface ProduitDirection {
+  code: string
+  libelle: string
+  litres: number
+  ventes: number
+  litresPrecedent: number
+  ventesPrecedent: number
+}
+
+export interface JourDirection {
+  date: string
+  litres: Record<string, number>
+  ventes: Record<string, number>
+  ventesTotal: number
+}
+
+export interface StationDirection {
+  stationId: string
+  code: string
+  nom: string
+  litres: number
+  ventes: number
+  ventesPrecedent: number
+  montantDu: number | null
+  versements: number | null
+  soldeCaisse: number | null
+  joursNonClotures: number
+}
+
+export interface VueDirection {
+  date: string
+  mois: string
+  periode: PeriodeDirection
+  precedente: PeriodeDirection
+  ventesMoisPrecedent: number
+  montantDu: number
+  versements: number
+  soldeCaisse: number
+  produits: ProduitDirection[]
+  jours: JourDirection[]
+  stations: StationDirection[]
+}

@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import sn.digitalperf.jaugeo.commun.ErreurMetier;
+import sn.digitalperf.jaugeo.reporting.application.DirectionService;
+import sn.digitalperf.jaugeo.reporting.application.DirectionService.VueDirection;
 import sn.digitalperf.jaugeo.reporting.application.TableauBordService;
 import sn.digitalperf.jaugeo.reporting.application.TableauBordService.TableauReseau;
 
@@ -26,19 +28,33 @@ class TableauBordController {
     private final TableauBordService service;
     private final Clock horloge;
 
-    TableauBordController(TableauBordService service, Clock horloge) {
+    private final DirectionService direction;
+
+    TableauBordController(TableauBordService service, DirectionService direction, Clock horloge) {
         this.service = service;
+        this.direction = direction;
         this.horloge = horloge;
     }
 
     @Operation(summary = "Stations du périmètre au jour donné (par défaut aujourd'hui, heure de Dakar)")
     @GetMapping("/reseau")
     TableauReseau reseau(@RequestParam(required = false) String date) {
+        return service.reseau(jour(date));
+    }
+
+    @Operation(summary = "Vue de la Direction : mois arrêté à la veille, comparaison au mois précédent, évolution "
+            + "quotidienne par produit, activité et caisse par station")
+    @GetMapping("/direction")
+    VueDirection direction(@RequestParam(required = false) String date) {
+        return direction.vue(jour(date));
+    }
+
+    private LocalDate jour(String date) {
         if (date == null || date.isBlank()) {
-            return service.reseau(LocalDate.now(horloge.withZone(DAKAR)));
+            return LocalDate.now(horloge.withZone(DAKAR));
         }
         try {
-            return service.reseau(LocalDate.parse(date));
+            return LocalDate.parse(date);
         } catch (DateTimeParseException e) {
             throw ErreurMetier.regle("DATE_INVALIDE", "La date s'écrit AAAA-MM-JJ.");
         }

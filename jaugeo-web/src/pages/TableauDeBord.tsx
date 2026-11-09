@@ -8,6 +8,7 @@ import TableCell from '@mui/material/TableCell'
 import TableHead from '@mui/material/TableHead'
 import TableRow from '@mui/material/TableRow'
 import Typography from '@mui/material/Typography'
+import { lazy, Suspense } from 'react'
 import { useNavigate } from 'react-router'
 import { useGrillePrix, useProduits, useSituationStock, useSituationTresorerie, useStations } from '../api/requetes'
 import { usePermission, useSession } from '../auth/session'
@@ -275,10 +276,22 @@ function SyntheseReferentiel() {
   )
 }
 
+// Vue de la Direction chargée à la demande (graphique) : les autres rôles ne la téléchargent jamais
+const VueDirection = lazy(async () => ({ default: (await import('./direction/VueDirection')).VueDirection }))
+
 export function TableauDeBord() {
   const utilisateur = useSession((e) => e.utilisateur)!
   const voitReferentiel = usePermission('REFERENTIEL_CONSULTER')
+  const voitReseau = usePermission('TABLEAU_BORD_RESEAU')
   const prenom = utilisateur.nomComplet.split(' ')[0]
+
+  if (utilisateur.role === 'DIRECTION' && voitReseau && voitReferentiel) {
+    return (
+      <Suspense fallback={<Chargement />}>
+        <VueDirection />
+      </Suspense>
+    )
+  }
 
   return (
     <>
