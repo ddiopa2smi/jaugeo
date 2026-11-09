@@ -63,10 +63,14 @@ public class StockService implements StocksMensuels {
     private final ComplementCiterneDepot complements;
     private final EvaluationStock evaluation;
     private final ClotureStock cloture;
+    private final BigDecimal autonomieAlerteJours;
 
     public StockService(JourneesExploitation exploitation, ReferentielConsultation referentiel, PerimetreCourant perimetre,
                         JaugeageDepot jaugeages, ReceptionDepot receptions, EcartStockDepot ecarts,
-                        ComplementCiterneDepot complements, EvaluationStock evaluation, ClotureStock cloture) {
+                        ComplementCiterneDepot complements, EvaluationStock evaluation, ClotureStock cloture,
+                        @org.springframework.beans.factory.annotation.Value("${jaugeo.stock.autonomie-alerte-jours:3}")
+                        BigDecimal autonomieAlerteJours) {
+        this.autonomieAlerteJours = autonomieAlerteJours;
         this.exploitation = exploitation;
         this.referentiel = referentiel;
         this.perimetre = perimetre;
@@ -111,8 +115,21 @@ public class StockService implements StocksMensuels {
                 throw ErreurMetier.regle("JAUGE_SUPERIEURE_CAPACITE", "La cuve " + c.code() + " contient au plus "
                         + EvaluationStock.litres(c.capaciteLitres()) + " : " + EvaluationStock.litres(volume) + " est impossible.");
             }
+            // Eau en fond de cuve : lue sur le bareme et deduite d'une hauteur ; un volume lu directement est deja net
+            BigDecimal volumeEau = null;
+            Integer eau = s.hauteurEauMm();
+            if (eau != null) {
+                if (s.hauteurMm() != null && eau >= s.hauteurMm()) {
+                    throw ErreurMetier.regle("EAU_SUPERIEURE_JAUGE", "Cuve " + c.code()
+                            + " : la hauteur d'eau doit être inférieure à la hauteur jaugée.");
+                }
+                volumeEau = eau == 0 ? BigDecimal.ZERO : c.bareme() ? referentiel.volumeJauge(c.id(), eau) : null;
+                if (s.hauteurMm() != null && volumeEau != null) {
+                    volume = volume.subtract(volumeEau).max(BigDecimal.ZERO);
+                }
+            }
             Jaugeage m = existant.orElseGet(() -> new Jaugeage(j.id(), j.stationId(), c.id(), j.date(), moment));
-            m.mesurer(s.hauteurMm(), volume, s.observation());
+            m.mesurer(s.hauteurMm(), volume, s.observation(), eau, volumeEau);
             jaugeages.save(m);
         }
         jaugeages.flush();
@@ -182,21 +199,23 @@ public class StockService implements StocksMensuels {
                         vue(c.ouverture()), c.receptions(), c.sorties(), r.theorique(), vue(c.cloture()), r.ecart(),
                         r.ecartPctJour(), c.prixUnitaire(), r.ecartValeur(), r.cumulSorties(), r.cumulEcart(),
                         r.ecartPctMois(), c.cuve().toleranceEcartPct(), r.niveau() == null ? null : r.niveau().name(),
-                        c.observationRequise(), c.anomalies()));
+                        c.observationRequise(), c.anomalies(), evaluation.seuilEauMm(c.cuve()), c.alertes()));
             }
         } else {
             // Journee cloturee : valeurs figees (une journee anterieure au suivi des stocks n'en a pas)
             for (EcartStock e : ecarts.findByJourneeId(j.id())) {
                 CuveRef c = cuvesParId.get(e.getCuveId());
                 Jaugeage ouverture = trouver(mesures, c.id(), Jaugeage.Moment.OUVERTURE);
+                Jaugeage fin = trouver(mesures, c.id(), Jaugeage.Moment.CLOTURE);
                 cuves.add(new CuveStock(c.uuid(), c.code(), c.produitCode(), c.produitLibelle(), c.capaciteLitres(),
                         c.bareme(), ouverture == null, false, e.getStockDepart(), vue(ouverture), e.getReceptions(),
-                        e.getSorties(), e.getStockTheorique(), vue(trouver(mesures, c.id(), Jaugeage.Moment.CLOTURE)),
+                        e.getSorties(), e.getStockTheorique(), vue(fin),
                         e.getEcartLitres(), CalculStock.calculer(new CalculStock.Entree(e.getStockDepart(), e.getReceptions(),
                                 e.getSorties(), e.getStockPhysique(), BigDecimal.ZERO, BigDecimal.ZERO, null,
                                 e.getTolerancePct(), evaluation.seuilEnquetePct())).ecartPctJour(),
                         e.getPrixUnitaire(), e.getEcartValeur(), e.getCumulSortiesMois(), e.getCumulEcartMois(),
-                        e.getEcartPctMois(), e.getTolerancePct(), e.getNiveau().name(), false, List.of()));
+                        e.getEcartPctMois(), e.getTolerancePct(), e.getNiveau().name(), false, List.of(),
+                        evaluation.seuilEauMm(c), evaluation.alertesEau(c, ouverture, fin)));
             }
             cuves.sort(Comparator.comparing(CuveStock::cuveCode));
         }
@@ -208,14 +227,15 @@ public class StockService implements StocksMensuels {
             CuveRef c = cuvesParId.get(r.getCuveId());
             ComplementCiterne cc = complementsParReception.get(r.getId());
             BigDecimal complement = cc != null ? cc.getLitres()
-                    : CalculStock.complement(r.getQuantiteBl(), r.getQuantiteRecue(), cloture.toleranceTransportPct());
+                    : CalculStock.complement(r.quantiteLivree(), r.quantiteMesuree(), cloture.toleranceTransportPct());
             return new ReceptionVue(r.getUuid(), c.uuid(), c.code(), c.produitCode(), r.getNumeroBl(), r.getFournisseur(),
                     r.getTransporteur(), r.getChauffeur(), r.getImmatriculation(), r.getScelles(), r.getQuantiteBl(),
                     r.getJaugeAvant(), r.getJaugeApres(), r.getQuantiteRecue(), r.getTemperatureC(), r.getDensite(),
-                    r.getObservation(), r.getQuantiteRecue().subtract(r.getQuantiteBl()),
-                    CalculStock.pourcentageLivraison(r.getQuantiteBl(), r.getQuantiteRecue()),
+                    r.getObservation(), r.quantiteMesuree().subtract(r.quantiteLivree()),
+                    CalculStock.pourcentageLivraison(r.quantiteLivree(), r.quantiteMesuree()),
                     complement.signum() > 0 ? complement : null, cc == null ? null : cc.getStatut().name(),
-                    r.getModifiePar(), r.getModifieLe());
+                    r.getModifiePar(), r.getModifieLe(), r.getQuantiteBl15(), r.getFacteur15(), r.getQuantiteRecue15(),
+                    r.compareeA15(), r.getScellesIntacts(), r.getImputation().name());
         }).toList();
         int anomalies = cuves.stream().mapToInt(c -> c.anomalies().size()).sum();
         return new StockJournee(j.uuid(), s.uuid(), s.code(), j.date(), j.statut(), j.version(),
@@ -224,7 +244,7 @@ public class StockService implements StocksMensuels {
 
     private static JaugeageVue vue(Jaugeage m) {
         return m == null ? null : new JaugeageVue(m.getHauteurMm(), m.getVolumeLitres(), m.getObservation(),
-                m.getModifiePar(), m.getModifieLe());
+                m.getModifiePar(), m.getModifieLe(), m.getHauteurEauMm(), m.getVolumeEauLitres());
     }
 
     private static Jaugeage trouver(List<Jaugeage> mesures, long cuveId, Jaugeage.Moment moment) {
@@ -287,7 +307,7 @@ public class StockService implements StocksMensuels {
     public Situation situation() {
         Map<Long, StationRef> stations = stationsVisibles();
         if (stations.isEmpty()) {
-            return new Situation(List.of(), 0, 0, BigDecimal.ZERO);
+            return new Situation(List.of(), 0, 0, BigDecimal.ZERO, 0, 0, autonomieAlerteJours);
         }
         Map<Long, CuveRef> cuves = new HashMap<>();
         stations.keySet().forEach(id -> referentiel.cuves(id).forEach(c -> cuves.put(c.id(), c)));
@@ -296,10 +316,21 @@ public class StockService implements StocksMensuels {
                 .map(e -> {
                     StationRef s = stations.get(e.getStationId());
                     CuveRef c = cuves.get(e.getCuveId());
+                    Jaugeage fin = jaugeages.findByCuveIdAndDateJourAndMoment(c.id(), e.getDateJour(), Jaugeage.Moment.CLOTURE)
+                            .orElse(null);
+                    // Ventes moyennes des 7 derniers jours figes (jusqu'au dernier stock connu)
+                    EcartStockDepot.Moyenne m = ecarts.sorties(c.id(), e.getDateJour().minusDays(7), e.getDateJour());
+                    int jours = m.getJours().intValue();
+                    BigDecimal moyenne = jours == 0 ? null
+                            : m.getSorties().divide(BigDecimal.valueOf(jours), 2, java.math.RoundingMode.HALF_UP);
+                    BigDecimal autonomie = CalculStock.autonomieJours(e.getStockPhysique(), c.creuxSecuriteLitres(), moyenne);
                     return new SituationCuve(s.uuid(), s.code(), s.nom(), c.uuid(), c.code(), c.produitCode(),
                             c.produitLibelle(), e.getDateJour(), e.getStockPhysique(), c.capaciteLitres(),
                             e.getCumulEcartMois(), e.getEcartPctMois(), e.getTolerancePct(), e.getNiveau().name(),
-                            e.getObservation());
+                            e.getObservation(), c.creuxSecuriteLitres(), fin == null ? null : fin.getHauteurEauMm(),
+                            evaluation.seuilEauMm(c), evaluation.eauAuDela(c, fin), moyenne, jours, autonomie,
+                            c.seuilReapproLitres(), CalculStock.aReapprovisionner(e.getStockPhysique(),
+                                    c.seuilReapproLitres(), autonomie, autonomieAlerteJours));
                 })
                 .sorted(Comparator.comparing(SituationCuve::stationCode).thenComparing(SituationCuve::cuveCode))
                 .toList();
@@ -308,7 +339,9 @@ public class StockService implements StocksMensuels {
         int alertes = (int) lignes.stream().filter(l -> !"NORMAL".equals(l.niveau())).count();
         BigDecimal montant = aRegler.stream().map(ComplementCiterne::getMontant).filter(m -> m != null)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        return new Situation(lignes, alertes, aRegler.size(), montant);
+        int eau = (int) lignes.stream().filter(SituationCuve::eauAlerte).count();
+        int reappro = (int) lignes.stream().filter(SituationCuve::aReapprovisionner).count();
+        return new Situation(lignes, alertes, aRegler.size(), montant, eau, reappro, autonomieAlerteJours);
     }
 
     // ---------------------------------------------------------------- Complements citerne
@@ -344,7 +377,8 @@ public class StockService implements StocksMensuels {
                 r.getFournisseur(), r.getTransporteur(), r.getImmatriculation(), produit, r.getQuantiteBl(),
                 r.getQuantiteRecue(), c.getLitres(), c.getPrixUnitaire(), c.getMontant(), c.getStatut().name(),
                 c.getReferenceReglement(), c.getRegleLe(), c.getReglePar(), c.getVersion(),
-                c.getStatut() == ComplementCiterne.Statut.A_REGLER && aPermission("RECEPTION_VALIDER"));
+                c.getStatut() == ComplementCiterne.Statut.A_REGLER && aPermission("RECEPTION_VALIDER"),
+                c.getImputeA().name(), c.isA15());
     }
 
     // ---------------------------------------------------------------- Outils

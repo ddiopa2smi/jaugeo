@@ -115,7 +115,7 @@ describe('saisie et clôture d’une journée', () => {
             receptions: 0,
             sorties,
             stockTheorique: theorique,
-            cloture: jaugeFin === null ? null : { hauteurMm: null, volumeLitres: jaugeFin, observation: null, par: 'gerant.nia', le: '2026-08-16T21:00:00Z' },
+            cloture: jaugeFin === null ? null : { hauteurMm: null, volumeLitres: jaugeFin, observation: null, par: 'gerant.nia', le: '2026-08-16T21:00:00Z', hauteurEauMm: null, volumeEauLitres: null },
             ecartLitres: ecart,
             ecartPctJour: null,
             prixUnitaire: 755,
@@ -127,6 +127,8 @@ describe('saisie et clôture d’une journée', () => {
             niveau: ecart === null ? null : 'NORMAL',
             observationRequise: false,
             anomalies,
+            seuilEauMm: 20,
+            alertes: [],
           },
         ],
       }
@@ -286,7 +288,7 @@ describe('saisie et clôture d’une journée', () => {
       version: 3,
       releves: [{ pistoletId: 'p1', indexArrivee: 89716.5, remiseCuve: 20 }, { indexArrivee: 141003 }],
     })
-    expect(jaugeages).toEqual([{ version: 4, jaugeages: [{ cuveId: 'c1', moment: 'CLOTURE', hauteurMm: null, volumeLitres: 8714, observation: null }] }])
+    expect(jaugeages).toEqual([{ version: 4, jaugeages: [{ cuveId: 'c1', moment: 'CLOTURE', hauteurMm: null, hauteurEauMm: null, volumeLitres: 8714, observation: null }] }])
     expect(within(dialogue).getByTestId('total-journee')).toHaveTextContent('966 778 F')
     expect(within(dialogue).getByTestId('recap-ecart-C1')).toHaveTextContent(/5,5 L/)
     // Montant à verser = ventes − dépenses autorisées

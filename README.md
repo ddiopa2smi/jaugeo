@@ -169,6 +169,16 @@ Sprint 6 :
   - hors profil `dev`, l'API refuse de démarrer avec le secret JWT de développement (ou trop court ou peu varié), des cookies non sécurisés ou le mot de passe initial par défaut ;
   - en-têtes de sécurité : CSP, `Referrer-Policy: no-referrer`, `Permissions-Policy`, HSTS d'un an en HTTPS, `X-Frame-Options: DENY`.
 
+## Lot 2 « Maîtrise » — en cours
+
+Sprint M4 (module `stock`, Flyway V14) :
+
+- **Dépotage à 15 °C** : la densité saisie est la masse volumique à 15 °C portée sur le BL. Avec la température du produit, la quantité reçue est ramenée à 15 °C (ASTM D1250, table 54B : essences, zone de transition, kérosènes, gasoils). Quand le BL porte aussi sa quantité à 15 °C, l'écart de livraison et le complément citerne se jugent à 15 °C ; sinon, à température ambiante comme avant. Le stock reçoit toujours les litres ambiants.
+- **Imputation du manquant** : au fournisseur si la citerne est arrivée scellés intacts (le manquant vient du chargement), au transporteur sinon ; le gérant peut forcer l'un ou l'autre. Le complément citerne garde l'imputation et sa base (15 °C ou ambiante).
+- **Eau en fond de cuve** : hauteur relevée à la pâte à eau au jaugeage. Son volume, lu sur le barème, est déduit d'une hauteur jaugée (un volume lu directement est déjà net). Au-delà du seuil de la cuve (sinon `jaugeo.stock.seuil-eau-mm`, 20 mm), une alerte non bloquante demande la purge.
+- **Autonomie et réapprovisionnement** : autonomie = stock au-dessus du creux de sécurité ÷ ventes moyennes des 7 derniers jours clôturés. Une cuve est à réapprovisionner sous son seuil en litres, ou, sans seuil, sous `jaugeo.stock.autonomie-alerte-jours` (3 jours).
+- **Écrans** : réception (quantité BL à 15 °C, scellés à l'arrivée, imputation, aperçu à 15 °C en direct) ; champ « Eau » du jaugeage de fin ; onglet « Autonomie » de la page Stocks ; seuils dans la fiche cuve ; cuves à réapprovisionner et eau sur le tableau de bord et dans les risques de la vue Direction.
+
 ## Prérequis
 
 - JDK 17 (sur ce poste, `JAVA_HOME` système pointe vers un JDK 8 : utilisez `scripts/env-dev.ps1`)
@@ -228,8 +238,8 @@ Documentation de l'API : http://localhost:8080/swagger-ui.html
 ## Tests
 
 ```powershell
-cd jaugeo-api; mvn test        # 135 tests : unitaires, architecture modulaire, intégration sur PostgreSQL 18 (Testcontainers), dont la reprise d'un classeur synthétique par l'API HTTP
-cd jaugeo-web; npm test        # 49 tests : file des saisies hors ligne (coupure, rejeu, conflit), page Réseau, client API, parcours d'écrans, page Prix, saisie et clôture d'une journée avec jaugeage et recette, page Stocks, trésorerie (versement avec photo du BV, vérification), clients (création, fiche, relevé), bon à crédit avec alerte de plafond, synthèse mensuelle (observation, export), barèmes, échéances
+cd jaugeo-api; mvn test        # 141 tests : unitaires, architecture modulaire, intégration sur PostgreSQL 18 (Testcontainers), dont la reprise d'un classeur synthétique par l'API HTTP
+cd jaugeo-web; npm test        # 55 tests : file des saisies hors ligne (coupure, rejeu, conflit), page Réseau, client API, parcours d'écrans, page Prix, saisie et clôture d'une journée avec jaugeage et recette, page Stocks, trésorerie (versement avec photo du BV, vérification), clients (création, fiche, relevé), bon à crédit avec alerte de plafond, synthèse mensuelle (observation, export), barèmes, échéances
 cd jaugeo-web; npm run lint; npm run build
 ```
 

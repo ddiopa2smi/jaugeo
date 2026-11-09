@@ -12,6 +12,7 @@ import sn.digitalperf.jaugeo.commun.EntiteAuditee;
 /**
  * Jaugeage d'une cuve pour une journee : stock physique de fin de journee (CLOTURE), ou stock de depart
  * de la premiere journee suivie (OUVERTURE). Hauteur nulle = volume lu directement.
+ * L'eau en fond de cuve (hauteur relevee a la pate a eau) est deduite : le volume est celui du produit.
  */
 @Entity
 @Table(schema = "stock", name = "jaugeage")
@@ -43,6 +44,12 @@ public class Jaugeage extends EntiteAuditee {
 
     private String observation;
 
+    @Column(name = "hauteur_eau_mm")
+    private Integer hauteurEauMm;
+
+    @Column(name = "volume_eau_litres")
+    private BigDecimal volumeEauLitres;
+
     protected Jaugeage() {
     }
 
@@ -54,10 +61,21 @@ public class Jaugeage extends EntiteAuditee {
         this.moment = moment;
     }
 
-    public void mesurer(Integer hauteurMm, BigDecimal volumeLitres, String observation) {
+    public void mesurer(Integer hauteurMm, BigDecimal volumeLitres, String observation, Integer hauteurEauMm,
+                        BigDecimal volumeEauLitres) {
         this.hauteurMm = hauteurMm;
         this.volumeLitres = volumeLitres;
         this.observation = observation == null || observation.isBlank() ? null : observation.trim();
+        this.hauteurEauMm = hauteurEauMm;
+        this.volumeEauLitres = volumeEauLitres;
+    }
+
+    public Integer getHauteurEauMm() {
+        return hauteurEauMm;
+    }
+
+    public BigDecimal getVolumeEauLitres() {
+        return volumeEauLitres;
     }
 
     public Long getJourneeId() {

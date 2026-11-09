@@ -17,7 +17,19 @@ public interface EcartStockDepot extends JpaRepository<EcartStock, Long> {
         BigDecimal getEcart();
     }
 
+    interface Moyenne {
+        BigDecimal getSorties();
+
+        Long getJours();
+    }
+
     List<EcartStock> findByJourneeId(Long journeeId);
+
+    /** Sorties d'une cuve et nombre de journees figees sur ]apres, au]. */
+    @Query("""
+            select coalesce(sum(e.sorties), 0) as sorties, count(e) as jours
+            from EcartStock e where e.cuveId = :cuveId and e.dateJour > :apres and e.dateJour <= :au""")
+    Moyenne sorties(@Param("cuveId") Long cuveId, @Param("apres") LocalDate apres, @Param("au") LocalDate au);
 
     /** Cumul des sorties et des ecarts d'une cuve sur [du, au). */
     @Query("""

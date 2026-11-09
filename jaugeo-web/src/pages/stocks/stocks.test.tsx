@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AnalyseMensuelle, ComplementCiterne, Permission, Station } from '../../api/types'
+import type { AnalyseMensuelle, ComplementCiterne, Permission, SituationCuve, SituationStock, Station } from '../../api/types'
 import { Fournisseurs } from '../../app/Fournisseurs'
 import { RestaurationSession } from '../../app/Gardes'
 import { creerQueryClient } from '../../app/queryClient'
@@ -96,6 +96,8 @@ const complement = (statut: ComplementCiterne['statut']): ComplementCiterne => (
   litres: 150,
   prixUnitaire: 755,
   montant: 113250,
+  imputeA: 'TRANSPORTEUR',
+  a15: false,
   statut,
   referenceReglement: statut === 'REGLE' ? 'AV-12' : null,
   regleLe: statut === 'REGLE' ? '2026-08-20' : null,
@@ -152,5 +154,67 @@ describe('page Stocks', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(reglements).toMatchObject([{ version: 0, reference: 'AV-12' }])
     expect(await screen.findByText(/Aucun complément citerne en attente/)).toBeInTheDocument()
+  })
+
+  it("montre l'autonomie des cuves, celles à réapprovisionner d'abord, et l'eau en fond de cuve", async () => {
+    const cuve = (code: string, stock: number, autonomie: number | null, reappro: boolean, eau: number | null): SituationCuve => ({
+      stationId: 's-nia',
+      stationCode: 'NIA',
+      stationNom: 'Station Niandane',
+      cuveId: `c-${code}`,
+      cuveCode: code,
+      produitCode: 'GASOIL',
+      produitLibelle: 'Gasoil',
+      date: '2026-08-16',
+      stockPhysique: stock,
+      capaciteLitres: 30000,
+      cumulEcartMois: 0,
+      ecartPctMois: 0,
+      tolerancePct: 0.5,
+      niveau: 'NORMAL',
+      observation: null,
+      creuxSecuriteLitres: 500,
+      hauteurEauMm: eau,
+      seuilEauMm: 20,
+      eauAlerte: eau !== null && eau > 20,
+      ventesMoyennes: 3000,
+      joursMoyenne: 7,
+      autonomieJours: autonomie,
+      seuilReapproLitres: null,
+      aReapprovisionner: reappro,
+    })
+    const situation: SituationStock = {
+      cuves: [cuve('C1', 24000, 7.8, false, 5), cuve('C2', 6500, 2, true, 35)],
+      alertes: 0,
+      complementsARegler: 0,
+      montantComplementsARegler: 0,
+      cuvesEau: 1,
+      cuvesAReapprovisionner: 1,
+      autonomieAlerteJours: 3,
+    }
+    installerFauxServeur(({ chemin }) => {
+      if (chemin === '/auth/rafraichir') return { status: 200, corps: sessionTest('j', LOGISTIQUE) }
+      if (chemin === '/stations') return { status: 200, corps: [STATION] }
+      if (chemin === '/stock/situation') return { status: 200, corps: situation }
+      return undefined
+    })
+    const routeur = createMemoryRouter(routes, { initialEntries: ['/stocks?onglet=autonomie'] })
+    render(
+      <Fournisseurs client={creerQueryClient()}>
+        <RestaurationSession>
+          <RouterProvider router={routeur} />
+        </RestaurationSession>
+      </Fournisseurs>,
+    )
+
+    const table = await screen.findByRole('table', { name: 'Autonomie des cuves' })
+    const lignes = within(table).getAllByRole('row').slice(1)
+    expect(lignes[0]).toHaveTextContent('NIA · C2')
+    expect(lignes[0]).toHaveTextContent('2 j')
+    expect(within(lignes[0]!).getByText('À réapprovisionner')).toBeInTheDocument()
+    expect(within(lignes[0]!).getByText('Eau 35 mm > 20 mm')).toBeInTheDocument()
+    expect(lignes[1]).toHaveTextContent('7,8 j')
+    expect(within(lignes[1]!).queryByText('À réapprovisionner')).not.toBeInTheDocument()
+    expect(screen.getByText(/sous 3 jours/)).toBeInTheDocument()
   })
 })

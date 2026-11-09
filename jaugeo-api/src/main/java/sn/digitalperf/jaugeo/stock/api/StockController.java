@@ -47,7 +47,8 @@ class StockController {
     record JaugeageSaisi(@NotNull UUID cuveId, @Size(max = 10) String moment,
                          @PositiveOrZero @Max(100_000) Integer hauteurMm,
                          @PositiveOrZero @Digits(integer = 10, fraction = 2) BigDecimal volumeLitres,
-                         @Size(max = 500) String observation) {
+                         @Size(max = 500) String observation,
+                         @PositiveOrZero @Max(5_000) Integer hauteurEauMm) {
     }
 
     record Jaugeages(@NotNull Integer version, @NotNull @Size(max = 50) List<@Valid @NotNull JaugeageSaisi> jaugeages) {
@@ -63,10 +64,13 @@ class StockController {
                            @Positive @Digits(integer = 10, fraction = 2) BigDecimal quantiteRecue,
                            @DecimalMin("-20") @DecimalMax("80") @Digits(integer = 2, fraction = 1) BigDecimal temperatureC,
                            @DecimalMin("0.5") @DecimalMax("1.2") @Digits(integer = 1, fraction = 4) BigDecimal densite,
-                           @Size(max = 500) String observation) {
+                           @Size(max = 500) String observation,
+                           @Positive @Digits(integer = 10, fraction = 2) BigDecimal quantiteBl15,
+                           Boolean scellesIntacts, Reception.Imputation imputation) {
         Reception.Donnees donnees() {
             return new Reception.Donnees(numeroBl, fournisseur, transporteur, chauffeur, immatriculation, scelles,
-                    quantiteBl, jaugeAvant, jaugeApres, quantiteRecue, temperatureC, densite, observation);
+                    quantiteBl, jaugeAvant, jaugeApres, quantiteRecue, temperatureC, densite, observation,
+                    quantiteBl15, scellesIntacts, imputation);
         }
     }
 
@@ -90,7 +94,8 @@ class StockController {
     @PreAuthorize("hasAuthority('JOURNEE_SAISIR')")
     StockJournee jaugeages(@PathVariable UUID id, @Valid @RequestBody Jaugeages j) {
         return service.enregistrerJaugeages(id, j.version(), j.jaugeages().stream()
-                .map(x -> new SaisieJaugeage(x.cuveId(), x.moment(), x.hauteurMm(), x.volumeLitres(), x.observation()))
+                .map(x -> new SaisieJaugeage(x.cuveId(), x.moment(), x.hauteurMm(), x.volumeLitres(), x.observation(),
+                        x.hauteurEauMm()))
                 .toList());
     }
 
@@ -128,19 +133,20 @@ class StockController {
         return service.mensuel(id, m);
     }
 
-    @Operation(summary = "Dernier stock connu de chaque cuve du périmètre, niveau d'alerte et compléments à régler")
+    @Operation(summary = "Dernier stock connu de chaque cuve du périmètre : niveau d'alerte, eau en fond de cuve, "
+            + "autonomie en jours et réapprovisionnement ; compléments à régler")
     @GetMapping("/stock/situation")
     Situation situation() {
         return service.situation();
     }
 
-    @Operation(summary = "Compléments citerne (manquants de livraison à la charge du transporteur)")
+    @Operation(summary = "Compléments citerne (manquants de livraison à la charge du transporteur ou du fournisseur)")
     @GetMapping("/stock/complements")
     List<ComplementVue> complements(@RequestParam(required = false) String statut) {
         return service.complements(statut);
     }
 
-    @Operation(summary = "Enregistre le règlement d'un complément citerne par le transporteur")
+    @Operation(summary = "Enregistre le règlement d'un complément citerne par le transporteur ou le fournisseur")
     @PostMapping("/stock/complements/{id}/reglement")
     @PreAuthorize("hasAuthority('RECEPTION_VALIDER')")
     ComplementVue regler(@PathVariable UUID id, @Valid @RequestBody Reglement r) {

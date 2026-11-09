@@ -16,7 +16,9 @@ public final class VuesStock {
     public record AnomalieVue(String code, String message) {
     }
 
-    public record JaugeageVue(Integer hauteurMm, BigDecimal volumeLitres, String observation, String par, Instant le) {
+    /** Volume = produit, eau deduite ; volume d'eau lu sur le bareme (nul sans bareme). */
+    public record JaugeageVue(Integer hauteurMm, BigDecimal volumeLitres, String observation, String par, Instant le,
+                              Integer hauteurEauMm, BigDecimal volumeEauLitres) {
     }
 
     /**
@@ -30,7 +32,7 @@ public final class VuesStock {
                             BigDecimal ecartPctJour, BigDecimal prixUnitaire, BigDecimal ecartValeur,
                             BigDecimal cumulSortiesMois, BigDecimal cumulEcartMois, BigDecimal ecartPctMois,
                             BigDecimal tolerancePct, String niveau, boolean observationRequise,
-                            List<AnomalieVue> anomalies) {
+                            List<AnomalieVue> anomalies, Integer seuilEauMm, List<AnomalieVue> alertes) {
     }
 
     public record ReceptionVue(UUID id, UUID cuveId, String cuveCode, String produitCode, String numeroBl,
@@ -38,7 +40,9 @@ public final class VuesStock {
                                String scelles, BigDecimal quantiteBl, BigDecimal jaugeAvant, BigDecimal jaugeApres,
                                BigDecimal quantiteRecue, BigDecimal temperatureC, BigDecimal densite,
                                String observation, BigDecimal ecartLivraison, BigDecimal ecartLivraisonPct,
-                               BigDecimal complementLitres, String complementStatut, String par, Instant le) {
+                               BigDecimal complementLitres, String complementStatut, String par, Instant le,
+                               BigDecimal quantiteBl15, BigDecimal facteur15, BigDecimal quantiteRecue15,
+                               boolean compareeA15, Boolean scellesIntacts, String imputation) {
     }
 
     public record StockJournee(UUID journeeId, UUID stationId, String stationCode, LocalDate date, String statut,
@@ -71,11 +75,16 @@ public final class VuesStock {
     public record SituationCuve(UUID stationId, String stationCode, String stationNom, UUID cuveId, String cuveCode,
                                 String produitCode, String produitLibelle, LocalDate date, BigDecimal stockPhysique,
                                 BigDecimal capaciteLitres, BigDecimal cumulEcartMois, BigDecimal ecartPctMois,
-                                BigDecimal tolerancePct, String niveau, String observation) {
+                                BigDecimal tolerancePct, String niveau, String observation,
+                                BigDecimal creuxSecuriteLitres, Integer hauteurEauMm, Integer seuilEauMm,
+                                boolean eauAlerte, BigDecimal ventesMoyennes, int joursMoyenne,
+                                BigDecimal autonomieJours, BigDecimal seuilReapproLitres, boolean aReapprovisionner) {
     }
 
+    /** Alertes = cuves hors tolerance d'ecart ; eau et reapprovisionnement comptes a part. */
     public record Situation(List<SituationCuve> cuves, int alertes, int complementsARegler,
-                            BigDecimal montantComplementsARegler) {
+                            BigDecimal montantComplementsARegler, int cuvesEau, int cuvesAReapprovisionner,
+                            BigDecimal autonomieAlerteJours) {
     }
 
     public record ComplementVue(UUID id, UUID stationId, String stationCode, LocalDate date, UUID journeeId,
@@ -83,13 +92,16 @@ public final class VuesStock {
                                 String produitCode, BigDecimal quantiteBl, BigDecimal quantiteRecue,
                                 BigDecimal litres, BigDecimal prixUnitaire, BigDecimal montant, String statut,
                                 String referenceReglement, LocalDate regleLe, String reglePar, Integer version,
-                                boolean reglable) {
+                                boolean reglable, String imputeA, boolean a15) {
     }
 
     // ---------------------------------------------------------------- Saisies
 
-    /** Hauteur (mm, convertie par le bareme) ou volume lu ; les deux nuls = jaugeage retire. */
+    /**
+     * Hauteur (mm, convertie par le bareme) ou volume lu ; les deux nuls = jaugeage retire. Hauteur d'eau en fond
+     * de cuve : deduite du volume lu sur le bareme ; un volume lu directement (jauge electronique) est deja net.
+     */
     public record SaisieJaugeage(UUID cuveId, String moment, Integer hauteurMm, BigDecimal volumeLitres,
-                                 String observation) {
+                                 String observation, Integer hauteurEauMm) {
     }
 }

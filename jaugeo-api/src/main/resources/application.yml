@@ -72,6 +72,15 @@ jaugeo:
     tentatives-max: 5
     duree-verrouillage: 15m
     admin-mot-de-passe-initial: ${JAUGEO_ADMIN_PASSWORD:Jaugeo@2026}
+  stock:
+    # Manquant de livraison toléré (% de la quantité du BL) avant complément citerne
+    tolerance-transport-pct: 0.3
+    # Écart de stock du mois (% des sorties) au-delà duquel l'alerte devient une enquête
+    seuil-enquete-pct: 2
+    # Eau en fond de cuve (mm) au-delà de laquelle le jaugeage lève une alerte, sauf seuil propre à la cuve
+    seuil-eau-mm: 20
+    # Autonomie (jours de ventes moyennes sur 7 jours) sous laquelle une cuve sans seuil en litres est à réapprovisionner
+    autonomie-alerte-jours: 3
 
 logging:
   level:

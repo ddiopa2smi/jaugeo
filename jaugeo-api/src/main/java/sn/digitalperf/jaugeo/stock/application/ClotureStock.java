@@ -69,7 +69,8 @@ class ClotureStock implements ParticipantCloture {
                     c.cuve().toleranceEcartPct(), r, c.cloture().getObservation()));
         }
         for (Reception r : receptions.findByJourneeIdOrderByIdAsc(j.id())) {
-            BigDecimal manquant = CalculStock.complement(r.getQuantiteBl(), r.getQuantiteRecue(), toleranceTransportPct);
+            // Manquant juge a 15 °C quand le BL et les releves le permettent, a temperature ambiante sinon
+            BigDecimal manquant = CalculStock.complement(r.quantiteLivree(), r.quantiteMesuree(), toleranceTransportPct);
             if (manquant.signum() > 0) {
                 BigDecimal prix = tarification.prixEnVigueur(j.stationId(), r.getProduitId(), j.fin().minusSeconds(1)).orElse(null);
                 complements.save(new ComplementCiterne(r, manquant, prix));
@@ -82,8 +83,8 @@ class ClotureStock implements ParticipantCloture {
         boolean regle = complements.findByJourneeId(journee.id()).stream()
                 .anyMatch(c -> c.getStatut() == ComplementCiterne.Statut.REGLE);
         if (regle) {
-            throw ErreurMetier.regle("COMPLEMENT_REGLE", "Un complément citerne de cette journée a déjà été réglé par le "
-                    + "transporteur : la journée ne peut plus être renvoyée.");
+            throw ErreurMetier.regle("COMPLEMENT_REGLE", "Un complément citerne de cette journée a déjà été réglé "
+                    + ": la journée ne peut plus être renvoyée.");
         }
         complements.supprimerPourJournee(journee.id());
         ecarts.supprimerPourJournee(journee.id());
