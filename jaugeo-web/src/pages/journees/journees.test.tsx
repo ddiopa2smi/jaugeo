@@ -194,6 +194,7 @@ describe('saisie et clôture d’une journée', () => {
         statut: courante.statut,
         fige: courante.statut !== 'BROUILLON',
         ventes: courante.montant,
+        ventesArticles: 0,
         bonsDirection: 0,
         bonsGerant: 0,
         depenses: 5000,
@@ -212,6 +213,11 @@ describe('saisie et clôture d’une journée', () => {
       if (chemin === '/journees/j1/depenses') return { status: 200, corps: depenses() }
       if (chemin === '/journees/j1/tresorerie') return { status: 200, corps: recette() }
       if (chemin === '/journees/j1/credit') return { status: 200, corps: credit() }
+      if (chemin === '/journees/j1/articles')
+        return {
+          status: 200,
+          corps: { journeeId: 'j1', version: courante.version, statut: courante.statut, modifiable: courante.statut === 'BROUILLON', articles: [], total: 0 },
+        }
       if (chemin === '/auth/rafraichir') return { status: 200, corps: sessionTest('j', GERANT) }
       if (chemin === '/journees/j1' && methode === 'GET') return { status: 200, corps: courante }
       if (chemin === '/journees/j1/releves') {

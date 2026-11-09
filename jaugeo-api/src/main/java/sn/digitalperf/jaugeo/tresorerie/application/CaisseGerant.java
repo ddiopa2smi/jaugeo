@@ -85,10 +85,13 @@ class CaisseGerant {
         return exploitation.montantVentes(j.id()).map(ventes -> calculer(j, ventes));
     }
 
-    /** Composantes calculees : ventes, bons et recouvrements des clients, depenses autorisees, complements citerne. */
+    /**
+     * Composantes calculees : ventes de carburant et d'articles, bons et recouvrements des clients, depenses
+     * autorisees, complements citerne.
+     */
     RecetteJournee.Composantes calculer(JourneeRef j, BigDecimal ventes) {
         ComptesClients.TotauxJournee credit = clients.totauxJournee(j.id());
-        return new RecetteJournee.Composantes(ventes, credit.bonsDirection(), credit.bonsGerant(), depenses.totalAutorise(j.id()),
+        return new RecetteJournee.Composantes(ventes, stocks.montantVentesArticles(j.id()), credit.bonsDirection(), credit.bonsGerant(), depenses.totalAutorise(j.id()),
                 stocks.montantComplements(j.id()), credit.recouvrements());
     }
 }

@@ -10,4 +10,7 @@ public interface StocksJournee {
      * sinon apercu calcule au prix du jour. Un complement sans prix compte pour zero.
      */
     BigDecimal montantComplements(long journeeId);
+
+    /** Montant (F CFA) des ventes de lubrifiants et d'articles boutique saisies dans la journee. */
+    BigDecimal montantVentesArticles(long journeeId);
 }

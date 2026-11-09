@@ -29,13 +29,16 @@ import type {
   Evenement,
   LigneGrille,
   ListeJournees,
+  MouvementsArticles,
   PageAudit,
   PeriodePrix,
   Produit,
   Region,
   Role,
   Station,
+  StockArticles,
   Utilisateur,
+  VentesArticlesJournee,
 } from './types'
 
 export const cles = {
@@ -62,6 +65,10 @@ export const cles = {
   tableauReseau: (date: string) => ['tableau-bord', 'reseau', date] as const,
   vueDirection: (date: string) => ['tableau-bord', 'direction', date] as const,
   complements: (statut: string) => ['stock', 'complements', statut] as const,
+  articles: ['articles'] as const,
+  stockArticles: (stationId: string) => ['articles', 'stock', stationId] as const,
+  mouvementsArticles: (stationId: string, mois: string) => ['articles', 'mouvements', stationId, mois] as const,
+  ventesArticles: (id: string) => ['journees', id, 'articles'] as const,
   naturesDepense: ['depenses', 'natures'] as const,
   depensesJournee: (id: string) => ['journees', id, 'depenses'] as const,
   depensesAValider: ['depenses', 'a-valider'] as const,
@@ -267,3 +274,19 @@ export const useTableauReseau = (date: string) =>
     queryKey: cles.tableauReseau(date),
     queryFn: () => api.get<TableauReseau>(`/tableau-bord/reseau?date=${date}`),
   })
+export const useStockArticles = (stationId: string | null) =>
+  useQuery({
+    queryKey: cles.stockArticles(stationId ?? ''),
+    queryFn: () => api.get<StockArticles>(`/stations/${stationId}/articles`),
+    enabled: !!stationId,
+  })
+
+export const useMouvementsArticles = (stationId: string | null, mois: string) =>
+  useQuery({
+    queryKey: cles.mouvementsArticles(stationId ?? '', mois),
+    queryFn: () => api.get<MouvementsArticles>(`/stations/${stationId}/articles/mouvements?mois=${mois}`),
+    enabled: !!stationId,
+  })
+
+export const useVentesArticles = (id: string) =>
+  useQuery({ queryKey: cles.ventesArticles(id), queryFn: () => api.get<VentesArticlesJournee>(`/journees/${id}/articles`) })

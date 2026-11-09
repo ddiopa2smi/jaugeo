@@ -784,6 +784,8 @@ export interface RecetteJournee {
   statut: StatutJournee
   fige: boolean
   ventes: number | null
+  /** Lubrifiants et articles boutique vendus dans la journée */
+  ventesArticles: number
   bonsDirection: number
   bonsGerant: number
   depenses: number | null
@@ -1213,4 +1215,102 @@ export interface VueDirection {
   produits: ProduitDirection[]
   jours: JourDirection[]
   stations: StationDirection[]
+}
+// ------------------------------------------------------------ Lubrifiants et boutique (lot 2, M4)
+
+export type TypeMouvementArticle = 'ENTREE' | 'VENTE' | 'INVENTAIRE'
+export type StatutEntreeArticle = 'ANNONCEE' | 'RECUE' | 'ANNULEE'
+
+export interface ArticleStation {
+  produitId: string
+  code: string
+  libelle: string
+  unite: string
+  quantite: number
+  ventesEnCours: number
+  disponible: number
+  cmup: number
+  valeur: number
+  prixVente: number | null
+  dernierComptage: string | null
+  aCompter: boolean
+  enRetard: boolean
+}
+
+export interface EntreeArticle {
+  id: string
+  version: number
+  produitId: string
+  produitCode: string
+  produitLibelle: string
+  unite: string
+  quantite: number
+  coutUnitaire: number
+  valeur: number
+  fournisseur: string
+  reference: string
+  statut: StatutEntreeArticle
+  quantiteRecue: number | null
+  recueLe: string | null
+  recuePar: string | null
+  observation: string | null
+  annonceeLe: string
+  annonceePar: string
+}
+
+export interface StockArticles {
+  stationId: string
+  stationCode: string
+  stationNom: string
+  articles: ArticleStation[]
+  valeurStock: number
+  nombreACompter: number
+  entreesAnnoncees: EntreeArticle[]
+  peutAnnoncer: boolean
+  peutRecevoir: boolean
+  peutCompter: boolean
+}
+
+export interface MouvementArticle {
+  date: string
+  produitCode: string
+  produitLibelle: string
+  type: TypeMouvementArticle
+  quantite: number
+  coutUnitaire: number
+  valeur: number
+  stockApres: number
+  cmupApres: number
+  libelle: string | null
+}
+
+export interface MouvementsArticles {
+  stationId: string
+  stationCode: string
+  mois: string
+  mouvements: MouvementArticle[]
+  valeurEntrees: number
+  valeurVentes: number
+  valeurEcarts: number
+}
+
+export interface VenteArticle {
+  produitId: string
+  code: string
+  libelle: string
+  unite: string
+  disponible: number
+  prixUnitaire: number | null
+  quantite: number | null
+  montant: number | null
+  cmup: number | null
+}
+
+export interface VentesArticlesJournee {
+  journeeId: string
+  version: number
+  statut: StatutJournee
+  modifiable: boolean
+  articles: VenteArticle[]
+  total: number
 }

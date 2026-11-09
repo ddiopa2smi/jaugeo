@@ -12,12 +12,16 @@ import sn.digitalperf.jaugeo.commun.EntiteAuditee;
 @Table(schema = "tresorerie", name = "recette_journee")
 public class RecetteJournee extends EntiteAuditee {
 
-    /** Composantes du montant a verser. */
-    public record Composantes(BigDecimal ventes, BigDecimal bonsDirection, BigDecimal bonsGerant, BigDecimal depenses,
-                              BigDecimal complements, BigDecimal recouvrements) {
+    /** Composantes du montant a verser ; ventes = carburant, ventesArticles = lubrifiants et boutique. */
+    public record Composantes(BigDecimal ventes, BigDecimal ventesArticles, BigDecimal bonsDirection, BigDecimal bonsGerant,
+                              BigDecimal depenses, BigDecimal complements, BigDecimal recouvrements) {
+
+        public BigDecimal ventesTotales() {
+            return ventes.add(ventesArticles);
+        }
 
         public BigDecimal montantAVerser() {
-            return CalculCaisse.montantAVerser(ventes, bonsDirection, bonsGerant, depenses, complements, recouvrements);
+            return CalculCaisse.montantAVerser(ventesTotales(), bonsDirection, bonsGerant, depenses, complements, recouvrements);
         }
     }
 
@@ -32,6 +36,9 @@ public class RecetteJournee extends EntiteAuditee {
 
     @Column(nullable = false, updatable = false)
     private BigDecimal ventes;
+
+    @Column(name = "ventes_articles", nullable = false, updatable = false)
+    private BigDecimal ventesArticles;
 
     @Column(name = "bons_direction", nullable = false, updatable = false)
     private BigDecimal bonsDirection;
@@ -59,6 +66,7 @@ public class RecetteJournee extends EntiteAuditee {
         this.stationId = stationId;
         this.dateJour = dateJour;
         this.ventes = c.ventes();
+        this.ventesArticles = c.ventesArticles();
         this.bonsDirection = c.bonsDirection();
         this.bonsGerant = c.bonsGerant();
         this.depenses = c.depenses();
@@ -68,7 +76,7 @@ public class RecetteJournee extends EntiteAuditee {
     }
 
     public Composantes composantes() {
-        return new Composantes(ventes, bonsDirection, bonsGerant, depenses, complements, recouvrements);
+        return new Composantes(ventes, ventesArticles, bonsDirection, bonsGerant, depenses, complements, recouvrements);
     }
 
     public Long getJourneeId() {

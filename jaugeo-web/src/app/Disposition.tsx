@@ -13,6 +13,7 @@ import MenuIcon from '@mui/icons-material/Menu'
 import OilBarrelIcon from '@mui/icons-material/OilBarrel'
 import PeopleIcon from '@mui/icons-material/People'
 import SellIcon from '@mui/icons-material/Sell'
+import StorefrontIcon from '@mui/icons-material/Storefront'
 import AppBar from '@mui/material/AppBar'
 import Avatar from '@mui/material/Avatar'
 import Box from '@mui/material/Box'
@@ -64,6 +65,7 @@ const SECTIONS: { titre: string; entrees: EntreeMenu[] }[] = [
     entrees: [
       { chemin: '/journees', libelle: 'Journées', icone: <EventNoteIcon />, permission: 'REFERENTIEL_CONSULTER' },
       { chemin: '/stocks', libelle: 'Stocks', icone: <InventoryIcon />, permission: 'REFERENTIEL_CONSULTER' },
+      { chemin: '/boutique', libelle: 'Lubrifiants et boutique', icone: <StorefrontIcon />, permission: 'REFERENTIEL_CONSULTER' },
       { chemin: '/tresorerie', libelle: 'Trésorerie', icone: <AccountBalanceIcon />, permission: 'REFERENTIEL_CONSULTER' },
       { chemin: '/clients', libelle: 'Clients en compte', icone: <BadgeIcon />, permission: 'REFERENTIEL_CONSULTER' },
       { chemin: '/syntheses', libelle: 'Synthèses mensuelles', icone: <AssessmentIcon />, permission: 'REFERENTIEL_CONSULTER' },

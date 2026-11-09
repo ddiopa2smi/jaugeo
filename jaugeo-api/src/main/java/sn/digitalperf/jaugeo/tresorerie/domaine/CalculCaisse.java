@@ -8,7 +8,7 @@ import java.util.List;
 /**
  * Calculs de la caisse du gerant (feuille station : MONTANT A VERSER et ECART (solde non verse)).
  * <ul>
- *   <li>montant a verser = ventes - bons direction - bons gerant - depenses autorisees - complements citerne
+ *   <li>montant a verser = ventes (carburant, lubrifiants et boutique) - bons direction - bons gerant - depenses autorisees - complements citerne
  *       + creances recouvrees en especes a la station ;</li>
  *   <li>solde du jour = solde de la veille + montant a verser - versements deposes ce jour ;</li>
  *   <li>un arrete de caisse remplace le solde par les especes comptees ; l'ecart (comptees - theorique) est

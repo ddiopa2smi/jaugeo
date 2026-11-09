@@ -27,8 +27,9 @@ public final class VuesTresorerie {
      * a l'ouverture, versements deposes ce jour et solde de fin de journee.
      */
     public record RecetteVue(UUID journeeId, UUID stationId, String stationCode, LocalDate date, String statut, boolean fige,
-                             BigDecimal ventes, BigDecimal bonsDirection, BigDecimal bonsGerant, BigDecimal depenses,
-                             BigDecimal complements, BigDecimal recouvrements, BigDecimal montantAVerser, BigDecimal soldeOuverture,
+                             BigDecimal ventes, BigDecimal ventesArticles, BigDecimal bonsDirection, BigDecimal bonsGerant,
+                             BigDecimal depenses, BigDecimal complements, BigDecimal recouvrements, BigDecimal montantAVerser,
+                             BigDecimal soldeOuverture,
                              List<VersementVue> versements, BigDecimal totalVersements, BigDecimal soldeFin,
                              ArreteVue arrete, boolean peutVerser) {
     }
