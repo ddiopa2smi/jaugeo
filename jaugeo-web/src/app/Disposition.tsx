@@ -2,6 +2,7 @@ import AccountBalanceIcon from '@mui/icons-material/AccountBalance'
 import AccountCircleIcon from '@mui/icons-material/AccountCircle'
 import AssessmentIcon from '@mui/icons-material/Assessment'
 import BadgeIcon from '@mui/icons-material/Badge'
+import CreditCardIcon from '@mui/icons-material/CreditCard'
 import DashboardIcon from '@mui/icons-material/Dashboard'
 import EventNoteIcon from '@mui/icons-material/EventNote'
 import HistoryIcon from '@mui/icons-material/History'
@@ -12,6 +13,7 @@ import MapIcon from '@mui/icons-material/Map'
 import MenuIcon from '@mui/icons-material/Menu'
 import OilBarrelIcon from '@mui/icons-material/OilBarrel'
 import PeopleIcon from '@mui/icons-material/People'
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
 import SellIcon from '@mui/icons-material/Sell'
 import StorefrontIcon from '@mui/icons-material/Storefront'
 import AppBar from '@mui/material/AppBar'
@@ -68,6 +70,8 @@ const SECTIONS: { titre: string; entrees: EntreeMenu[] }[] = [
       { chemin: '/boutique', libelle: 'Lubrifiants et boutique', icone: <StorefrontIcon />, permission: 'REFERENTIEL_CONSULTER' },
       { chemin: '/tresorerie', libelle: 'Trésorerie', icone: <AccountBalanceIcon />, permission: 'REFERENTIEL_CONSULTER' },
       { chemin: '/clients', libelle: 'Clients en compte', icone: <BadgeIcon />, permission: 'REFERENTIEL_CONSULTER' },
+  { chemin: '/creances', libelle: 'Créances et factures', icone: <ReceiptLongIcon />, permission: 'REFERENTIEL_CONSULTER' },
+  { chemin: '/cartes', libelle: 'Cartes carburant', icone: <CreditCardIcon />, permission: 'REFERENTIEL_CONSULTER' },
       { chemin: '/syntheses', libelle: 'Synthèses mensuelles', icone: <AssessmentIcon />, permission: 'REFERENTIEL_CONSULTER' },
     ],
   },

@@ -7,6 +7,7 @@ import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -27,6 +28,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import sn.digitalperf.jaugeo.clients.application.ClientService;
 import sn.digitalperf.jaugeo.clients.application.CreditJourneeService;
+import sn.digitalperf.jaugeo.clients.application.VuesClients.BonEnAttenteVue;
 import sn.digitalperf.jaugeo.clients.application.VuesClients.ClientVue;
 import sn.digitalperf.jaugeo.clients.application.VuesClients.CreditJourneeVue;
 import sn.digitalperf.jaugeo.clients.application.VuesClients.FicheClient;
@@ -34,6 +36,7 @@ import sn.digitalperf.jaugeo.clients.application.VuesClients.Releve;
 import sn.digitalperf.jaugeo.clients.application.VuesClients.SaisieBon;
 import sn.digitalperf.jaugeo.clients.application.VuesClients.SaisieClient;
 import sn.digitalperf.jaugeo.clients.application.VuesClients.SaisieOperation;
+import sn.digitalperf.jaugeo.clients.domaine.Client;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -41,12 +44,39 @@ import sn.digitalperf.jaugeo.clients.application.VuesClients.SaisieOperation;
 @PreAuthorize("hasAuthority('REFERENTIEL_CONSULTER')")
 class ClientController {
 
+    record ContratSaisi(@Size(max = 200) String adresse, @Size(max = 120) String email, @Size(max = 30) String ninea,
+                        @Size(max = 80) String reference, LocalDate debut, LocalDate fin, Integer delaiPaiement,
+                        @Positive @Digits(integer = 15, fraction = 0) BigDecimal cautionMontant,
+                        @Size(max = 80) String cautionBanque, LocalDate cautionEcheance) {
+        Client.Contrat contrat() {
+            return new Client.Contrat(adresse, email, ninea, reference, debut, fin, delaiPaiement, cautionMontant, cautionBanque,
+                    cautionEcheance);
+        }
+    }
+
     record ClientSaisi(@Size(max = 20) String code, @NotBlank @Size(max = 120) String nom, @Size(max = 30) String telephone,
                        @NotBlank String recouvrement, @Positive @Digits(integer = 15, fraction = 0) BigDecimal plafond,
-                       Boolean actif, @Size(max = 500) String observation, Integer version) {
+                       Boolean actif, @Size(max = 500) String observation, @Valid ContratSaisi contrat, Integer version) {
         SaisieClient saisie() {
-            return new SaisieClient(code, nom, telephone, recouvrement, plafond, actif, observation);
+            return new SaisieClient(code, nom, telephone, recouvrement, plafond, actif, observation,
+                    contrat == null ? null : contrat.contrat());
         }
+    }
+
+    record EnginSaisi(@NotBlank String type, @NotBlank @Size(max = 30) String immatriculation, @Size(max = 80) String libelle,
+                      Boolean actif, Integer version) {
+    }
+
+    record RemiseSaisie(@NotNull UUID produitId, @NotNull LocalDate debut,
+                        @NotNull @PositiveOrZero @Digits(integer = 10, fraction = 2) BigDecimal remise) {
+    }
+
+    record Decision(@NotNull Integer version, @NotNull Boolean accord, @NotBlank @Size(max = 500) String motif) {
+    }
+
+    record PleinCarteSaisi(@NotNull Integer version, @NotBlank @Size(max = 40) String carte, @NotNull UUID produitId,
+                           @NotNull @Positive @Digits(integer = 10, fraction = 2) BigDecimal litres,
+                           @Size(max = 80) String reference) {
     }
 
     record OperationSaisie(@NotNull UUID stationId, @NotBlank String type, String mode, @NotNull LocalDate date,
@@ -105,6 +135,49 @@ class ClientController {
         return clients.modifier(id, c.version(), c.saisie());
     }
 
+    @Operation(summary = "Ajoute un véhicule ou une pirogue autorisé")
+    @PostMapping("/clients/{id}/engins")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAuthority('CLIENT_GERER')")
+    FicheClient ajouterEngin(@PathVariable UUID id, @Valid @RequestBody EnginSaisi e) {
+        return clients.enregistrerEngin(id, null, null, e.type(), e.immatriculation(), e.libelle(), e.actif());
+    }
+
+    @Operation(summary = "Modifie ou désactive un engin autorisé")
+    @PutMapping("/clients/{id}/engins/{enginId}")
+    @PreAuthorize("hasAuthority('CLIENT_GERER')")
+    FicheClient modifierEngin(@PathVariable UUID id, @PathVariable UUID enginId, @Valid @RequestBody EnginSaisi e) {
+        return clients.enregistrerEngin(id, enginId, e.version(), e.type(), e.immatriculation(), e.libelle(), e.actif());
+    }
+
+    @Operation(summary = "Prix contractuel : remise au litre sur un produit à partir d'une date")
+    @PostMapping("/clients/{id}/remises")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAuthority('CLIENT_GERER')")
+    FicheClient ajouterRemise(@PathVariable UUID id, @Valid @RequestBody RemiseSaisie r) {
+        return clients.ajouterRemise(id, r.produitId(), r.debut(), r.remise());
+    }
+
+    @Operation(summary = "Retire une remise saisie par erreur")
+    @DeleteMapping("/clients/remises/{remiseId}")
+    @PreAuthorize("hasAuthority('CLIENT_GERER')")
+    FicheClient supprimerRemise(@PathVariable UUID remiseId) {
+        return clients.supprimerRemise(remiseId);
+    }
+
+    @Operation(summary = "Bons en attente de dérogation (plafond, échéance, engin, contrat)")
+    @GetMapping("/clients/bons-en-attente")
+    List<BonEnAttenteVue> enAttente() {
+        return credit.enAttente();
+    }
+
+    @Operation(summary = "Décision de la direction sur un bon en attente : accord (dérogation tracée) ou refus")
+    @PostMapping("/clients/bons/{bonId}/decision")
+    @PreAuthorize("hasAuthority('CREDIT_DEROGER')")
+    List<BonEnAttenteVue> decider(@PathVariable UUID bonId, @Valid @RequestBody Decision d) {
+        return credit.decider(bonId, d.version(), d.accord(), d.motif());
+    }
+
     @Operation(summary = "Relevé du compte d'un client à une station")
     @GetMapping("/clients/{id}/releve")
     Releve releve(@PathVariable UUID id, @RequestParam UUID station,
@@ -136,7 +209,7 @@ class ClientController {
         return credit.journee(id);
     }
 
-    @Operation(summary = "Ajoute un bon à crédit (client actif, sous plafond, numéro jamais utilisé)")
+    @Operation(summary = "Ajoute un bon à crédit (client actif, numéro jamais utilisé) ; hors règle, il attend la dérogation")
     @PostMapping("/journees/{id}/bons")
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAuthority('JOURNEE_SAISIR')")
@@ -156,6 +229,21 @@ class ClientController {
     @PreAuthorize("hasAuthority('JOURNEE_SAISIR')")
     CreditJourneeVue supprimerBon(@PathVariable UUID id, @PathVariable UUID bonId, @RequestParam Integer version) {
         return credit.supprimerBon(id, bonId, version);
+    }
+
+    @Operation(summary = "Enregistre un plein payé par carte prépayée (numéro saisi ou lu dans le QR code)")
+    @PostMapping("/journees/{id}/cartes")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAuthority('JOURNEE_SAISIR')")
+    CreditJourneeVue ajouterPleinCarte(@PathVariable UUID id, @Valid @RequestBody PleinCarteSaisi p) {
+        return credit.ajouterPleinCarte(id, p.version(), p.carte(), p.produitId(), p.litres(), p.reference());
+    }
+
+    @Operation(summary = "Retire un plein par carte saisi par erreur (le montant revient sur la carte)")
+    @DeleteMapping("/journees/{id}/cartes/{pleinId}")
+    @PreAuthorize("hasAuthority('JOURNEE_SAISIR')")
+    CreditJourneeVue supprimerPleinCarte(@PathVariable UUID id, @PathVariable UUID pleinId, @RequestParam Integer version) {
+        return credit.supprimerPleinCarte(id, pleinId, version);
     }
 
     @Operation(summary = "Enregistre une créance recouvrée en espèces par le gérant (ajoutée au montant à verser)")

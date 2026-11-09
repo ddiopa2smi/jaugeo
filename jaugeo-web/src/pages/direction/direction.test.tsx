@@ -97,6 +97,8 @@ const client = (nom: string, encours: number, plafond: number | null): Client =>
   telephone: null,
   recouvrement: 'DIRECTION',
   plafond,
+  echu: 0,
+  contrat: { adresse: null, email: null, ninea: null, reference: null, debut: null, fin: null, delaiPaiement: null, cautionMontant: null, cautionBanque: null, cautionEcheance: null },
   actif: true,
   observation: null,
   encours,

@@ -42,6 +42,7 @@ describe('encaissements électroniques de la journée', () => {
         depenses: 0,
         complements: 0,
         encaissements: e,
+        cartes: 0,
         recouvrements: 0,
         montantAVerser: 75500 - e,
         soldeOuverture: 0,

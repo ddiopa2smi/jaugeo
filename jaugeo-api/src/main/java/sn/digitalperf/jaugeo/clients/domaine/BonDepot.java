@@ -2,6 +2,7 @@ package sn.digitalperf.jaugeo.clients.domaine;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -20,9 +21,35 @@ public interface BonDepot extends JpaRepository<Bon, Long> {
     List<Bon> findByClientIdAndStationIdAndDateJourBetweenOrderByDateJourAscIdAsc(Long clientId, Long stationId,
                                                                                     LocalDate du, LocalDate au);
 
-    /** [recouvrement, montant] des bons d'une journee. */
-    @Query("select b.recouvrement, coalesce(sum(b.montant), 0) from Bon b where b.journeeId = :journeeId group by b.recouvrement")
+    /** Bons en attente de derogation, par date. */
+    List<Bon> findByStatutOrderByDateJourAscIdAsc(Bon.Statut statut);
+
+    List<Bon> findByFactureIdOrderByDateJourAscIdAsc(Long factureId);
+
+    long countByFactureId(Long factureId);
+
+    boolean existsByJourneeIdAndStatut(Long journeeId, Bon.Statut statut);
+
+    /** Bons non factures d'une periode (hors bons en attente de derogation). */
+    @Query("""
+            select b from Bon b where b.factureId is null and b.statut <> sn.digitalperf.jaugeo.clients.domaine.Bon.Statut.EN_ATTENTE
+            and b.dateJour between :du and :au order by b.clientId, b.dateJour, b.id""")
+    List<Bon> aFacturer(@Param("du") LocalDate du, @Param("au") LocalDate au);
+
+    /** Bons d'un client non encore factures, par date. */
+    List<Bon> findByClientIdAndFactureIdIsNullOrderByDateJourAscIdAsc(Long clientId);
+
+    /** Bons non factures de plusieurs clients. */
+    List<Bon> findByClientIdInAndFactureIdIsNull(Collection<Long> clientIds);
+
+    /** [recouvrement, valeur a la pompe] des bons d'une journee : ce qui sort de la recette de la station. */
+    @Query("select b.recouvrement, coalesce(sum(b.montantPompe), 0) from Bon b where b.journeeId = :journeeId group by b.recouvrement")
     List<Object[]> totauxJournee(@Param("journeeId") Long journeeId);
+
+    @Query("""
+            select coalesce(sum(b.montantPompe - b.montant), 0) from Bon b
+            where b.stationId = :stationId and b.dateJour between :du and :au""")
+    BigDecimal remises(@Param("stationId") Long stationId, @Param("du") LocalDate du, @Param("au") LocalDate au);
 
     /** [produitId, litres] des bons d'une journee. */
     @Query("select b.produitId, sum(b.litres) from Bon b where b.journeeId = :journeeId group by b.produitId")

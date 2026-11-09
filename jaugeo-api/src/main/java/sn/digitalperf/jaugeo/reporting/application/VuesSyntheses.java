@@ -23,7 +23,7 @@ public final class VuesSyntheses {
     public record LigneVentes(UUID stationId, String stationCode, String stationNom, Map<String, BigDecimal> litres,
                               BigDecimal recettes, BigDecimal soldeOuverture, BigDecimal creancesDebut, BigDecimal aVerser,
                               BigDecimal versements, BigDecimal soldeCaisse, BigDecimal creancesFin, BigDecimal depenses,
-                              BigDecimal complements, BigDecimal reglementsSiege, BigDecimal totalVersements,
+                              BigDecimal complements, BigDecimal horsCaisse, BigDecimal reglementsSiege, BigDecimal totalVersements,
                               BigDecimal ecart, BigDecimal bonsDirection, BigDecimal bonsGerant, BigDecimal recouvrements,
                               BigDecimal creancesGerantFin, BigDecimal ecartsArretes, int joursNonClotures,
                               String observation, String commentaire, Integer commentaireVersion) {

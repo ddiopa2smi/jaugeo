@@ -11,10 +11,13 @@ import java.util.UUID;
  */
 public interface ComptesClients {
 
-    /** Bons d'une journee par mode de recouvrement et recouvrements de creances encaisses en especes a la station. */
-    record TotauxJournee(BigDecimal bonsDirection, BigDecimal bonsGerant, BigDecimal recouvrements) {
+    /**
+     * Bons d'une journee par mode de recouvrement et pleins payes par carte prepayee (valeur a la pompe, hors remise
+     * des clients), recouvrements de creances encaisses en especes a la station.
+     */
+    record TotauxJournee(BigDecimal bonsDirection, BigDecimal bonsGerant, BigDecimal cartes, BigDecimal recouvrements) {
 
-        public static final TotauxJournee AUCUN = new TotauxJournee(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
+        public static final TotauxJournee AUCUN = new TotauxJournee(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
     }
 
     /**
@@ -26,6 +29,12 @@ public interface ComptesClients {
     }
 
     TotauxJournee totauxJournee(long journeeId);
+
+    /**
+     * Remises accordees sur les bons d'une station entre deux dates incluses (valeur a la pompe - montant du par les
+     * clients) : elles sortent de la recette sans etre dues par les clients.
+     */
+    BigDecimal remises(long stationId, LocalDate du, LocalDate au);
 
     /**
      * Creances des clients d'une station entre deux dates incluses, par code client ; une reprise datee dans la

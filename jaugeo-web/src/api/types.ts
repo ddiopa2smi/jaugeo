@@ -888,6 +888,8 @@ export interface RecetteJournee {
   ventesArticles: number
   bonsDirection: number
   bonsGerant: number
+  /** Pleins payés par carte prépayée (valeur à la pompe) : hors caisse du gérant */
+  cartes: number
   depenses: number | null
   complements: number | null
   /** Wave, Orange Money et carte : hors caisse du gérant */
@@ -910,6 +912,7 @@ export interface LigneCaisse {
   statutJournee: StatutJournee | null
   ventes: number | null
   bons: number | null
+  cartes: number | null
   depenses: number | null
   complements: number | null
   encaissements: number | null
@@ -932,6 +935,7 @@ export interface LivreCaisse {
   totalVentes: number
   totalBonsDirection: number
   totalBonsGerant: number
+  totalCartes: number
   totalDepenses: number
   totalComplements: number
   totalEncaissements: number
@@ -1030,7 +1034,24 @@ export interface Client {
   observation: string | null
   encours: number
   disponible: number | null
+  /** Factures et reprises échues non réglées */
+  echu: number
+  contrat: ContratClient
   version: number
+}
+
+/** Contrat, coordonnées et garanties ; délai de paiement en jours après la facture. */
+export interface ContratClient {
+  adresse: string | null
+  email: string | null
+  ninea: string | null
+  reference: string | null
+  debut: string | null
+  fin: string | null
+  delaiPaiement: number | null
+  cautionMontant: number | null
+  cautionBanque: string | null
+  cautionEcheance: string | null
 }
 
 export interface SaisieClient {
@@ -1041,7 +1062,29 @@ export interface SaisieClient {
   plafond: number | null
   actif: boolean
   observation: string | null
+  contrat?: ContratClient
   version?: number
+}
+
+export type TypeEngin = 'VEHICULE' | 'PIROGUE'
+
+export interface EnginClient {
+  id: string
+  type: TypeEngin
+  immatriculation: string
+  libelle: string | null
+  actif: boolean
+  version: number
+}
+
+export interface RemiseClient {
+  id: string
+  produitId: string
+  produitCode: string
+  produitLibelle: string
+  debut: string
+  remise: number
+  enVigueur: boolean
 }
 
 export interface CompteStation {
@@ -1056,7 +1099,180 @@ export interface CompteStation {
 export interface FicheClient {
   client: Client
   comptes: CompteStation[]
+  engins: EnginClient[]
+  remises: RemiseClient[]
+  factures: Facture[]
+  cartes: CarteCarburant[]
+  relances: Relance[]
   peutGerer: boolean
+}
+
+// ---------------------------------------------------------------- Facturation, balance âgée, relances (M6)
+
+export interface Facture {
+  id: string
+  numero: string
+  clientId: string
+  clientCode: string
+  clientNom: string
+  periodeDebut: string
+  periodeFin: string
+  dateFacture: string
+  dateEcheance: string
+  montant: number
+  /** Part non réglée après imputation des règlements (plus ancien d'abord) */
+  reste: number
+  statut: 'EMISE' | 'ANNULEE'
+  motifAnnulation: string | null
+  bons: number
+  creePar: string
+  version: number
+}
+
+export interface LigneFacture {
+  date: string
+  stationCode: string
+  numero: string
+  produitCode: string
+  litres: number
+  prixPompe: number
+  remise: number
+  prixUnitaire: number
+  montant: number
+  immatriculation: string | null
+}
+
+export interface FactureDetail {
+  facture: Facture
+  lignes: LigneFacture[]
+}
+
+export interface ResultatFacturation {
+  factures: Facture[]
+  bonsFactures: number
+  remarques: string[]
+}
+
+export interface LigneBalance {
+  clientId: string
+  code: string
+  nom: string
+  recouvrement: Recouvrement
+  delaiPaiement: number | null
+  plafond: number | null
+  nonFacture: number
+  jours0a30: number
+  jours31a60: number
+  jours61a90: number
+  plusDe90: number
+  total: number
+  echu: number
+  plusAncienneEcheance: string | null
+  derniereRelance: string | null
+  dernierNiveau: number | null
+  /** 0 : rien d'échu ; 1 rappel, 2 relance, 3 mise en demeure */
+  niveauSuggere: number
+}
+
+export interface BalanceAgee {
+  au: string
+  lignes: LigneBalance[]
+  nonFacture: number
+  jours0a30: number
+  jours31a60: number
+  jours61a90: number
+  plusDe90: number
+  total: number
+  echu: number
+}
+
+export type ModeRelance = 'COURRIER' | 'EMAIL' | 'TELEPHONE' | 'VISITE'
+
+export interface Relance {
+  id: string
+  date: string
+  niveau: number
+  mode: ModeRelance
+  montantEchu: number
+  commentaire: string | null
+  creePar: string
+}
+
+// ---------------------------------------------------------------- Cartes carburant prépayées (M6)
+
+export type StatutCarte = 'ACTIVE' | 'BLOQUEE' | 'ANNULEE'
+export type ModeRecharge = 'ESPECES_SIEGE' | 'VIREMENT' | 'CHEQUE' | 'WAVE' | 'ORANGE_MONEY'
+
+export interface CarteCarburant {
+  id: string
+  numero: string
+  clientId: string
+  clientCode: string
+  clientNom: string
+  porteur: string
+  immatriculation: string | null
+  statut: StatutCarte
+  solde: number
+  version: number
+}
+
+export interface MouvementCarte {
+  id: string
+  type: 'RECHARGE' | 'DEBIT'
+  date: string
+  montant: number
+  mode: ModeRecharge | null
+  reference: string | null
+  stationCode: string | null
+  produitCode: string | null
+  litres: number | null
+  prixUnitaire: number | null
+  creePar: string
+}
+
+export interface CarteDetail {
+  carte: CarteCarburant
+  mouvements: MouvementCarte[]
+  peutGerer: boolean
+}
+
+export interface PleinCarte {
+  id: string
+  carteNumero: string
+  porteur: string
+  clientCode: string
+  clientNom: string
+  immatriculation: string | null
+  produitId: string
+  produitCode: string
+  litres: number
+  prixUnitaire: number
+  montant: number
+  montantPompe: number
+  reference: string | null
+  creePar: string
+}
+
+export type StatutBon = 'VALIDE' | 'EN_ATTENTE' | 'ACCORDE' | 'REFUSE'
+
+export interface BonEnAttente {
+  id: string
+  version: number
+  journeeId: string
+  stationId: string
+  stationCode: string
+  date: string
+  journeeStatut: StatutJournee
+  clientId: string
+  clientCode: string
+  clientNom: string
+  numero: string
+  produitCode: string
+  litres: number
+  montant: number
+  immatriculation: string | null
+  motifBlocage: string
+  creePar: string
 }
 
 export interface LigneReleveClient {
@@ -1113,13 +1329,24 @@ export interface Bon {
   produitCode: string
   produitLibelle: string
   litres: number
+  /** Prix pompe diminué de la remise du client */
   prixUnitaire: number
+  remiseUnitaire: number
+  /** Dû par le client */
   montant: number
+  /** Valeur à la pompe, sortie de la recette */
+  montantPompe: number
   recouvrement: Recouvrement
   immatriculation: string | null
   porteur: string | null
+  statut: StatutBon
+  motifBlocage: string | null
+  derogationPar: string | null
+  derogationMotif: string | null
+  facture: boolean
   creePar: string
   modifieLe: string
+  version: number
 }
 
 export interface RecouvrementJournee {
@@ -1150,10 +1377,13 @@ export interface CreditJournee {
   modifiable: boolean
   produits: ProduitCredit[]
   bons: Bon[]
+  cartes: PleinCarte[]
   recouvrements: RecouvrementJournee[]
   totalBonsDirection: number
   totalBonsGerant: number
+  totalCartes: number
   totalRecouvrements: number
+  bonsEnAttente: number
   anomalies: string[]
 }
 
@@ -1188,6 +1418,8 @@ export interface LigneVentes {
   creancesFin: number
   depenses: number
   complements: number
+  /** N : Wave, Orange Money, carte bancaire, cartes prépayées et remises aux clients */
+  horsCaisse: number
   reglementsSiege: number
   totalVersements: number
   ecart: number

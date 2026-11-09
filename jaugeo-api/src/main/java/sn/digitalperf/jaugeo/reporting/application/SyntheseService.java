@@ -105,8 +105,10 @@ public class SyntheseService {
         BigDecimal o = somme(creances, CreanceClient::reglementsSiege);
         BigDecimal gerantFin = somme(creances.stream().filter(c -> "GERANT".equals(c.recouvrement())).toList(), CreanceClient::fin);
         BigDecimal h = m.ventes().add(m.soldeDebut()).add(g);
-        // Les encaissements electroniques justifient une part des ventes, comme les versements
-        BigDecimal q = m.versements().add(m.encaissements()).add(m.soldeFin()).add(k).add(m.depenses()).add(m.complements()).add(o);
+        // N : ventes justifiees hors caisse du gerant (Wave, Orange Money, carte bancaire, cartes prepayees) et remises
+        // accordees aux clients sur leurs bons (valeur a la pompe sortie de la recette, non due par le client)
+        BigDecimal n = m.encaissements().add(m.cartes()).add(clients.remises(s.id(), mois.atDay(1), mois.atEndOfMonth()));
+        BigDecimal q = m.versements().add(m.soldeFin()).add(k).add(m.depenses()).add(m.complements()).add(n).add(o);
         BigDecimal r = q.subtract(h);
         Map<String, BigDecimal> parProduit = new LinkedHashMap<>();
         produits.values().forEach(p -> {
@@ -115,7 +117,7 @@ public class SyntheseService {
             }
         });
         return new LigneVentes(s.uuid(), s.code(), s.nom(), parProduit, m.ventes(), m.soldeDebut(), g, h, m.versements(),
-                m.soldeFin(), k, m.depenses(), m.complements(), o, q, r, m.bonsDirection(), m.bonsGerant(), m.recouvrements(),
+                m.soldeFin(), k, m.depenses(), m.complements(), n, o, q, r, m.bonsDirection(), m.bonsGerant(), m.recouvrements(),
                 gerantFin, m.ecarts(), m.joursNonClotures(), observation(r, m, gerantFin),
                 note == null ? null : note.getTexte(), note == null ? null : note.getVersion());
     }
@@ -146,7 +148,8 @@ public class SyntheseService {
         return new LigneVentes(null, "CUMUL", "Cumul du réseau", litres, s(lignes, LigneVentes::recettes),
                 s(lignes, LigneVentes::soldeOuverture), s(lignes, LigneVentes::creancesDebut), s(lignes, LigneVentes::aVerser),
                 s(lignes, LigneVentes::versements), s(lignes, LigneVentes::soldeCaisse), s(lignes, LigneVentes::creancesFin),
-                s(lignes, LigneVentes::depenses), s(lignes, LigneVentes::complements), s(lignes, LigneVentes::reglementsSiege),
+                s(lignes, LigneVentes::depenses), s(lignes, LigneVentes::complements), s(lignes, LigneVentes::horsCaisse),
+                s(lignes, LigneVentes::reglementsSiege),
                 s(lignes, LigneVentes::totalVersements), s(lignes, LigneVentes::ecart), s(lignes, LigneVentes::bonsDirection),
                 s(lignes, LigneVentes::bonsGerant), s(lignes, LigneVentes::recouvrements), s(lignes, LigneVentes::creancesGerantFin),
                 s(lignes, LigneVentes::ecartsArretes), lignes.stream().mapToInt(LigneVentes::joursNonClotures).sum(),

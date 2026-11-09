@@ -48,6 +48,7 @@ const COLONNES: { cle: keyof LigneVentes; libelle: string; calcul?: boolean }[] 
   { cle: 'creancesFin', libelle: 'Créances fin (K)' },
   { cle: 'depenses', libelle: 'Dépenses autorisées (L)' },
   { cle: 'complements', libelle: 'Compléments citerne (M)' },
+  { cle: 'horsCaisse', libelle: 'Hors caisse : Wave, OM, cartes, remises (N)' },
   { cle: 'reglementsSiege', libelle: 'Règlements au siège (O)' },
   { cle: 'totalVersements', libelle: 'Total versements (Q)', calcul: true },
 ]

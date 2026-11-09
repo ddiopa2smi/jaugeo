@@ -22,15 +22,27 @@ import org.springframework.transaction.annotation.Transactional;
 import sn.digitalperf.jaugeo.clients.ComptesClients;
 import sn.digitalperf.jaugeo.clients.application.VuesClients.ClientVue;
 import sn.digitalperf.jaugeo.clients.application.VuesClients.CompteStation;
+import sn.digitalperf.jaugeo.clients.application.VuesClients.FactureVue;
 import sn.digitalperf.jaugeo.clients.application.VuesClients.FicheClient;
 import sn.digitalperf.jaugeo.clients.application.VuesClients.LigneReleve;
 import sn.digitalperf.jaugeo.clients.application.VuesClients.Releve;
+import sn.digitalperf.jaugeo.clients.application.VuesClients.RemiseVue;
 import sn.digitalperf.jaugeo.clients.application.VuesClients.SaisieClient;
 import sn.digitalperf.jaugeo.clients.application.VuesClients.SaisieOperation;
 import sn.digitalperf.jaugeo.clients.domaine.Bon;
 import sn.digitalperf.jaugeo.clients.domaine.BonDepot;
 import sn.digitalperf.jaugeo.clients.domaine.Client;
+import sn.digitalperf.jaugeo.clients.domaine.CarteDepot;
 import sn.digitalperf.jaugeo.clients.domaine.ClientDepot;
+import sn.digitalperf.jaugeo.clients.domaine.EnginClient;
+import sn.digitalperf.jaugeo.clients.domaine.EnginClientDepot;
+import sn.digitalperf.jaugeo.clients.domaine.FactureDepot;
+import sn.digitalperf.jaugeo.clients.domaine.Imputation;
+import sn.digitalperf.jaugeo.clients.domaine.Imputation.Reste;
+import sn.digitalperf.jaugeo.clients.domaine.MouvementCarteDepot;
+import sn.digitalperf.jaugeo.clients.domaine.RelanceDepot;
+import sn.digitalperf.jaugeo.clients.domaine.RemiseClient;
+import sn.digitalperf.jaugeo.clients.domaine.RemiseClientDepot;
 import sn.digitalperf.jaugeo.clients.domaine.OperationCompte;
 import sn.digitalperf.jaugeo.clients.domaine.OperationCompteDepot;
 import sn.digitalperf.jaugeo.commun.ErreurMetier;
@@ -59,14 +71,31 @@ public class ClientService implements ComptesClients {
     private final PerimetreCourant perimetre;
     private final Clock horloge;
 
+    private final EnginClientDepot engins;
+    private final RemiseClientDepot remises;
+    private final FactureDepot factures;
+    private final CarteDepot cartes;
+    private final RelanceDepot relances;
+    private final ImputationClients imputation;
+    private final MouvementCarteDepot pleins;
+
     public ClientService(ClientDepot clients, BonDepot bons, OperationCompteDepot operations,
-                         ReferentielConsultation referentiel, PerimetreCourant perimetre, Clock horloge) {
+                         ReferentielConsultation referentiel, PerimetreCourant perimetre, Clock horloge,
+                         EnginClientDepot engins, RemiseClientDepot remises, FactureDepot factures, CarteDepot cartes,
+                         RelanceDepot relances, ImputationClients imputation, MouvementCarteDepot pleins) {
+        this.pleins = pleins;
         this.clients = clients;
         this.bons = bons;
         this.operations = operations;
         this.referentiel = referentiel;
         this.perimetre = perimetre;
         this.horloge = horloge;
+        this.engins = engins;
+        this.remises = remises;
+        this.factures = factures;
+        this.cartes = cartes;
+        this.relances = relances;
+        this.imputation = imputation;
     }
 
     // ---------------------------------------------------------------- Clients
@@ -76,8 +105,11 @@ public class ClientService implements ComptesClients {
         bons.totauxReseau().forEach(r -> encours.merge((Long) r[0], (BigDecimal) r[1], BigDecimal::add));
         operations.totauxReseau().forEach(r -> encours.merge((Long) r[0], effet((OperationCompte.Type) r[1], (BigDecimal) r[2]),
                 BigDecimal::add));
-        return clients.findAllByOrderByCodeAsc().stream()
-                .map(c -> vue(c, encours.getOrDefault(c.getId(), BigDecimal.ZERO))).toList();
+        List<Client> tous = clients.findAllByOrderByCodeAsc();
+        Map<Long, List<Reste>> restes = imputation.restes(tous);
+        LocalDate jour = aujourdhui();
+        return tous.stream().map(c -> Mappeurs.client(c, encours.getOrDefault(c.getId(), BigDecimal.ZERO),
+                Imputation.echu(restes.getOrDefault(c.getId(), List.of()), jour))).toList();
     }
 
     public FicheClient fiche(UUID id) {
@@ -93,7 +125,29 @@ public class ClientService implements ComptesClients {
                 })
                 .sorted(Comparator.comparing(CompteStation::stationCode)).toList();
         BigDecimal encours = parStation.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
-        return new FicheClient(vue(c, encours), comptes, aPermission("CLIENT_GERER"));
+        List<Reste> restes = imputation.restes(c);
+        LocalDate jour = aujourdhui();
+        Map<Long, ProduitRef> produits = referentiel.produits().stream().collect(Collectors.toMap(ProduitRef::id, Function.identity()));
+        Set<Long> enVigueur = new java.util.HashSet<>();
+        List<RemiseClient> liste = remises.findByClientIdOrderByProduitIdAscDebutDesc(c.getId());
+        Set<Long> vus = new java.util.HashSet<>();
+        for (RemiseClient r : liste) {
+            if (!r.getDebut().isAfter(jour) && vus.add(r.getProduitId())) {
+                enVigueur.add(r.getId());
+            }
+        }
+        List<RemiseVue> vuesRemises = liste.stream().map(r -> {
+            ProduitRef p = produits.get(r.getProduitId());
+            return new RemiseVue(r.getUuid(), p.uuid(), p.code(), p.libelle(), r.getDebut(), r.getRemise(), enVigueur.contains(r.getId()));
+        }).sorted(Comparator.comparing(RemiseVue::produitCode).thenComparing(RemiseVue::debut, Comparator.reverseOrder())).toList();
+        List<FactureVue> vuesFactures = factures.findByClientIdOrderByDateFactureDescIdDesc(c.getId()).stream()
+                .map(f -> Mappeurs.facture(f, c, restes, (int) bons.countByFactureId(f.getId()))).toList();
+        Map<Long, Client> soi = Map.of(c.getId(), c);
+        return new FicheClient(Mappeurs.client(c, encours, Imputation.echu(restes, jour)), comptes,
+                engins.findByClientIdOrderByImmatriculationAsc(c.getId()).stream().map(Mappeurs::engin).toList(), vuesRemises,
+                vuesFactures, cartes.findByClientIdOrderByNumeroAsc(c.getId()).stream().map(k -> Mappeurs.carte(k, soi)).toList(),
+                relances.findByClientIdOrderByDateRelanceDescIdDesc(c.getId()).stream().map(Mappeurs::relance).toList(),
+                aPermission("CLIENT_GERER"));
     }
 
     @Transactional
@@ -104,7 +158,8 @@ public class ClientService implements ComptesClients {
         Client c = new Client(s.code());
         c.modifier(s.nom(), s.telephone(), recouvrement(s.recouvrement()), s.plafond(), s.actif() == null || s.actif(),
                 s.observation());
-        return vue(clients.saveAndFlush(c), BigDecimal.ZERO);
+        c.renseignerContrat(s.contrat() == null ? Client.Contrat.AUCUN : s.contrat());
+        return Mappeurs.client(clients.saveAndFlush(c), BigDecimal.ZERO, BigDecimal.ZERO);
     }
 
     @Transactional
@@ -113,8 +168,109 @@ public class ClientService implements ComptesClients {
         c.verifierVersion(version);
         c.modifier(s.nom(), s.telephone(), recouvrement(s.recouvrement()), s.plafond(), s.actif() == null || s.actif(),
                 s.observation());
+        if (s.contrat() != null) {
+            c.renseignerContrat(s.contrat());
+        }
         clients.saveAndFlush(c);
-        return vue(c, encours(c.getId(), null));
+        return Mappeurs.client(c, encours(c.getId(), null), Imputation.echu(imputation.restes(c), aujourdhui()));
+    }
+
+    // ---------------------------------------------------------------- Engins autorises et remises
+
+    @Transactional
+    public FicheClient enregistrerEngin(UUID clientId, UUID enginId, Integer version, String type, String immatriculation,
+                                        String libelle, Boolean actif) {
+        Client c = client(clientId);
+        EnginClient e;
+        if (enginId == null) {
+            e = new EnginClient(c.getId());
+        } else {
+            e = engins.findByUuid(enginId).filter(x -> x.getClientId().equals(c.getId()))
+                    .orElseThrow(() -> ErreurMetier.introuvable("Engin"));
+            e.verifierVersion(version);
+        }
+        EnginClient.Type t;
+        try {
+            t = type == null ? null : EnginClient.Type.valueOf(type.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            throw ErreurMetier.regle("TYPE_ENGIN_INVALIDE", "Un engin est un véhicule ou une pirogue.");
+        }
+        e.modifier(t, immatriculation, libelle, actif == null || actif);
+        engins.findByClientIdAndImmatriculationIgnoreCase(c.getId(), e.getImmatriculation())
+                .filter(x -> !x.getId().equals(e.getId()))
+                .ifPresent(x -> {
+                    throw ErreurMetier.conflit("ENGIN_EXISTANT", "L'immatriculation " + x.getImmatriculation() + " est déjà enregistrée pour ce client.");
+                });
+        engins.saveAndFlush(e);
+        return fiche(clientId);
+    }
+
+    @Transactional
+    public FicheClient ajouterRemise(UUID clientId, UUID produitId, LocalDate debut, BigDecimal remise) {
+        Client c = client(clientId);
+        ProduitRef p = referentiel.produits().stream().filter(x -> x.uuid().equals(produitId)).findFirst()
+                .orElseThrow(() -> ErreurMetier.introuvable("Produit"));
+        if (debut != null && remises.existsByClientIdAndProduitIdAndDebut(c.getId(), p.id(), debut)) {
+            throw ErreurMetier.conflit("REMISE_EXISTANTE", "Une remise du " + p.libelle() + " commence déjà le "
+                    + Libelles.date(debut) + " : retirez-la avant d'en saisir une autre.");
+        }
+        remises.saveAndFlush(new RemiseClient(c.getId(), p.id(), debut, remise));
+        return fiche(clientId);
+    }
+
+    /** Retrait d'une remise saisie par erreur ; les bons deja saisis gardent la remise appliquee. */
+    @Transactional
+    public FicheClient supprimerRemise(UUID remiseId) {
+        RemiseClient r = remises.findByUuid(remiseId).orElseThrow(() -> ErreurMetier.introuvable("Remise"));
+        Client c = clients.findById(r.getClientId()).orElseThrow();
+        remises.delete(r);
+        remises.flush();
+        return fiche(c.getUuid());
+    }
+
+    /** Remise au litre du client sur un produit a une date (zero sans remise). */
+    BigDecimal remise(long clientId, long produitId, LocalDate date) {
+        return remises.findFirstByClientIdAndProduitIdAndDebutLessThanEqualOrderByDebutDesc(clientId, produitId, date)
+                .map(RemiseClient::getRemise).orElse(BigDecimal.ZERO);
+    }
+
+    // ---------------------------------------------------------------- Regles d'octroi d'un bon (blocage)
+
+    /**
+     * Motifs pour lesquels un bon doit attendre la derogation de la direction : plafond depasse, echeance depassee
+     * (facture ou reprise echue non reglee), engin non autorise, contrat hors validite.
+     */
+    List<String> motifsBlocage(Client c, LocalDate date, BigDecimal montant, Long bonExclu, String immatriculation) {
+        List<String> motifs = new ArrayList<>();
+        if (c.getPlafond() != null) {
+            BigDecimal encours = encours(c.getId(), bonExclu);
+            if (encours.add(montant).compareTo(c.getPlafond()) > 0) {
+                BigDecimal disponible = c.getPlafond().subtract(encours).max(BigDecimal.ZERO);
+                motifs.add("Plafond dépassé : encours " + Libelles.francs(encours) + " pour un plafond de "
+                        + Libelles.francs(c.getPlafond()) + ", disponible " + Libelles.francs(disponible) + ".");
+            }
+        }
+        if (c.getDelaiPaiement() != null) {
+            Reste r = Imputation.premiereEchue(imputation.restes(c), date);
+            if (r != null) {
+                motifs.add("Échéance dépassée : " + r.dette().reference() + " échue le " + Libelles.date(r.dette().echeance())
+                        + ", " + Libelles.francs(r.reste()) + " non réglés.");
+            }
+        }
+        List<EnginClient> autorises = engins.findByClientIdOrderByImmatriculationAsc(c.getId()).stream()
+                .filter(EnginClient::isActif).toList();
+        if (!autorises.isEmpty()) {
+            String immat = EnginClient.normaliser(immatriculation);
+            if (immat == null) {
+                motifs.add("Immatriculation absente : le client n'autorise que ses véhicules et pirogues enregistrés.");
+            } else if (autorises.stream().noneMatch(e -> e.getImmatriculation().equalsIgnoreCase(immat))) {
+                motifs.add("Immatriculation " + immat + " non autorisée pour ce client.");
+            }
+        }
+        if (!c.sousContrat(date)) {
+            motifs.add("Contrat hors validité au " + Libelles.date(date) + ".");
+        }
+        return motifs;
     }
 
     // ---------------------------------------------------------------- Releve et operations du siege
@@ -221,7 +377,12 @@ public class ClientService implements ComptesClients {
                 gerant = (BigDecimal) r[1];
             }
         }
-        return new TotauxJournee(direction, gerant, operations.totalJournee(journeeId));
+        return new TotauxJournee(direction, gerant, pleins.totalPompeJournee(journeeId), operations.totalJournee(journeeId));
+    }
+
+    @Override
+    public BigDecimal remises(long stationId, LocalDate du, LocalDate au) {
+        return bons.remises(stationId, du, au);
     }
 
     @Override
@@ -291,19 +452,6 @@ public class ClientService implements ComptesClients {
         return creancesParStation(clientId).getOrDefault(stationId, BigDecimal.ZERO);
     }
 
-    /** Plafond (regle 6) : l'encours du client, ce bon compris, ne depasse pas son plafond. */
-    void exigerPlafond(Client c, BigDecimal montant, Long bonExclu) {
-        if (c.getPlafond() == null) {
-            return;
-        }
-        BigDecimal encours = encours(c.getId(), bonExclu);
-        if (encours.add(montant).compareTo(c.getPlafond()) > 0) {
-            BigDecimal disponible = c.getPlafond().subtract(encours).max(BigDecimal.ZERO);
-            throw ErreurMetier.regle("BON_PLAFOND_DEPASSE", "Plafond de " + c.getNom() + " dépassé : encours "
-                    + Libelles.francs(encours) + " pour un plafond de " + Libelles.francs(c.getPlafond()) + ", disponible "
-                    + Libelles.francs(disponible) + ". Le bon de " + Libelles.francs(montant) + " ne peut pas être accordé.");
-        }
-    }
 
     /** Un reglement ne depasse pas ce que le client doit a la station. */
     void exigerCreanceSuffisante(Client c, StationRef s, BigDecimal montant) {
@@ -344,12 +492,6 @@ public class ClientService implements ComptesClients {
         return type == OperationCompte.Type.REPRISE ? montant : montant.negate();
     }
 
-    private static ClientVue vue(Client c, BigDecimal encours) {
-        BigDecimal disponible = c.getPlafond() == null ? null : c.getPlafond().subtract(encours).max(BigDecimal.ZERO);
-        return new ClientVue(c.getUuid(), c.getCode(), c.getNom(), c.getTelephone(), c.getRecouvrement().name(), c.getPlafond(),
-                c.isActif(), c.getObservation(), encours, disponible, c.getVersion());
-    }
-
     private static Client.Recouvrement recouvrement(String valeur) {
         if (valeur == null || valeur.isBlank()) {
             return null;
@@ -385,7 +527,7 @@ public class ClientService implements ComptesClients {
                 .collect(Collectors.toMap(StationRef::id, Function.identity(), (a, b) -> a, LinkedHashMap::new));
     }
 
-    private LocalDate aujourdhui() {
+    LocalDate aujourdhui() {
         return LocalDate.ofInstant(horloge.instant(), DAKAR);
     }
 

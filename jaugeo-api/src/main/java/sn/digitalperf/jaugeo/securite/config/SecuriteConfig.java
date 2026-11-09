@@ -103,7 +103,10 @@ class SecuriteConfig {
                         .requestMatchers("/api/v1/journees/*/encaissements").hasAuthority("JOURNEE_SAISIR")
                         // Clients : bons et recouvrements especes saisis dans la journee ; comptes geres par la comptabilite
                         .requestMatchers("/api/v1/journees/*/bons", "/api/v1/journees/*/bons/*", "/api/v1/journees/*/recouvrements",
-                                "/api/v1/journees/*/recouvrements/*").hasAuthority("JOURNEE_SAISIR")
+                                "/api/v1/journees/*/recouvrements/*", "/api/v1/journees/*/cartes", "/api/v1/journees/*/cartes/*")
+                        .hasAuthority("JOURNEE_SAISIR")
+                        // Derogation de la direction sur un bon en attente (plafond, echeance, engin, contrat)
+                        .requestMatchers(HttpMethod.POST, "/api/v1/clients/bons/*/decision").hasAuthority("CREDIT_DEROGER")
                         .requestMatchers(HttpMethod.GET, "/api/v1/clients", "/api/v1/clients/**").hasAuthority("REFERENTIEL_CONSULTER")
                         .requestMatchers("/api/v1/clients", "/api/v1/clients/**").hasAuthority("CLIENT_GERER")
                         // Syntheses mensuelles (feuilles d'analyse) : lecture et exports ; observations du controle de gestion

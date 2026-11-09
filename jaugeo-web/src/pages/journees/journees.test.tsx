@@ -178,10 +178,13 @@ describe('saisie et clôture d’une journée', () => {
       modifiable: courante.statut === 'BROUILLON',
       produits: [{ id: 'p-go', code: 'GASOIL', libelle: 'Gasoil', prixUnitaire: 755 }],
       bons: [],
+      cartes: [],
       recouvrements: [],
       totalBonsDirection: 0,
       totalBonsGerant: 0,
+      totalCartes: 0,
       totalRecouvrements: 0,
+      bonsEnAttente: 0,
       anomalies: [],
     })
     const recette = (): RecetteJournee => {
@@ -200,6 +203,7 @@ describe('saisie et clôture d’une journée', () => {
         depenses: 5000,
         complements: 0,
         encaissements: 0,
+        cartes: 0,
         recouvrements: 0,
         montantAVerser: montant,
         soldeOuverture: 120000,

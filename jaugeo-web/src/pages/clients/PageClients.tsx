@@ -1,6 +1,8 @@
 import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/Delete'
 import EditIcon from '@mui/icons-material/Edit'
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf'
+import CreditCardIcon from '@mui/icons-material/CreditCard'
 import PostAddIcon from '@mui/icons-material/PostAdd'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
@@ -14,6 +16,8 @@ import IconButton from '@mui/material/IconButton'
 import MenuItem from '@mui/material/MenuItem'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
+import Tab from '@mui/material/Tab'
+import Tabs from '@mui/material/Tabs'
 import Table from '@mui/material/Table'
 import TableBody from '@mui/material/TableBody'
 import TableCell from '@mui/material/TableCell'
@@ -22,17 +26,30 @@ import TableRow from '@mui/material/TableRow'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { api } from '../../api/client'
-import { cles, useClients, useFicheClient, useReleve, useStations } from '../../api/requetes'
-import type { Client, FicheClient, ModeReglementClient, Recouvrement, SaisieClient, SaisieOperation } from '../../api/types'
+import { cles, useClients, useFicheClient, useProduits, useReleve, useStations } from '../../api/requetes'
+import type {
+  Client,
+  ContratClient,
+  EnginClient,
+  FicheClient,
+  ModeReglementClient,
+  Recouvrement,
+  SaisieClient,
+  SaisieOperation,
+  TypeEngin,
+} from '../../api/types'
 import { usePermission } from '../../auth/session'
-import { MODES_REGLEMENT_CLIENT, MODES_SIEGE, RECOUVREMENTS } from '../../shared/clients'
+import { MODES_REGLEMENT_CLIENT, MODES_RELANCE, MODES_SIEGE, NIVEAUX_RELANCE, RECOUVREMENTS, TYPES_ENGIN } from '../../shared/clients'
 import { AlerteErreur, Chargement, EnTetePage, PuceStatut } from '../../shared/composants'
 import { formaterDate, formaterNombre, formaterPrix, versNombre, videVersNull } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
+import { telecharger } from '../../shared/telechargement'
 import { aujourdhui } from '../../shared/tresorerie'
+import { DialogueCarte, DialogueEmissionCarte, TableCartes } from './Cartes'
+import { DialogueFacture, TableFactures } from './PageCreances'
 
 const TYPES_LIGNE: Record<string, string> = { BON: 'Bon', REPRISE: 'Reprise de créance', REGLEMENT: 'Règlement' }
 
@@ -53,8 +70,25 @@ function DialogueClient({ client, onFermer }: { client: Client | null; onFermer:
   const [plafond, setPlafond] = useState(client?.plafond != null ? String(client.plafond) : '')
   const [actif, setActif] = useState(client?.actif ?? true)
   const [observation, setObservation] = useState(client?.observation ?? '')
+  const k = client?.contrat
+  const [adresse, setAdresse] = useState(k?.adresse ?? '')
+  const [email, setEmail] = useState(k?.email ?? '')
+  const [ninea, setNinea] = useState(k?.ninea ?? '')
+  const [reference, setReference] = useState(k?.reference ?? '')
+  const [debut, setDebut] = useState(k?.debut ?? '')
+  const [fin, setFin] = useState(k?.fin ?? '')
+  const [delai, setDelai] = useState(k?.delaiPaiement != null ? String(k.delaiPaiement) : '')
+  const [caution, setCaution] = useState(k?.cautionMontant != null ? String(k.cautionMontant) : '')
+  const [banque, setBanque] = useState(k?.cautionBanque ?? '')
+  const [echeanceCaution, setEcheanceCaution] = useState(k?.cautionEcheance ?? '')
   const p = versNombre(plafond)
   const plafondValide = plafond.trim() === '' || (p !== null && p > 0 && Number.isInteger(p))
+  const d = versNombre(delai)
+  const delaiValide = delai.trim() === '' || (d !== null && d >= 0 && Number.isInteger(d))
+  const cm = versNombre(caution)
+  const cautionValide = caution.trim() === '' || (cm !== null && cm > 0 && Number.isInteger(cm))
+  const datesValides = !debut || !fin || debut <= fin
+  const valide = plafondValide && delaiValide && cautionValide && datesValides
 
   const enregistrement = useMutation({
     mutationFn: () => {
@@ -65,6 +99,18 @@ function DialogueClient({ client, onFermer }: { client: Client | null; onFermer:
         plafond: plafond.trim() === '' ? null : p,
         actif,
         observation: videVersNull(observation),
+        contrat: {
+          adresse: videVersNull(adresse),
+          email: videVersNull(email),
+          ninea: videVersNull(ninea),
+          reference: videVersNull(reference),
+          debut: debut || null,
+          fin: fin || null,
+          delaiPaiement: delai.trim() === '' ? null : d,
+          cautionMontant: caution.trim() === '' ? null : cm,
+          cautionBanque: videVersNull(banque),
+          cautionEcheance: echeanceCaution || null,
+        } satisfies ContratClient,
       }
       return client
         ? api.put<Client>(`/clients/${client.id}`, { ...corps, version: client.version })
@@ -117,7 +163,7 @@ function DialogueClient({ client, onFermer }: { client: Client | null; onFermer:
             value={plafond}
             onChange={(e) => setPlafond(e.target.value)}
             error={!plafondValide}
-            helperText="Vide : sans plafond. Au-delà, le bon est refusé."
+            helperText="Vide : sans plafond. Au-delà, le bon est mis en attente de dérogation."
             slotProps={{ htmlInput: { inputMode: 'numeric', autoComplete: 'off' } }}
           />
           <TextField select label="État" value={actif ? 'oui' : 'non'} onChange={(e) => setActif(e.target.value === 'oui')}>
@@ -132,6 +178,58 @@ function DialogueClient({ client, onFermer }: { client: Client | null; onFermer:
             minRows={2}
             slotProps={{ htmlInput: { maxLength: 500 } }}
           />
+          <Typography variant="subtitle2" sx={{ pt: 1 }}>
+            Contrat
+          </Typography>
+          <TextField label="Adresse" value={adresse} onChange={(e) => setAdresse(e.target.value)} slotProps={{ htmlInput: { maxLength: 200 } }} />
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <TextField label="E-mail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} sx={{ flex: 1 }} slotProps={{ htmlInput: { maxLength: 120 } }} />
+            <TextField label="NINEA" value={ninea} onChange={(e) => setNinea(e.target.value)} sx={{ flex: 1 }} slotProps={{ htmlInput: { maxLength: 30 } }} />
+          </Stack>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <TextField
+              label="Référence du contrat"
+              value={reference}
+              onChange={(e) => setReference(e.target.value)}
+              sx={{ flex: 1 }}
+              slotProps={{ htmlInput: { maxLength: 80 } }}
+            />
+            <TextField type="date" label="Début" value={debut} onChange={(e) => setDebut(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
+            <TextField
+              type="date"
+              label="Fin"
+              value={fin}
+              onChange={(e) => setFin(e.target.value)}
+              error={!datesValides}
+              slotProps={{ inputLabel: { shrink: true } }}
+            />
+          </Stack>
+          <TextField
+            label="Délai de paiement (jours)"
+            value={delai}
+            onChange={(e) => setDelai(e.target.value)}
+            error={!delaiValide}
+            helperText="À compter de la date de facture. Vide : pas de blocage sur échéance."
+            slotProps={{ htmlInput: { inputMode: 'numeric', autoComplete: 'off' } }}
+          />
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <TextField
+              label="Caution bancaire (F)"
+              value={caution}
+              onChange={(e) => setCaution(e.target.value)}
+              error={!cautionValide}
+              sx={{ flex: 1 }}
+              slotProps={{ htmlInput: { inputMode: 'numeric', autoComplete: 'off' } }}
+            />
+            <TextField label="Banque" value={banque} onChange={(e) => setBanque(e.target.value)} sx={{ flex: 1 }} slotProps={{ htmlInput: { maxLength: 80 } }} />
+            <TextField
+              type="date"
+              label="Échéance caution"
+              value={echeanceCaution}
+              onChange={(e) => setEcheanceCaution(e.target.value)}
+              slotProps={{ inputLabel: { shrink: true } }}
+            />
+          </Stack>
         </Stack>
         <AlerteErreur erreur={enregistrement.error} />
       </DialogContent>
@@ -140,7 +238,7 @@ function DialogueClient({ client, onFermer }: { client: Client | null; onFermer:
         <Button
           variant="contained"
           onClick={() => enregistrement.mutate()}
-          disabled={enregistrement.isPending || !code.trim() || !nom.trim() || !plafondValide}
+          disabled={enregistrement.isPending || !code.trim() || !nom.trim() || !valide}
         >
           Enregistrer
         </Button>
@@ -355,10 +453,367 @@ function Releve({ fiche, stationId }: { fiche: FicheClient; stationId: string })
   )
 }
 
+/** Met à jour la fiche en cache avec la réponse de l'API et rafraîchit les listes. */
+function useFicheAJour() {
+  const queryClient = useQueryClient()
+  const rafraichir = useRafraichirClients()
+  return (f: FicheClient) => {
+    queryClient.setQueryData(cles.ficheClient(f.client.id), f)
+    rafraichir()
+  }
+}
+
+function DialogueEngin({ clientId, engin, onFermer }: { clientId: string; engin: EnginClient | null; onFermer: () => void }) {
+  const aJour = useFicheAJour()
+  const [type, setType] = useState<TypeEngin>(engin?.type ?? 'VEHICULE')
+  const [immatriculation, setImmatriculation] = useState(engin?.immatriculation ?? '')
+  const [libelle, setLibelle] = useState(engin?.libelle ?? '')
+  const [actif, setActif] = useState(engin?.actif ?? true)
+  const enregistrement = useMutation({
+    mutationFn: () => {
+      const corps = { type, immatriculation: immatriculation.trim(), libelle: videVersNull(libelle), actif }
+      return engin
+        ? api.put<FicheClient>(`/clients/${clientId}/engins/${engin.id}`, { ...corps, version: engin.version })
+        : api.post<FicheClient>(`/clients/${clientId}/engins`, corps)
+    },
+    onSuccess: (f) => {
+      aJour(f)
+      notifier('Engin enregistré.')
+      onFermer()
+    },
+  })
+  return (
+    <Dialog open onClose={onFermer} maxWidth="xs" fullWidth>
+      <DialogTitle>{engin ? `Engin ${engin.immatriculation}` : 'Engin autorisé'}</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ pt: 1 }}>
+          <TextField select label="Type" value={type} onChange={(e) => setType(e.target.value as TypeEngin)}>
+            {(Object.keys(TYPES_ENGIN) as TypeEngin[]).map((t) => (
+              <MenuItem key={t} value={t}>
+                {TYPES_ENGIN[t]}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            label={type === 'PIROGUE' ? 'Immatriculation de la pirogue' : 'Immatriculation'}
+            value={immatriculation}
+            onChange={(e) => setImmatriculation(e.target.value.toUpperCase())}
+            required
+            slotProps={{ htmlInput: { maxLength: 30 } }}
+          />
+          <TextField label="Libellé" value={libelle} onChange={(e) => setLibelle(e.target.value)} slotProps={{ htmlInput: { maxLength: 80 } }} />
+          {engin && (
+            <TextField select label="État" value={actif ? 'oui' : 'non'} onChange={(e) => setActif(e.target.value === 'oui')}>
+              <MenuItem value="oui">Autorisé</MenuItem>
+              <MenuItem value="non">Retiré</MenuItem>
+            </TextField>
+          )}
+        </Stack>
+        <AlerteErreur erreur={enregistrement.error} />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onFermer}>Annuler</Button>
+        <Button variant="contained" onClick={() => enregistrement.mutate()} disabled={enregistrement.isPending || !immatriculation.trim()}>
+          Enregistrer
+        </Button>
+      </DialogActions>
+    </Dialog>
+  )
+}
+
+function DialogueRemise({ clientId, onFermer }: { clientId: string; onFermer: () => void }) {
+  const aJour = useFicheAJour()
+  const produits = useProduits()
+  const carburants = (produits.data ?? []).filter((p) => p.actif && p.famille === 'CARBURANT')
+  const [produitId, setProduitId] = useState('')
+  const [debut, setDebut] = useState(aujourdhui())
+  const [remise, setRemise] = useState('')
+  const r = versNombre(remise)
+  const enregistrement = useMutation({
+    mutationFn: () => api.post<FicheClient>(`/clients/${clientId}/remises`, { produitId, debut, remise: r }),
+    onSuccess: (f) => {
+      aJour(f)
+      notifier('Prix contractuel enregistré.')
+      onFermer()
+    },
+  })
+  return (
+    <Dialog open onClose={onFermer} maxWidth="xs" fullWidth>
+      <DialogTitle>Prix contractuel</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ pt: 1 }}>
+          <TextField select label="Produit" value={produitId} onChange={(e) => setProduitId(e.target.value)} required>
+            {carburants.map((p) => (
+              <MenuItem key={p.id} value={p.id}>
+                {p.code} · {p.libelle}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField type="date" label="À partir du" value={debut} onChange={(e) => setDebut(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
+          <TextField
+            label="Remise au litre (F)"
+            value={remise}
+            onChange={(e) => setRemise(e.target.value)}
+            helperText="Déduite du prix à la pompe sur chaque bon. 0 : fin de la remise."
+            slotProps={{ htmlInput: { inputMode: 'decimal', autoComplete: 'off' } }}
+          />
+        </Stack>
+        <AlerteErreur erreur={enregistrement.error} />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onFermer}>Annuler</Button>
+        <Button
+          variant="contained"
+          onClick={() => enregistrement.mutate()}
+          disabled={enregistrement.isPending || !produitId || !debut || r === null || r < 0}
+        >
+          Enregistrer
+        </Button>
+      </DialogActions>
+    </Dialog>
+  )
+}
+
+function Ligne({ libelle, valeur }: { libelle: string; valeur: ReactNode }) {
+  return (
+    <TableRow>
+      <TableCell component="th" sx={{ color: 'text.secondary', width: 220 }}>
+        {libelle}
+      </TableCell>
+      <TableCell>{valeur ?? '—'}</TableCell>
+    </TableRow>
+  )
+}
+
+function OngletContrat({ client }: { client: Client }) {
+  const k = client.contrat
+  const jour = aujourdhui()
+  const expire = k.fin !== null && k.fin < jour
+  return (
+    <>
+      {expire && (
+        <Alert severity="warning" sx={{ mb: 1 }}>
+          Contrat échu depuis le {formaterDate(k.fin)} : les nouveaux bons sont mis en attente de dérogation.
+        </Alert>
+      )}
+      <Table size="small" aria-label="Contrat">
+        <TableBody>
+          <Ligne libelle="Adresse" valeur={k.adresse} />
+          <Ligne libelle="E-mail" valeur={k.email} />
+          <Ligne libelle="NINEA" valeur={k.ninea} />
+          <Ligne
+            libelle="Contrat"
+            valeur={k.reference || k.debut || k.fin ? [k.reference, k.debut && `du ${formaterDate(k.debut)}`, k.fin && `au ${formaterDate(k.fin)}`].filter(Boolean).join(' ') : null}
+          />
+          <Ligne libelle="Délai de paiement" valeur={k.delaiPaiement !== null ? `${k.delaiPaiement} jours après facture` : 'Non défini (pas de blocage sur échéance)'} />
+          <Ligne libelle="Plafond d'encours" valeur={client.plafond !== null ? formaterPrix(client.plafond) : 'Sans plafond'} />
+          <Ligne
+            libelle="Caution bancaire"
+            valeur={
+              k.cautionMontant !== null
+                ? [formaterPrix(k.cautionMontant), k.cautionBanque, k.cautionEcheance && `échéance ${formaterDate(k.cautionEcheance)}`].filter(Boolean).join(' · ')
+                : null
+            }
+          />
+        </TableBody>
+      </Table>
+    </>
+  )
+}
+
+function OngletEngins({ fiche }: { fiche: FicheClient }) {
+  const aJour = useFicheAJour()
+  const [engin, setEngin] = useState<EnginClient | 'nouveau' | null>(null)
+  const [remise, setRemise] = useState(false)
+  const suppression = useMutation({
+    mutationFn: (id: string) => api.delete<FicheClient>(`/clients/remises/${id}`),
+    onSuccess: (f) => {
+      aJour(f)
+      notifier('Prix contractuel retiré.')
+    },
+  })
+  const clientId = fiche.client.id
+  return (
+    <>
+      <Stack direction="row" sx={{ alignItems: 'center', mb: 1 }}>
+        <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>
+          Véhicules et pirogues autorisés
+        </Typography>
+        {fiche.peutGerer && (
+          <Button size="small" startIcon={<AddIcon />} onClick={() => setEngin('nouveau')}>
+            Ajouter
+          </Button>
+        )}
+      </Stack>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+        Sans engin déclaré, tout véhicule est accepté. Sinon, un bon pour une autre immatriculation est mis en attente.
+      </Typography>
+      <Table size="small" aria-label="Engins autorisés">
+        <TableBody>
+          {fiche.engins.map((e) => (
+            <TableRow key={e.id} sx={{ opacity: e.actif ? 1 : 0.6 }}>
+              <TableCell>{TYPES_ENGIN[e.type]}</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>{e.immatriculation}</TableCell>
+              <TableCell>
+                {e.libelle}
+                {!e.actif && ' (retiré)'}
+              </TableCell>
+              <TableCell align="right">
+                {fiche.peutGerer && (
+                  <IconButton size="small" aria-label={`Modifier l'engin ${e.immatriculation}`} onClick={() => setEngin(e)}>
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+          {fiche.engins.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={4}>Aucun engin déclaré.</TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+      <Stack direction="row" sx={{ alignItems: 'center', mt: 3, mb: 1 }}>
+        <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>
+          Prix contractuels (remise au litre)
+        </Typography>
+        {fiche.peutGerer && (
+          <Button size="small" startIcon={<AddIcon />} onClick={() => setRemise(true)}>
+            Ajouter
+          </Button>
+        )}
+      </Stack>
+      <AlerteErreur erreur={suppression.error} />
+      <Table size="small" aria-label="Prix contractuels">
+        <TableHead>
+          <TableRow>
+            <TableCell>Produit</TableCell>
+            <TableCell>À partir du</TableCell>
+            <TableCell align="right">Remise / L</TableCell>
+            <TableCell />
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {fiche.remises.map((r) => (
+            <TableRow key={r.id} sx={{ opacity: r.enVigueur ? 1 : 0.6 }}>
+              <TableCell>
+                {r.produitCode} · {r.produitLibelle}
+                {r.enVigueur && <Chip size="small" color="success" variant="outlined" label="En vigueur" sx={{ ml: 1 }} />}
+              </TableCell>
+              <TableCell>{formaterDate(r.debut)}</TableCell>
+              <TableCell align="right">{formaterPrix(r.remise)}</TableCell>
+              <TableCell align="right">
+                {fiche.peutGerer && (
+                  <IconButton
+                    size="small"
+                    aria-label={`Retirer la remise ${r.produitCode} du ${formaterDate(r.debut)}`}
+                    disabled={suppression.isPending}
+                    onClick={() => suppression.mutate(r.id)}
+                  >
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+          {fiche.remises.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={4}>Prix à la pompe, sans remise.</TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+      {engin && <DialogueEngin clientId={clientId} engin={engin === 'nouveau' ? null : engin} onFermer={() => setEngin(null)} />}
+      {remise && <DialogueRemise clientId={clientId} onFermer={() => setRemise(false)} />}
+    </>
+  )
+}
+
+function OngletFacturesClient({ fiche }: { fiche: FicheClient }) {
+  const [choisie, setChoisie] = useState<string | null>(null)
+  return (
+    <>
+      <TableFactures factures={fiche.factures} onChoisir={setChoisie} avecClient={false} />
+      {choisie && <DialogueFacture id={choisie} onFermer={() => setChoisie(null)} />}
+    </>
+  )
+}
+
+function OngletCartes({ fiche }: { fiche: FicheClient }) {
+  const [choisie, setChoisie] = useState<string | null>(null)
+  const [emission, setEmission] = useState(false)
+  return (
+    <>
+      {fiche.peutGerer && (
+        <Button size="small" startIcon={<CreditCardIcon />} onClick={() => setEmission(true)} sx={{ mb: 1 }}>
+          Émettre une carte
+        </Button>
+      )}
+      <TableCartes cartes={fiche.cartes} onChoisir={setChoisie} />
+      {choisie && <DialogueCarte id={choisie} onFermer={() => setChoisie(null)} />}
+      {emission && <DialogueEmissionCarte clientId={fiche.client.id} clientNom={fiche.client.nom} onFermer={() => setEmission(false)} />}
+    </>
+  )
+}
+
+function OngletRelances({ fiche }: { fiche: FicheClient }) {
+  const [erreur, setErreur] = useState<unknown>(null)
+  const lettre = (id: string, date: string) =>
+    telecharger(`/clients/relances/${id}/lettre`, `relance-${fiche.client.code}-${date}.pdf`).catch(setErreur)
+  return (
+    <>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+        Les relances se déclenchent depuis la balance âgée (Créances et factures).
+      </Typography>
+      <AlerteErreur erreur={erreur} />
+      <Table size="small" aria-label="Relances">
+        <TableHead>
+          <TableRow>
+            <TableCell>Date</TableCell>
+            <TableCell>Niveau</TableCell>
+            <TableCell>Mode</TableCell>
+            <TableCell align="right">Échu relancé</TableCell>
+            <TableCell>Commentaire</TableCell>
+            <TableCell />
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {fiche.relances.map((r) => (
+            <TableRow key={r.id}>
+              <TableCell>{formaterDate(r.date)}</TableCell>
+              <TableCell>{NIVEAUX_RELANCE[r.niveau]}</TableCell>
+              <TableCell>{MODES_RELANCE[r.mode]}</TableCell>
+              <TableCell align="right">{formaterPrix(r.montantEchu)}</TableCell>
+              <TableCell>
+                {r.commentaire}
+                <Typography variant="caption" color="text.secondary" component="div">
+                  {r.creePar}
+                </Typography>
+              </TableCell>
+              <TableCell align="right">
+                <IconButton size="small" aria-label={`Lettre de relance du ${formaterDate(r.date)}`} onClick={() => void lettre(r.id, r.date)}>
+                  <PictureAsPdfIcon fontSize="small" />
+                </IconButton>
+              </TableCell>
+            </TableRow>
+          ))}
+          {fiche.relances.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={6}>Aucune relance.</TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </>
+  )
+}
+
 function Fiche({ id, onModifier }: { id: string; onModifier: (c: Client) => void }) {
   const requete = useFicheClient(id)
   const [stationId, setStationId] = useState<string | null>(null)
   const [operation, setOperation] = useState(false)
+  const [onglet, setOnglet] = useState('comptes')
   const f = requete.data
   if (!f) return requete.isLoading ? <Chargement /> : <AlerteErreur erreur={requete.error} />
   const choisie = stationId ?? f.comptes[0]?.stationId ?? null
@@ -388,14 +843,37 @@ function Fiche({ id, onModifier }: { id: string; onModifier: (c: Client) => void
       <Typography variant="body2">
         Encours : <strong data-testid="encours-client">{formaterPrix(f.client.encours)}</strong>
         {f.client.plafond !== null && ` · plafond ${formaterPrix(f.client.plafond)} · disponible ${formaterPrix(f.client.disponible)}`}
+        {f.client.echu > 0 && (
+          <>
+            {' · '}
+            <Typography component="span" variant="body2" color="error" data-testid="echu-client">
+              échu {formaterPrix(f.client.echu)}
+            </Typography>
+          </>
+        )}
       </Typography>
-      {f.comptes.length === 0 ? (
-        <Alert severity="info" sx={{ mt: 2 }}>
+      <Tabs value={onglet} onChange={(_e, v: string) => setOnglet(v)} variant="scrollable" allowScrollButtonsMobile sx={{ mt: 1 }}>
+        <Tab value="comptes" label="Comptes" />
+        <Tab value="contrat" label="Contrat" />
+        <Tab value="engins" label={`Engins et prix (${f.engins.length + f.remises.length})`} />
+        <Tab value="factures" label={`Factures (${f.factures.length})`} />
+        <Tab value="cartes" label={`Cartes (${f.cartes.length})`} />
+        <Tab value="relances" label={`Relances (${f.relances.length})`} />
+      </Tabs>
+      <Box sx={{ pt: 2 }}>
+        {onglet === 'contrat' && <OngletContrat client={f.client} />}
+        {onglet === 'engins' && <OngletEngins fiche={f} />}
+        {onglet === 'factures' && <OngletFacturesClient fiche={f} />}
+        {onglet === 'cartes' && <OngletCartes fiche={f} />}
+        {onglet === 'relances' && <OngletRelances fiche={f} />}
+      </Box>
+      {onglet !== 'comptes' ? null : f.comptes.length === 0 ? (
+        <Alert severity="info">
           Aucun mouvement dans les stations de votre périmètre.
         </Alert>
       ) : (
         <>
-          <Table size="small" sx={{ mt: 2 }}>
+          <Table size="small">
             <TableHead>
               <TableRow>
                 <TableCell>Station</TableCell>

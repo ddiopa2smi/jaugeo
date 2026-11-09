@@ -147,9 +147,13 @@ class ClientsSynthesesTest {
         // Regle 6 : numero a usage unique, plafond (encours 99 995 F + 100 980 F > 200 000 F), client actif
         bon(gerant, id, JsonPath.read(credit, "$.version"), dir, " B-001 ", gasoil, "5")
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("BON_DEJA_UTILISE"));
-        bon(gerant, id, JsonPath.read(credit, "$.version"), ger, "B-003", sup, "102")
-                .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.code").value("BON_PLAFOND_DEPASSE"))
-                .andExpect(jsonPath("$.detail").value(Matchers.containsString("disponible 100 005 F")));
+        // Hors plafond : le bon est enregistre en attente de derogation (M6) ; retire ici
+        credit = lire(bon(gerant, id, JsonPath.read(credit, "$.version"), ger, "B-003", sup, "102")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.bons[2].statut").value("EN_ATTENTE"))
+                .andExpect(jsonPath("$.bons[2].motifBlocage").value(Matchers.containsString("disponible 100 005 F"))));
+        credit = lire(mvc.perform(avec(delete("/api/v1/journees/" + id + "/bons/" + JsonPath.read(credit, "$.bons[2].id")), gerant)
+                .param("version", JsonPath.read(credit, "$.version").toString())).andExpect(status().isOk()));
         String fiche = obtenir(comptable, "/api/v1/clients/" + dir);
         mvc.perform(avec(put("/api/v1/clients/" + dir), comptable).content(
                         "{\"nom\":\"Transports Diallo\",\"recouvrement\":\"DIRECTION\",\"actif\":false,\"version\":" + JsonPath.read(fiche, "$.client.version") + "}"))

@@ -48,6 +48,7 @@ export function DetailMontant({ recette }: { recette: RecetteJournee }) {
         {recette.encaissements > 0 && (
           <Ligne libelle="Wave, Orange Money, carte" valeur={moins(recette.encaissements)} testid="encaissements" />
         )}
+        {recette.cartes > 0 && <Ligne libelle="Cartes carburant prépayées" valeur={moins(recette.cartes)} testid="cartes" />}
         {recette.recouvrements > 0 && <Ligne libelle="Créances recouvrées" valeur={`+ ${formaterPrix(recette.recouvrements)}`} />}
         <Ligne libelle="Montant à verser" valeur={formaterPrix(recette.montantAVerser)} gras testid="montant-a-verser" />
       </TableBody>
