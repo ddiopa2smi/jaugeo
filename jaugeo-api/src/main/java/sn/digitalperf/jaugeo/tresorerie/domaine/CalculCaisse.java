@@ -9,7 +9,7 @@ import java.util.List;
  * Calculs de la caisse du gerant (feuille station : MONTANT A VERSER et ECART (solde non verse)).
  * <ul>
  *   <li>montant a verser = ventes (carburant, lubrifiants et boutique) - bons direction - bons gerant - depenses autorisees - complements citerne
- *       + creances recouvrees en especes a la station ;</li>
+ *       - encaissements electroniques (Wave, Orange Money, carte) + creances recouvrees en especes a la station ;</li>
  *   <li>solde du jour = solde de la veille + montant a verser - versements deposes ce jour ;</li>
  *   <li>un arrete de caisse remplace le solde par les especes comptees ; l'ecart (comptees - theorique) est
  *       un surplus s'il est positif, un manquant du gerant s'il est negatif.</li>
@@ -36,6 +36,18 @@ public final class CalculCaisse {
     public static BigDecimal montantAVerser(BigDecimal ventes, BigDecimal bonsDirection, BigDecimal bonsGerant,
                                             BigDecimal depenses, BigDecimal complements, BigDecimal recouvrements) {
         return ventes.subtract(bonsDirection).subtract(bonsGerant).subtract(depenses).subtract(complements).add(recouvrements);
+    }
+
+    /** Montant a verser en especes : les encaissements electroniques ne passent pas par la caisse du gerant. */
+    public static BigDecimal montantAVerser(BigDecimal ventes, BigDecimal bonsDirection, BigDecimal bonsGerant,
+                                            BigDecimal depenses, BigDecimal complements, BigDecimal encaissements,
+                                            BigDecimal recouvrements) {
+        return montantAVerser(ventes, bonsDirection, bonsGerant, depenses, complements, recouvrements).subtract(encaissements);
+    }
+
+    /** Especes non versees au-dela du plafond de la station (plafond absent : jamais). */
+    public static boolean depassePlafond(BigDecimal solde, BigDecimal plafond) {
+        return plafond != null && solde != null && solde.compareTo(plafond) > 0;
     }
 
     /** Deroule le livre de caisse a partir d'un solde, jour apres jour (jours tries par date croissante). */

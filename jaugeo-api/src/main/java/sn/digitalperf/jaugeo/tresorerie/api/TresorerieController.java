@@ -32,7 +32,10 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import sn.digitalperf.jaugeo.commun.ErreurMetier;
 import sn.digitalperf.jaugeo.commun.PieceJointe;
+import sn.digitalperf.jaugeo.tresorerie.application.EncaissementService;
+import sn.digitalperf.jaugeo.tresorerie.application.EncaissementService.EncaissementsJournee;
 import sn.digitalperf.jaugeo.tresorerie.application.TresorerieService;
+import sn.digitalperf.jaugeo.tresorerie.domaine.EncaissementJournee;
 import sn.digitalperf.jaugeo.tresorerie.application.VuesTresorerie.ArreteVue;
 import sn.digitalperf.jaugeo.tresorerie.application.VuesTresorerie.LivreCaisse;
 import sn.digitalperf.jaugeo.tresorerie.application.VuesTresorerie.ManquantVue;
@@ -70,10 +73,52 @@ class TresorerieController {
                      @NotNull LocalDate date) {
     }
 
-    private final TresorerieService service;
+    record Encaissement(@NotNull EncaissementJournee.Mode mode, @PositiveOrZero @Digits(integer = 15, fraction = 0) BigDecimal montant) {
+    }
 
-    TresorerieController(TresorerieService service) {
+    record Encaissements(@NotNull Integer version, @NotNull @Size(max = 10) List<@Valid @NotNull Encaissement> encaissements) {
+    }
+
+    record Echeancier(@NotNull Integer version, @NotBlank @Size(max = 80) String reference, @NotNull LocalDate reconnuLe,
+                      @NotNull @Positive Integer nombre, @NotNull LocalDate premiereEcheance) {
+    }
+
+    record PaiementSaisi(@NotNull Integer version, @NotNull @Positive @Digits(integer = 15, fraction = 0) BigDecimal montant,
+                         @NotNull ManquantGerant.Mode mode, @Size(max = 80) String reference, @NotNull LocalDate date) {
+    }
+
+    record Plafond(@Positive @Digits(integer = 15, fraction = 0) BigDecimal plafond) {
+    }
+
+    private final TresorerieService service;
+    private final EncaissementService encaissements;
+
+    TresorerieController(TresorerieService service, EncaissementService encaissements) {
         this.service = service;
+        this.encaissements = encaissements;
+    }
+
+    @Operation(summary = "Encaissements électroniques de la journée (Wave, Orange Money, carte), hors espèces")
+    @GetMapping("/journees/{id}/encaissements")
+    EncaissementsJournee encaissements(@PathVariable UUID id) {
+        return encaissements.journee(id);
+    }
+
+    @Operation(summary = "Enregistre les totaux encaissés par Wave, Orange Money et carte (montant nul = retiré)")
+    @PutMapping("/journees/{id}/encaissements")
+    @PreAuthorize("hasAuthority('JOURNEE_SAISIR')")
+    EncaissementsJournee enregistrerEncaissements(@PathVariable UUID id, @Valid @RequestBody Encaissements e) {
+        return encaissements.enregistrer(id, e.version(), e.encaissements().stream()
+                .map(x -> new EncaissementService.SaisieEncaissement(x.mode(), x.montant())).toList());
+    }
+
+    @Operation(summary = "Fixe le plafond d'espèces non versées d'une station (vide = plafond du réseau)")
+    @PutMapping("/stations/{id}/plafond-especes")
+    @PreAuthorize("hasAuthority('CAISSE_CONTROLER')")
+    java.util.Map<String, BigDecimal> plafond(@PathVariable UUID id, @Valid @RequestBody Plafond p) {
+        java.util.Map<String, BigDecimal> r = new java.util.HashMap<>();
+        r.put("plafond", service.fixerPlafond(id, p.plafond()));
+        return r;
     }
 
     @Operation(summary = "Recette de la journée : montant à verser, solde de caisse du gérant, versements du jour")
@@ -165,6 +210,20 @@ class TresorerieController {
     @PreAuthorize("hasAuthority('VERSEMENT_VALIDER')")
     ManquantVue regler(@PathVariable UUID id, @Valid @RequestBody Reglement r) {
         return service.reglerManquant(id, r.version(), r.mode(), r.reference(), r.date());
+    }
+
+    @Operation(summary = "Reconnaissance de dette et échéancier mensuel de remboursement d'un manquant")
+    @PutMapping("/tresorerie/manquants/{id}/echeancier")
+    @PreAuthorize("hasAuthority('VERSEMENT_VALIDER')")
+    ManquantVue echeancier(@PathVariable UUID id, @Valid @RequestBody Echeancier e) {
+        return service.echeancier(id, e.version(), e.reference(), e.reconnuLe(), e.nombre(), e.premiereEcheance());
+    }
+
+    @Operation(summary = "Enregistre un règlement partiel ou total d'un manquant (remboursement, retenue sur salaire, perte)")
+    @PostMapping("/tresorerie/manquants/{id}/paiements")
+    @PreAuthorize("hasAuthority('VERSEMENT_VALIDER')")
+    ManquantVue payer(@PathVariable UUID id, @Valid @RequestBody PaiementSaisi p) {
+        return service.payerManquant(id, p.version(), p.montant(), p.mode(), p.reference(), p.date());
     }
 
     @Operation(summary = "Solde non versé de chaque station, retards de versement, versements à vérifier, manquants")

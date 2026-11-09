@@ -87,12 +87,20 @@ class SecuriteConfig {
                         .requestMatchers("/api/v1/depenses/natures", "/api/v1/depenses/natures/*").hasAuthority("REFERENTIEL_GERER")
                         // Tresorerie : versements du gerant, verification comptable, arretes de caisse
                         .requestMatchers(HttpMethod.POST, "/api/v1/tresorerie/versements/*/verification",
-                                "/api/v1/tresorerie/manquants/*/reglement").hasAuthority("VERSEMENT_VALIDER")
+                                "/api/v1/tresorerie/manquants/*/reglement", "/api/v1/tresorerie/manquants/*/paiements")
+                        .hasAuthority("VERSEMENT_VALIDER")
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/tresorerie/manquants/*/echeancier").hasAuthority("VERSEMENT_VALIDER")
                         .requestMatchers(HttpMethod.GET, "/api/v1/tresorerie/**", "/api/v1/journees/*/tresorerie",
                                 "/api/v1/stations/*/caisse", "/api/v1/stations/*/arretes").hasAuthority("REFERENTIEL_CONSULTER")
                         .requestMatchers("/api/v1/tresorerie/versements", "/api/v1/tresorerie/versements/**")
                         .hasAuthority("VERSEMENT_SAISIR")
+                        // Rapprochement : releves et lettrage par la comptabilite
+                        .requestMatchers("/api/v1/tresorerie/formats-releve", "/api/v1/tresorerie/formats-releve/*",
+                                "/api/v1/tresorerie/releves", "/api/v1/tresorerie/rapprochement/**").hasAuthority("VERSEMENT_VALIDER")
                         .requestMatchers(HttpMethod.POST, "/api/v1/stations/*/arretes").hasAuthority("CAISSE_CONTROLER")
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/stations/*/plafond-especes").hasAuthority("CAISSE_CONTROLER")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/journees/*/encaissements").hasAuthority("REFERENTIEL_CONSULTER")
+                        .requestMatchers("/api/v1/journees/*/encaissements").hasAuthority("JOURNEE_SAISIR")
                         // Clients : bons et recouvrements especes saisis dans la journee ; comptes geres par la comptabilite
                         .requestMatchers("/api/v1/journees/*/bons", "/api/v1/journees/*/bons/*", "/api/v1/journees/*/recouvrements",
                                 "/api/v1/journees/*/recouvrements/*").hasAuthority("JOURNEE_SAISIR")

@@ -744,6 +744,106 @@ export interface Versement {
   version: number
   modifiable: boolean
   verifiable: boolean
+  /** Date du crédit au relevé bancaire lettré avec ce versement */
+  dateReleve?: string | null
+}
+
+export type NatureReleve = 'BANQUE' | 'WAVE' | 'ORANGE_MONEY' | 'CARTE'
+
+export interface FormatReleve {
+  id: string
+  code: string
+  libelle: string
+  nature: NatureReleve
+  separateur: string
+  formatDate: string
+  lignesIgnorees: number
+  colDate: number
+  colLibelle: number
+  colReference: number | null
+  colCredit: number
+  actif: boolean
+  version: number
+}
+
+export interface BilanImport {
+  releveId: string
+  nomFichier: string
+  format: string
+  dateMin: string | null
+  dateMax: string | null
+  operations: number
+  doublons: number
+  ignorees: number
+  lettrees: number
+}
+
+export interface VersementResume {
+  id: string
+  stationCode: string | null
+  dateDepot: string
+  banque: string
+  referenceBv: string
+  montant: number
+  statut: StatutVersement
+}
+
+export interface OperationReleve {
+  id: string
+  date: string
+  libelle: string
+  reference: string | null
+  montant: number
+  format: string
+  versement: VersementResume | null
+  modeLettrage: 'AUTO' | 'MANUEL' | null
+  lettrePar: string | null
+  candidats: VersementResume[]
+}
+
+export interface ReleveImporte {
+  id: string
+  nomFichier: string
+  format: string
+  nature: NatureReleve
+  stationCode: string | null
+  dateMin: string | null
+  dateMax: string | null
+  operations: number
+  doublons: number
+  importePar: string
+  importeLe: string
+}
+
+export interface Rapprochement {
+  mois: string
+  versements: number
+  montantVersements: number
+  versementsLettres: number
+  montantLettre: number
+  taux: number | null
+  operations: OperationReleve[]
+  versementsNonLettres: VersementResume[]
+  releves: ReleveImporte[]
+  peutLettrer: boolean
+}
+
+export interface RapprochementElectronique {
+  mois: string
+  lignes: {
+    stationId: string
+    stationCode: string
+    date: string
+    mode: ModeEncaissement
+    libelle: string
+    declare: number
+    releve: number | null
+    ecart: number | null
+  }[]
+  totalDeclare: number
+  totalReleve: number
+  ecarts: number
+  nonCouverts: number
 }
 
 export interface SaisieVersement {
@@ -790,6 +890,8 @@ export interface RecetteJournee {
   bonsGerant: number
   depenses: number | null
   complements: number | null
+  /** Wave, Orange Money et carte : hors caisse du gérant */
+  encaissements: number
   recouvrements: number
   montantAVerser: number | null
   soldeOuverture: number
@@ -798,6 +900,8 @@ export interface RecetteJournee {
   soldeFin: number | null
   arrete: ArreteCaisse | null
   peutVerser: boolean
+  plafondEspeces: number | null
+  depassePlafond: boolean
 }
 
 export interface LigneCaisse {
@@ -808,6 +912,7 @@ export interface LigneCaisse {
   bons: number | null
   depenses: number | null
   complements: number | null
+  encaissements: number | null
   recouvrements: number | null
   montantAVerser: number | null
   soldeOuverture: number
@@ -829,6 +934,7 @@ export interface LivreCaisse {
   totalBonsGerant: number
   totalDepenses: number
   totalComplements: number
+  totalEncaissements: number
   totalRecouvrements: number
   totalMontants: number
   totalVersements: number
@@ -837,6 +943,7 @@ export interface LivreCaisse {
   joursNonClotures: number
   lignes: LigneCaisse[]
   peutArreter: boolean
+  plafondEspeces: number | null
 }
 
 export type StatutManquant = 'OUVERT' | 'SOLDE'
@@ -857,6 +964,15 @@ export interface Manquant {
   reglePar: string | null
   version: number
   reglable: boolean
+  montantRegle: number
+  reste: number
+  reconnaissanceReference: string | null
+  reconnuLe: string | null
+  echeances: { rang: number; date: string; montant: number; regle: number; statut: 'PAYEE' | 'EN_RETARD' | 'A_VENIR' }[]
+  paiements: { date: string; montant: number; mode: ModeReglementManquant; reference: string | null; par: string }[]
+  prochaineEcheance: string | null
+  /** Échéances échues non honorées */
+  retard: number
 }
 
 export interface SituationCaisse {
@@ -873,6 +989,8 @@ export interface SituationCaisse {
   montantManquants: number
   dernierArrete: string | null
   dernierEcart: number | null
+  plafondEspeces: number | null
+  depassePlafond: boolean
 }
 
 export interface SituationTresorerie {
@@ -882,6 +1000,18 @@ export interface SituationTresorerie {
   manquantsOuverts: number
   montantManquants: number
   delaiVersementJours: number
+  depassementsPlafond: number
+}
+
+export type ModeEncaissement = 'WAVE' | 'ORANGE_MONEY' | 'CARTE'
+
+export interface EncaissementsJournee {
+  journeeId: string
+  version: number
+  statut: StatutJournee
+  modifiable: boolean
+  lignes: { mode: ModeEncaissement; libelle: string; montant: number | null }[]
+  total: number
 }
 
 // ---------------------------------------------------------------- Clients en compte (Sprint 5)

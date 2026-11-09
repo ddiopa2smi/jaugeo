@@ -36,4 +36,22 @@ public interface VersementDepot extends JpaRepository<Versement, Long> {
             select max(v.dateDepot) from Versement v
             where v.stationId = :stationId and v.statut <> sn.digitalperf.jaugeo.tresorerie.domaine.Versement.Statut.REJETE""")
     LocalDate dernierDepot(@Param("stationId") Long stationId);
+
+    /** Versements non rejetes ni deja lettres d'un montant donne, deposes dans l'intervalle (candidats au lettrage). */
+    @Query("""
+            select v from Versement v
+            where v.montant = :montant and v.dateDepot between :du and :au
+              and v.statut <> sn.digitalperf.jaugeo.tresorerie.domaine.Versement.Statut.REJETE
+              and not exists (select o from OperationReleve o where o.versementId = v.id)
+            order by v.dateDepot, v.id""")
+    List<Versement> candidatsLettrage(@Param("montant") BigDecimal montant, @Param("du") LocalDate du,
+                                      @Param("au") LocalDate au);
+
+    /** Versements non rejetes deposes sur une periode, toutes stations. */
+    @Query("""
+            select v from Versement v
+            where v.dateDepot between :du and :au
+              and v.statut <> sn.digitalperf.jaugeo.tresorerie.domaine.Versement.Statut.REJETE
+            order by v.dateDepot, v.id""")
+    List<Versement> deposesEntre(@Param("du") LocalDate du, @Param("au") LocalDate au);
 }

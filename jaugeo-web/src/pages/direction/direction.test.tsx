@@ -111,7 +111,7 @@ function serveur(utilisateur: ReturnType<typeof utilisateurTest>) {
     if (chemin.startsWith('/tableau-bord/reseau')) return { status: 200, corps: RESEAU }
     if (chemin === '/clients') return { status: 200, corps: [client('Cheikh Omar', 24_000_000, 20_000_000), client('Pêcheurs de Kayar', 1_000_000, null)] }
     if (chemin === '/tresorerie/situation')
-      return { status: 200, corps: { stations: [], retards: 0, versementsAVerifier: 2, manquantsOuverts: 1, montantManquants: 150_000, delaiVersementJours: 3 } }
+      return { status: 200, corps: { stations: [], retards: 0, versementsAVerifier: 2, manquantsOuverts: 1, montantManquants: 150_000, delaiVersementJours: 3, depassementsPlafond: 0 } }
     if (chemin === '/stock/situation') return { status: 200, corps: { cuves: [], alertes: 0, complementsARegler: 1, montantComplementsARegler: 80_000 } }
     if (chemin === '/depenses/a-valider') return { status: 200, corps: [] }
     if (chemin === '/prix/grille') return { status: 200, corps: [] }

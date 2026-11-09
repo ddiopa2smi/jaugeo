@@ -2,6 +2,7 @@ import AccountBalanceIcon from '@mui/icons-material/AccountBalance'
 import DeleteIcon from '@mui/icons-material/Delete'
 import EditIcon from '@mui/icons-material/Edit'
 import LockClockIcon from '@mui/icons-material/LockClock'
+import SavingsIcon from '@mui/icons-material/Savings'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
@@ -36,15 +37,17 @@ import {
   useStations,
   useVersements,
 } from '../../api/requetes'
-import type { DepenseAValider, LivreCaisse, Manquant, ModeReglementManquant, TypeArrete, Versement } from '../../api/types'
-import { usePermission } from '../../auth/session'
+import type { DepenseAValider, LivreCaisse, Manquant, TypeArrete, Versement } from '../../api/types'
+import { usePermission, useSession } from '../../auth/session'
 import { AlerteErreur, Chargement, EnTetePage } from '../../shared/composants'
 import { formaterDate, formaterPrix, versNombre, videVersNull } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
 import { BoutonPiece, VoirPiece } from '../../shared/PieceJointe'
 import { moisCourant } from '../../shared/stock'
 import { aujourdhui, formaterEcart, MODES_REGLEMENT, STATUTS_MANQUANT, STATUTS_VERSEMENT, TYPES_ARRETE } from '../../shared/tresorerie'
+import { DialogueManquant } from './DialogueManquant'
 import { DialogueVersement } from './DialogueVersement'
+import { OngletRapprochement } from './OngletRapprochement'
 
 const prix = (v: number | null | undefined) => (v === null || v === undefined ? '' : formaterPrix(v))
 
@@ -324,7 +327,59 @@ function DialogueArrete({ livre, onFermer }: { livre: LivreCaisse; onFermer: () 
   )
 }
 
-function Indicateur({ libelle, valeur, couleur, testid }: { libelle: string; valeur: string; couleur?: string; testid?: string }) {
+function DialoguePlafond({ livre, onFermer }: { livre: LivreCaisse; onFermer: () => void }) {
+  const rafraichir = useRafraichirTresorerie()
+  const [plafond, setPlafond] = useState(livre.plafondEspeces === null ? '' : String(livre.plafondEspeces))
+  const valeur = versNombre(plafond)
+  const enregistrement = useMutation({
+    mutationFn: () => api.put(`/stations/${livre.stationId}/plafond-especes`, { plafond: valeur }),
+    onSuccess: () => {
+      rafraichir()
+      notifier(valeur === null ? 'Plafond d’espèces retiré.' : `Plafond d’espèces fixé à ${formaterPrix(valeur)}.`)
+      onFermer()
+    },
+  })
+  return (
+    <Dialog open onClose={onFermer} maxWidth="xs" fullWidth>
+      <DialogTitle>Plafond d’espèces · {livre.stationCode}</DialogTitle>
+      <DialogContent>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Au-delà de ce montant d’espèces non versées, une alerte s’affiche sur la journée, le tableau de bord et la vue Direction.
+          Laissez vide pour retirer le plafond.
+        </Typography>
+        <TextField
+          autoFocus
+          fullWidth
+          label="Plafond (F CFA)"
+          value={plafond}
+          onChange={(e) => setPlafond(e.target.value)}
+          slotProps={{ htmlInput: { inputMode: 'numeric' } }}
+        />
+        <AlerteErreur erreur={enregistrement.error} />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onFermer}>Annuler</Button>
+        <Button variant="contained" onClick={() => enregistrement.mutate()} disabled={enregistrement.isPending || (valeur !== null && valeur <= 0)}>
+          Enregistrer
+        </Button>
+      </DialogActions>
+    </Dialog>
+  )
+}
+
+function Indicateur({
+  libelle,
+  valeur,
+  couleur,
+  testid,
+  sous,
+}: {
+  libelle: string
+  valeur: string
+  couleur?: string
+  testid?: string
+  sous?: string
+}) {
   return (
     <Paper variant="outlined" sx={{ p: 1.5 }}>
       <Typography variant="caption" color="text.secondary" component="div">
@@ -333,6 +388,11 @@ function Indicateur({ libelle, valeur, couleur, testid }: { libelle: string; val
       <Typography sx={{ fontSize: 18, fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: couleur }} data-testid={testid}>
         {valeur}
       </Typography>
+      {sous && (
+        <Typography variant="caption" color={couleur ?? 'text.secondary'} component="div">
+          {sous}
+        </Typography>
+      )}
     </Paper>
   )
 }
@@ -342,6 +402,7 @@ function Caisse() {
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
   const peutVerser = usePermission('VERSEMENT_SAISIR')
+  const peutControler = usePermission('CAISSE_CONTROLER')
   const actives = (stations.data ?? []).filter((s) => s.actif).sort((a, b) => a.code.localeCompare(b.code))
   const stationId = params.get('station') ?? (actives.length === 1 ? actives[0]!.id : null)
   const mois = params.get('mois') ?? moisCourant()
@@ -349,6 +410,7 @@ function Caisse() {
   const versements = useVersements(stationId, mois)
   const [versement, setVersement] = useState(false)
   const [arrete, setArrete] = useState(false)
+  const [plafond, setPlafond] = useState(false)
   const changer = (cle: string, valeur: string) => {
     const p = new URLSearchParams(params)
     p.set(cle, valeur)
@@ -357,6 +419,8 @@ function Caisse() {
   }
   const l = livre.data
   const station = actives.find((s) => s.id === stationId)
+  const depasse = l !== undefined && l.plafondEspeces !== null && l.soldeFin > l.plafondEspeces
+  const avecEncaissements = (l?.totalEncaissements ?? 0) > 0
 
   return (
     <>
@@ -379,13 +443,18 @@ function Caisse() {
         />
         <Box sx={{ flexGrow: 1 }} />
         {station && peutVerser && (
-          <Button variant="contained" startIcon={<AccountBalanceIcon />} onClick={() => setVersement(true)}>
+          <Button variant="contained" startIcon={<AccountBalanceIcon />} onClick={() => setVersement(true)} sx={{ flexShrink: 0 }}>
             Enregistrer un versement
           </Button>
         )}
         {l?.peutArreter && (
-          <Button variant="outlined" startIcon={<LockClockIcon />} onClick={() => setArrete(true)}>
+          <Button variant="outlined" startIcon={<LockClockIcon />} onClick={() => setArrete(true)} sx={{ flexShrink: 0 }}>
             Arrêter la caisse
+          </Button>
+        )}
+        {l && peutControler && (
+          <Button variant="outlined" startIcon={<SavingsIcon />} onClick={() => setPlafond(true)} sx={{ flexShrink: 0 }}>
+            Plafond d’espèces
           </Button>
         )}
       </Stack>
@@ -403,8 +472,19 @@ function Caisse() {
               valeur={formaterEcart(l.totalEcarts, formaterPrix)}
               couleur={l.totalEcarts < 0 ? 'error.main' : undefined}
             />
-            <Indicateur libelle="Solde non versé" valeur={formaterPrix(l.soldeFin)} testid="solde-mois" />
+            <Indicateur
+              libelle="Solde non versé"
+              valeur={formaterPrix(l.soldeFin)}
+              testid="solde-mois"
+              couleur={depasse ? 'warning.main' : undefined}
+              sous={l.plafondEspeces === null ? undefined : `${depasse ? 'Au-delà du plafond' : 'Plafond'} : ${formaterPrix(l.plafondEspeces)}`}
+            />
           </Box>
+          {avecEncaissements && (
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }} data-testid="encaissements-mois">
+              Encaissés par Wave, Orange Money et carte (hors espèces) : {formaterPrix(l.totalEncaissements)}
+            </Typography>
+          )}
           {l.joursNonClotures > 0 && (
             <Alert severity="info" sx={{ mb: 2 }}>
               {l.joursNonClotures} journée(s) du mois non clôturée(s) : leur recette n’entre dans la caisse qu’à la clôture.
@@ -419,6 +499,7 @@ function Caisse() {
                   <TableCell align="right">Bons</TableCell>
                   <TableCell align="right">Dépenses</TableCell>
                   <TableCell align="right">Compléments</TableCell>
+                  {avecEncaissements && <TableCell align="right">Wave, OM, carte</TableCell>}
                   <TableCell align="right">À verser</TableCell>
                   <TableCell align="right">Versé</TableCell>
                   <TableCell align="right">Arrêté</TableCell>
@@ -446,6 +527,7 @@ function Caisse() {
                     <TableCell align="right">{x.bons ? prix(x.bons) : ''}</TableCell>
                     <TableCell align="right">{x.depenses ? prix(x.depenses) : ''}</TableCell>
                     <TableCell align="right">{x.complements ? prix(x.complements) : ''}</TableCell>
+                    {avecEncaissements && <TableCell align="right">{x.encaissements ? prix(x.encaissements) : ''}</TableCell>}
                     <TableCell align="right" sx={{ fontWeight: 600 }}>
                       {prix(x.montantAVerser)}
                     </TableCell>
@@ -486,6 +568,7 @@ function Caisse() {
         <DialogueVersement stationId={station.id} stationCode={station.code} montantSuggere={l?.soldeFin} onFermer={() => setVersement(false)} />
       )}
       {arrete && l && <DialogueArrete livre={l} onFermer={() => setArrete(false)} />}
+      {plafond && l && <DialoguePlafond livre={l} onFermer={() => setPlafond(false)} />}
     </>
   )
 }
@@ -615,56 +698,6 @@ function DepensesAValider() {
 
 // ------------------------------------------------------------------ Manquants
 
-function DialogueReglementManquant({ manquant, onFermer }: { manquant: Manquant; onFermer: () => void }) {
-  const rafraichir = useRafraichirTresorerie()
-  const [mode, setMode] = useState<ModeReglementManquant>('REMBOURSEMENT')
-  const [reference, setReference] = useState('')
-  const [date, setDate] = useState(aujourdhui())
-  const reglement = useMutation({
-    mutationFn: () =>
-      api.post<Manquant>(`/tresorerie/manquants/${manquant.id}/reglement`, {
-        version: manquant.version,
-        mode,
-        reference: videVersNull(reference),
-        date,
-      }),
-    onSuccess: () => {
-      rafraichir()
-      notifier('Manquant soldé.')
-      onFermer()
-    },
-  })
-  return (
-    <Dialog open onClose={onFermer} maxWidth="xs" fullWidth>
-      <DialogTitle>Solder le manquant</DialogTitle>
-      <DialogContent>
-        <Typography variant="body2" sx={{ mb: 2 }}>
-          {manquant.stationCode} · arrêté du {formaterDate(manquant.date)}
-          {manquant.responsable ? ` · ${manquant.responsable}` : ''} : {formaterPrix(manquant.montant)}
-        </Typography>
-        <Stack spacing={2}>
-          <TextField select label="Mode" value={mode} onChange={(e) => setMode(e.target.value as ModeReglementManquant)}>
-            {Object.entries(MODES_REGLEMENT).map(([v, l]) => (
-              <MenuItem key={v} value={v}>
-                {l}
-              </MenuItem>
-            ))}
-          </TextField>
-          <TextField label="Référence (reçu, bulletin…)" value={reference} onChange={(e) => setReference(e.target.value)} slotProps={{ htmlInput: { maxLength: 80 } }} />
-          <TextField type="date" label="Date" value={date} onChange={(e) => setDate(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
-        </Stack>
-        <AlerteErreur erreur={reglement.error} />
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onFermer}>Annuler</Button>
-        <Button variant="contained" onClick={() => reglement.mutate()} disabled={reglement.isPending || !date}>
-          Enregistrer
-        </Button>
-      </DialogActions>
-    </Dialog>
-  )
-}
-
 function Manquants() {
   const [statut, setStatut] = useState('OUVERT')
   const liste = useManquants(statut)
@@ -688,6 +721,7 @@ function Manquants() {
                 <TableCell>Station</TableCell>
                 <TableCell>Responsable</TableCell>
                 <TableCell align="right">Montant</TableCell>
+                <TableCell align="right">Reste dû</TableCell>
                 <TableCell>Statut</TableCell>
                 <TableCell />
               </TableRow>
@@ -705,8 +739,19 @@ function Manquants() {
                       </Typography>
                     )}
                   </TableCell>
-                  <TableCell align="right">{formaterPrix(m.montant)}</TableCell>
+                  <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                    {formaterPrix(m.montant)}
+                  </TableCell>
+                  <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontWeight: 600 }} data-testid={`reste-${m.id}`}>
+                    {formaterPrix(m.reste)}
+                    {m.prochaineEcheance && (
+                      <Typography variant="caption" color="text.secondary" component="div">
+                        échéance du {formaterDate(m.prochaineEcheance)}
+                      </Typography>
+                    )}
+                  </TableCell>
                   <TableCell>
+                    {m.retard > 0 && <Chip size="small" color="error" variant="outlined" label="Échéance en retard" sx={{ mr: 0.5 }} />}
                     <Chip
                       size="small"
                       color={STATUTS_MANQUANT[m.statut].couleur}
@@ -718,11 +763,9 @@ function Manquants() {
                     />
                   </TableCell>
                   <TableCell>
-                    {m.reglable && (
-                      <Button size="small" onClick={() => setARegler(m)}>
-                        Solder
-                      </Button>
-                    )}
+                    <Button size="small" onClick={() => setARegler(m)}>
+                      {m.reglable ? 'Gérer' : 'Détail'}
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -730,7 +773,7 @@ function Manquants() {
           </Table>
         </Paper>
       )}
-      {aRegler && <DialogueReglementManquant manquant={aRegler} onFermer={() => setARegler(null)} />}
+      {aRegler && <DialogueManquant manquant={aRegler} onFermer={() => setARegler(null)} />}
     </>
   )
 }
@@ -741,11 +784,14 @@ export function PageTresorerie() {
   const [params, setParams] = useSearchParams()
   const verifie = usePermission('VERSEMENT_VALIDER')
   const decide = usePermission('DEPENSE_VALIDER')
+  const controle = usePermission('CAISSE_CONTROLER')
+  const reseau = useSession((e) => e.utilisateur?.perimetre === 'RESEAU')
   const onglets = [
     { valeur: 'caisse', libelle: 'Caisse du gérant' },
     ...(verifie ? [{ valeur: 'verification', libelle: 'Versements à vérifier' }] : []),
     ...(decide ? [{ valeur: 'depenses', libelle: 'Dépenses à valider' }] : []),
     { valeur: 'manquants', libelle: 'Manquants' },
+    ...(reseau && (verifie || controle) ? [{ valeur: 'rapprochement', libelle: 'Rapprochement' }] : []),
   ]
   const demande = params.get('onglet')
   const onglet = onglets.some((o) => o.valeur === demande) ? demande! : 'caisse'
@@ -775,6 +821,7 @@ export function PageTresorerie() {
       {onglet === 'verification' && <AVerifier />}
       {onglet === 'depenses' && <DepensesAValider />}
       {onglet === 'manquants' && <Manquants />}
+      {onglet === 'rapprochement' && <OngletRapprochement />}
     </>
   )
 }

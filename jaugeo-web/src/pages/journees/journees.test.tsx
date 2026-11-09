@@ -199,6 +199,7 @@ describe('saisie et clôture d’une journée', () => {
         bonsGerant: 0,
         depenses: 5000,
         complements: 0,
+        encaissements: 0,
         recouvrements: 0,
         montantAVerser: montant,
         soldeOuverture: 120000,
@@ -207,6 +208,8 @@ describe('saisie et clôture d’une journée', () => {
         soldeFin: montant === null ? null : 120000 + montant,
         arrete: null,
         peutVerser: false,
+        plafondEspeces: null,
+        depassePlafond: false,
       }
     }
     installerFauxServeur(({ methode, chemin, corps }) => {
@@ -217,6 +220,11 @@ describe('saisie et clôture d’une journée', () => {
         return {
           status: 200,
           corps: { journeeId: 'j1', version: courante.version, statut: courante.statut, modifiable: courante.statut === 'BROUILLON', articles: [], total: 0 },
+        }
+      if (chemin === '/journees/j1/encaissements')
+        return {
+          status: 200,
+          corps: { journeeId: 'j1', version: courante.version, statut: courante.statut, modifiable: courante.statut === 'BROUILLON', lignes: [], total: 0 },
         }
       if (chemin === '/auth/rafraichir') return { status: 200, corps: sessionTest('j', GERANT) }
       if (chemin === '/journees/j1' && methode === 'GET') return { status: 200, corps: courante }
