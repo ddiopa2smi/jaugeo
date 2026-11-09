@@ -192,6 +192,14 @@ REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 .\scripts\demarrer-dev.ps1          # ouvre l'API (8080) et le front (5173) dans deux fenêtres
 ```
 
+Le front écoute aussi sur le réseau local : le script affiche l'adresse à ouvrir sur un téléphone ou une tablette du même Wi-Fi, par exemple `http://10.2.0.19:5173`. Il faut autoriser une fois le port 5173 dans le pare-feu Windows, en administrateur :
+
+```powershell
+New-NetFirewallRule -DisplayName "Jaugeo dev (Vite 5173)" -Direction Inbound -Protocol TCP -LocalPort 5173 -Action Allow -Profile Domain,Private
+```
+
+En HTTP sur le réseau local, l'application ne s'installe pas sur l'écran d'accueil et ne se rouvre pas sans réseau : ces deux fonctions demandent HTTPS (environnement de recette).
+
 ou à la main :
 
 ```powershell
