@@ -30,6 +30,7 @@ import { cles, rafraichirJournee, useClients, useCreditJournee } from '../../api
 import type { Bon, CarteDetail, CreditJournee, SaisieBon } from '../../api/types'
 import { usePermission } from '../../auth/session'
 import { AlerteErreur } from '../../shared/composants'
+import { confirmerPuis } from '../../shared/confirmation'
 import { RECOUVREMENTS, STATUTS_BON } from '../../shared/clients'
 import { LecteurQr } from '../../shared/LecteurQr'
 import { DialogueDecisionBon } from '../clients/DecisionBon'
@@ -493,7 +494,12 @@ export function SectionCredit({ journeeId }: { journeeId: string }) {
                         <IconButton
                           size="small"
                           aria-label={`Retirer le bon ${b.numero}`}
-                          onClick={() => suppression.mutate(`bons/${b.id}`)}
+                          onClick={() =>
+                            confirmerPuis(
+                              { titre: 'Supprimer le bon ?', message: `Le bon n° ${b.numero} sera retiré de la journée.` },
+                              () => suppression.mutate(`bons/${b.id}`),
+                            )
+                          }
                           disabled={suppression.isPending}
                         >
                           <DeleteIcon fontSize="small" />
@@ -523,7 +529,15 @@ export function SectionCredit({ journeeId }: { journeeId: string }) {
                 <IconButton
                   size="small"
                   aria-label={`Retirer le plein de la carte ${p.carteNumero}`}
-                  onClick={() => suppression.mutate(`cartes/${p.id}`)}
+                  onClick={() =>
+                    confirmerPuis(
+                      {
+                        titre: 'Supprimer le plein ?',
+                        message: `Le plein de ${formaterPrix(p.montantPompe)} sur la carte ${p.carteNumero} sera retiré et la carte recréditée.`,
+                      },
+                      () => suppression.mutate(`cartes/${p.id}`),
+                    )
+                  }
                   disabled={suppression.isPending}
                 >
                   <DeleteIcon fontSize="small" />
@@ -548,7 +562,15 @@ export function SectionCredit({ journeeId }: { journeeId: string }) {
                 <IconButton
                   size="small"
                   aria-label={`Retirer le recouvrement de ${r.clientNom}`}
-                  onClick={() => suppression.mutate(`recouvrements/${r.id}`)}
+                  onClick={() =>
+                    confirmerPuis(
+                      {
+                        titre: 'Supprimer le recouvrement ?',
+                        message: `Le recouvrement de ${formaterPrix(r.montant)} auprès de ${r.clientNom} sera retiré de la journée.`,
+                      },
+                      () => suppression.mutate(`recouvrements/${r.id}`),
+                    )
+                  }
                   disabled={suppression.isPending}
                 >
                   <DeleteIcon fontSize="small" />

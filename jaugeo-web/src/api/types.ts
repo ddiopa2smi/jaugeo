@@ -18,6 +18,7 @@ export type Permission =
   | 'CLOTURE_MENSUELLE'
   | 'DEPENSE_VALIDER'
   | 'CAISSE_CONTROLER'
+  | 'PERSONNEL_GERER'
 
 export type Perimetre = 'RESEAU' | 'STATIONS'
 
@@ -1959,4 +1960,204 @@ export interface SaisieFactureFournisseur {
   observation: string | null
   lignes: { numeroBl: string; produitId: string; quantite: number; prixUnitaire: number }[]
   version?: number
+}
+
+// ---------------------------------------------------------------- Personnel (M9)
+
+export type FonctionEmploye = 'POMPISTE' | 'CAISSIER' | 'CHEF_PISTE' | 'GERANT' | 'GARDIEN' | 'AUTRE'
+
+export type TypePoste = 'MATIN' | 'SOIR' | 'NUIT'
+
+export interface Employe {
+  id: string
+  stationId: string
+  stationCode: string
+  matricule: string | null
+  nom: string
+  prenom: string
+  nomComplet: string
+  telephone: string | null
+  fonction: FonctionEmploye
+  dateEntree: string | null
+  dateSortie: string | null
+  /** Compte Jaugeo de l'employé, s'il saisit lui-même */
+  identifiant: string | null
+  actif: boolean
+  version: number
+}
+
+export interface SaisieEmploye {
+  matricule: string | null
+  nom: string
+  prenom: string
+  telephone: string | null
+  fonction: FonctionEmploye
+  dateEntree: string | null
+  dateSortie: string | null
+  identifiant: string | null
+  actif: boolean
+  stationId?: string
+  version?: number
+}
+
+export interface PersonnelStation {
+  stationId: string
+  stationCode: string
+  stationNom: string
+  /** La station tient des feuilles de caisse par pompiste */
+  feuillesCaisse: boolean
+  gerer: boolean
+  reglerFeuilles: boolean
+  employes: Employe[]
+}
+
+export interface FeuilleResume {
+  date: string
+  journeeId: string | null
+  stationCode: string
+  poste: TypePoste
+  du: number
+  remis: number
+  /** remis − dû : négatif = manquant */
+  ecart: number
+  observation: string | null
+}
+
+export interface EmployeDetail {
+  employe: Employe
+  affectations: { stationCode: string; stationNom: string; debut: string; fin: string | null }[]
+  du: string
+  au: string
+  feuilles: FeuilleResume[]
+  manquants: number
+  excedents: number
+}
+
+export interface EcartEmploye {
+  employeId: string
+  employe: string
+  fonction: FonctionEmploye
+  actif: boolean
+  feuilles: number
+  du: number
+  remis: number
+  manquants: number
+  excedents: number
+  net: number
+}
+
+export interface EcartsStation {
+  stationId: string
+  mois: string
+  lignes: EcartEmploye[]
+  feuilles: number
+  du: number
+  remis: number
+  manquants: number
+  excedents: number
+  net: number
+}
+
+export interface Creneau {
+  date: string
+  poste: TypePoste
+  employeId: string
+}
+
+export interface PlanningSemaine {
+  stationId: string
+  du: string
+  au: string
+  modifiable: boolean
+  employes: Employe[]
+  creneaux: Creneau[]
+}
+
+export interface PistoletPoste {
+  pistoletId: string
+  code: string
+  pompeCode: string
+  produitCode: string
+  indexDepart: number
+  indexArrivee: number | null
+  litresJournee: number | null
+  prixUnitaire: number | null
+}
+
+export interface LigneFeuille {
+  pistoletId: string
+  pistoletCode: string
+  pompeCode: string
+  produitCode: string
+  indexDebut: number
+  indexFin: number
+  remiseCuve: number
+  litres: number | null
+  prixUnitaire: number | null
+  montant: number | null
+  anomalie: string | null
+}
+
+export interface FeuilleCaisse {
+  id: string
+  employeId: string
+  employe: string
+  lignes: LigneFeuille[]
+  litres: number
+  du: number
+  especes: number
+  electronique: number
+  bons: number
+  cartes: number
+  remis: number
+  ecart: number
+  observation: string | null
+}
+
+export interface PosteJournee {
+  poste: TypePoste
+  libelle: string
+  observation: string | null
+  feuilles: FeuilleCaisse[]
+  du: number
+  remis: number
+  ecart: number
+}
+
+export interface PostesJournee {
+  journeeId: string
+  version: number
+  statut: StatutJournee
+  actif: boolean
+  modifiable: boolean
+  pistolets: PistoletPoste[]
+  employes: Employe[]
+  planning: Creneau[]
+  postes: PosteJournee[]
+  totaux: {
+    litres: number
+    du: number
+    especes: number
+    electronique: number
+    bons: number
+    cartes: number
+    remis: number
+    ecart: number
+  }
+  /** Ce qui s'oppose à la clôture */
+  problemes: string[]
+}
+
+export interface SaisiePoste {
+  version: number
+  observation: string | null
+  feuilles: {
+    employeId: string
+    especes: number
+    electronique: number
+    bons: number
+    cartes: number
+    observation: string | null
+    lignes: { pistoletId: string; indexFin: number; remiseCuve: number | null }[]
+  }[]
 }

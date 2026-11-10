@@ -44,6 +44,7 @@ import type {
 import { usePermission } from '../../auth/session'
 import { MODES_REGLEMENT_CLIENT, MODES_RELANCE, MODES_SIEGE, NIVEAUX_RELANCE, RECOUVREMENTS, TYPES_ENGIN } from '../../shared/clients'
 import { AlerteErreur, Chargement, EnTetePage, PuceStatut } from '../../shared/composants'
+import { confirmerPuis } from '../../shared/confirmation'
 import { formaterDate, formaterNombre, formaterPrix, versNombre, videVersNull } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
 import { telecharger } from '../../shared/telechargement'
@@ -426,7 +427,15 @@ function Releve({ fiche, stationId }: { fiche: FicheClient; stationId: string })
                         size="small"
                         aria-label="Retirer l'opération"
                         disabled={suppression.isPending}
-                        onClick={() => suppression.mutate({ id: l.operationId!, version: l.version! })}
+                        onClick={() =>
+                          confirmerPuis(
+                            {
+                              titre: "Supprimer l'opération ?",
+                              message: `L'opération de ${formaterPrix(l.debit ?? l.credit ?? 0)} sera retirée du compte du client.`,
+                            },
+                            () => suppression.mutate({ id: l.operationId!, version: l.version! }),
+                          )
+                        }
                       >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
@@ -709,7 +718,15 @@ function OngletEngins({ fiche }: { fiche: FicheClient }) {
                     size="small"
                     aria-label={`Retirer la remise ${r.produitCode} du ${formaterDate(r.debut)}`}
                     disabled={suppression.isPending}
-                    onClick={() => suppression.mutate(r.id)}
+                    onClick={() =>
+                      confirmerPuis(
+                        {
+                          titre: 'Supprimer la remise ?',
+                          message: `La remise ${r.produitCode} de ${formaterPrix(r.remise)} applicable au ${formaterDate(r.debut)} sera retirée.`,
+                        },
+                        () => suppression.mutate(r.id),
+                      )
+                    }
                   >
                     <DeleteIcon fontSize="small" />
                   </IconButton>

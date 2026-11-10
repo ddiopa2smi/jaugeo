@@ -101,6 +101,12 @@ class SecuriteConfig {
                         .requestMatchers(HttpMethod.PUT, "/api/v1/stations/*/plafond-especes").hasAuthority("CAISSE_CONTROLER")
                         .requestMatchers(HttpMethod.GET, "/api/v1/journees/*/encaissements").hasAuthority("REFERENTIEL_CONSULTER")
                         .requestMatchers("/api/v1/journees/*/encaissements").hasAuthority("JOURNEE_SAISIR")
+                        // Personnel : feuilles de caisse par pompiste saisies dans la journee ; employes et planning
+                        .requestMatchers("/api/v1/journees/*/postes/*").hasAuthority("JOURNEE_SAISIR")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/personnel/**").hasAuthority("REFERENTIEL_CONSULTER")
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/personnel/stations/*/feuilles-caisse")
+                        .hasAnyAuthority("REFERENTIEL_GERER", "JOURNEE_VALIDER")
+                        .requestMatchers("/api/v1/personnel/**").hasAuthority("PERSONNEL_GERER")
                         // Clients : bons et recouvrements especes saisis dans la journee ; comptes geres par la comptabilite
                         .requestMatchers("/api/v1/journees/*/bons", "/api/v1/journees/*/bons/*", "/api/v1/journees/*/recouvrements",
                                 "/api/v1/journees/*/recouvrements/*", "/api/v1/journees/*/cartes", "/api/v1/journees/*/cartes/*")

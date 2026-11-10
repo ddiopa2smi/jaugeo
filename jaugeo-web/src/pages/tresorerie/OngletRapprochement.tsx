@@ -30,6 +30,7 @@ import { api } from '../../api/client'
 import { useFormatsReleve, useRafraichirTresorerie, useRapprochement, useRapprochementElectronique, useStations } from '../../api/requetes'
 import type { BilanImport, FormatReleve, NatureReleve, OperationReleve, VersementResume } from '../../api/types'
 import { AlerteErreur, Chargement } from '../../shared/composants'
+import { confirmerPuis } from '../../shared/confirmation'
 import { formaterDate, formaterPrix, versNombre } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
 import { moisCourant } from '../../shared/stock'
@@ -364,7 +365,18 @@ function LigneOperation({ o, peutLettrer }: { o: OperationReleve; peutLettrer: b
             </Typography>
             {peutLettrer && (
               <Tooltip title="Défaire le rapprochement">
-                <IconButton size="small" aria-label="Défaire le rapprochement" onClick={() => lettrage.mutate(false)} disabled={lettrage.isPending}>
+                <IconButton size="small" aria-label="Défaire le rapprochement" disabled={lettrage.isPending}
+                  onClick={() =>
+                    confirmerPuis(
+                      {
+                        titre: 'Défaire le rapprochement ?',
+                        message: `L'opération « ${o.libelle} » de ${formaterPrix(o.montant)} ne sera plus rapprochée de son versement.`,
+                        action: 'Défaire',
+                      },
+                      () => lettrage.mutate(false),
+                    )
+                  }
+                >
                   <LinkOffIcon fontSize="small" />
                 </IconButton>
               </Tooltip>

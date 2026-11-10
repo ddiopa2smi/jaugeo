@@ -1,5 +1,6 @@
 import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/Delete'
+import EditIcon from '@mui/icons-material/Edit'
 import LocalShippingIcon from '@mui/icons-material/LocalShipping'
 import SaveIcon from '@mui/icons-material/Save'
 import Alert from '@mui/material/Alert'
@@ -27,9 +28,10 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useImperativeHandle, useState, type Ref } from 'react'
 import { api } from '../../api/client'
 import { cles, rafraichirJournee, useStockJournee } from '../../api/requetes'
-import type { CuveStock, Imputation, SaisieJaugeage, SaisieReception, StockJournee } from '../../api/types'
+import type { CuveStock, Imputation, Reception, SaisieJaugeage, SaisieReception, StockJournee } from '../../api/types'
 import { envoyerSaisie } from '../../horsligne/file'
 import { AlerteErreur } from '../../shared/composants'
+import { confirmerPuis } from '../../shared/confirmation'
 import { formaterDate, formaterNombre, formaterPrix, versNombre, videVersNull } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
 import {
@@ -253,18 +255,48 @@ const receptionVide = (cuveId: string) => ({
 
 type FormulaireReception = ReturnType<typeof receptionVide>
 
-function DialogueReception({ stock, onFermer }: { stock: StockJournee; onFermer: () => void }) {
+/** Reprend une réception enregistrée dans le formulaire, pour la corriger. */
+function versFormulaire(r: Reception): FormulaireReception {
+  const texte = (v: string | null) => v ?? ''
+  const nombre = (v: number | null) => (v === null ? '' : String(v))
+  return {
+    cuveId: r.cuveId,
+    livraisonId: r.livraisonId ?? '',
+    numeroBl: r.numeroBl,
+    fournisseur: r.fournisseur,
+    transporteur: texte(r.transporteur),
+    chauffeur: texte(r.chauffeur),
+    immatriculation: texte(r.immatriculation),
+    scelles: texte(r.scelles),
+    quantiteBl: String(r.quantiteBl),
+    jaugeAvant: nombre(r.jaugeAvant),
+    jaugeApres: nombre(r.jaugeApres),
+    quantiteRecue: String(r.quantiteRecue),
+    temperatureC: nombre(r.temperatureC),
+    densite: nombre(r.densite),
+    observation: texte(r.observation),
+    quantiteBl15: nombre(r.quantiteBl15),
+    scellesIntacts: r.scellesIntacts === null ? '' : r.scellesIntacts ? 'oui' : 'non',
+    // L'imputation enregistrée est reconduite telle quelle : une correction ne la recalcule pas en silence
+    imputation: r.imputation,
+  }
+}
+
+function DialogueReception({ stock, reception, onFermer }: { stock: StockJournee; reception?: Reception; onFermer: () => void }) {
   const queryClient = useQueryClient()
-  const [f, setF] = useState<FormulaireReception>(() => receptionVide(stock.cuves[0]?.cuveId ?? ''))
+  const [f, setF] = useState<FormulaireReception>(() => (reception ? versFormulaire(reception) : receptionVide(stock.cuves[0]?.cuveId ?? '')))
   const maj = (champ: keyof FormulaireReception) => (e: { target: { value: string } }) => setF({ ...f, [champ]: e.target.value })
   const attendues = stock.livraisonsAttendues ?? []
+  /** Tournée déjà rattachée à la réception corrigée : elle n'est plus « attendue » mais reste proposée */
+  const rattachee = reception?.livraisonId ? { id: reception.livraisonId, tournee: reception.tourneeNumero } : null
   const attendue = attendues.find((l) => l.id === f.livraisonId)
-  const tolerancePct = attendue?.tolerancePct ?? stock.toleranceTransportPct
+  const tolerancePct =
+    attendue?.tolerancePct ?? (rattachee && f.livraisonId === rattachee.id ? reception!.tolerancePct : stock.toleranceTransportPct)
   /** Reprend le BL, le transport et la cuve du produit de la livraison attendue choisie. */
   const choisirLivraison = (id: string) => {
     const l = attendues.find((x) => x.id === id)
     if (!l) {
-      setF({ ...f, livraisonId: '' })
+      setF({ ...f, livraisonId: id === rattachee?.id ? id : '' })
       return
     }
     const texte = (v: string | null) => v ?? ''
@@ -284,8 +316,8 @@ function DialogueReception({ stock, onFermer }: { stock: StockJournee; onFermer:
     })
   }
   const ajout = useMutation({
-    mutationFn: () =>
-      api.post<StockJournee>(`/journees/${stock.journeeId}/receptions`, {
+    mutationFn: () => {
+      const corps = {
         version: stock.version,
         cuveId: f.cuveId,
         livraisonId: f.livraisonId || null,
@@ -305,15 +337,20 @@ function DialogueReception({ stock, onFermer }: { stock: StockJournee; onFermer:
         quantiteBl15: versNombre(f.quantiteBl15),
         scellesIntacts: f.scellesIntacts === '' ? null : f.scellesIntacts === 'oui',
         imputation: f.imputation === '' ? null : (f.imputation as Imputation),
-      } satisfies SaisieReception),
+      } satisfies SaisieReception
+      return reception
+        ? api.put<StockJournee>(`/journees/${stock.journeeId}/receptions/${reception.id}`, corps)
+        : api.post<StockJournee>(`/journees/${stock.journeeId}/receptions`, corps)
+    },
     onSuccess: (s) => {
       queryClient.setQueryData(cles.stockJournee(s.journeeId), s)
       rafraichirJournee(queryClient, s.journeeId, cles.stockJournee(s.journeeId))
-      const r = s.receptions[s.receptions.length - 1]
+      const r = reception ? s.receptions.find((x) => x.id === reception.id) : s.receptions[s.receptions.length - 1]
+      const fait = reception ? 'Réception corrigée' : 'Réception enregistrée'
       notifier(
         r?.complementLitres
-          ? `Réception enregistrée. Manquant de ${formaterNombre(r.complementLitres)} L${r.compareeA15 ? ' à 15 °C' : ''} : un complément citerne sera réclamé au ${IMPUTATIONS[r.imputation]}.`
-          : 'Réception enregistrée.',
+          ? `${fait}. Manquant de ${formaterNombre(r.complementLitres)} L${r.compareeA15 ? ' à 15 °C' : ''} : un complément citerne sera réclamé au ${IMPUTATIONS[r.imputation]}.`
+          : `${fait}.`,
         r?.complementLitres ? 'warning' : 'success',
       )
       onFermer()
@@ -343,9 +380,9 @@ function DialogueReception({ stock, onFermer }: { stock: StockJournee; onFermer:
 
   return (
     <Dialog open onClose={onFermer} maxWidth="sm" fullWidth>
-      <DialogTitle>Réception citerne</DialogTitle>
+      <DialogTitle>{reception ? `Corriger la réception du BL ${reception.numeroBl}` : 'Réception citerne'}</DialogTitle>
       <DialogContent>
-        {attendues.length > 0 && (
+        {(attendues.length > 0 || rattachee) && (
           <TextField
             select
             fullWidth
@@ -356,6 +393,7 @@ function DialogueReception({ stock, onFermer }: { stock: StockJournee; onFermer:
             sx={{ mt: 1, mb: 1 }}
           >
             <MenuItem value="">Hors tournée</MenuItem>
+            {rattachee && <MenuItem value={rattachee.id}>{rattachee.tournee ?? 'Tournée'} · livraison déjà rattachée</MenuItem>}
             {attendues.map((l) => (
               <MenuItem key={l.id} value={l.id}>
                 {l.tourneeNumero} · {l.produitCode} · {l.numeroBl ? `BL ${l.numeroBl}` : 'BL à venir'} ·{' '}
@@ -445,7 +483,7 @@ function DialogueReception({ stock, onFermer }: { stock: StockJournee; onFermer:
           onClick={() => ajout.mutate()}
           disabled={ajout.isPending || !f.cuveId || !f.numeroBl.trim() || !f.fournisseur.trim() || !bl || bl <= 0}
         >
-          Enregistrer la réception
+          {reception ? 'Enregistrer la correction' : 'Enregistrer la réception'}
         </Button>
       </DialogActions>
     </Dialog>
@@ -455,6 +493,7 @@ function DialogueReception({ stock, onFermer }: { stock: StockJournee; onFermer:
 function Receptions({ stock }: { stock: StockJournee }) {
   const queryClient = useQueryClient()
   const [dialogue, setDialogue] = useState(false)
+  const [edition, setEdition] = useState<Reception | null>(null)
   const suppression = useMutation({
     mutationFn: (id: string) => api.delete<StockJournee>(`/journees/${stock.journeeId}/receptions/${id}?version=${stock.version}`),
     onSuccess: (s) => {
@@ -547,14 +586,27 @@ function Receptions({ stock }: { stock: StockJournee }) {
                   </TableCell>
                   <TableCell align="right">
                     {stock.modifiable && (
-                      <IconButton
-                        size="small"
-                        aria-label={`Retirer le BL ${r.numeroBl}`}
-                        onClick={() => suppression.mutate(r.id)}
-                        disabled={suppression.isPending}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
+                      <Box sx={{ whiteSpace: 'nowrap' }}>
+                        <IconButton size="small" aria-label={`Corriger le BL ${r.numeroBl}`} onClick={() => setEdition(r)}>
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          aria-label={`Retirer le BL ${r.numeroBl}`}
+                          onClick={() =>
+                            confirmerPuis(
+                              {
+                                titre: 'Supprimer la réception ?',
+                                message: `La réception du BL ${r.numeroBl} (${formaterNombre(r.quantiteRecue)} L en cuve ${r.cuveCode}) sera retirée du stock de la journée.`,
+                              },
+                              () => suppression.mutate(r.id),
+                            )
+                          }
+                          disabled={suppression.isPending}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Box>
                     )}
                   </TableCell>
                 </TableRow>
@@ -564,6 +616,7 @@ function Receptions({ stock }: { stock: StockJournee }) {
         </Box>
       )}
       {dialogue && <DialogueReception stock={stock} onFermer={() => setDialogue(false)} />}
+      {edition && <DialogueReception key={edition.id} stock={stock} reception={edition} onFermer={() => setEdition(null)} />}
     </Box>
   )
 }
