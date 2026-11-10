@@ -26,7 +26,7 @@ import Typography from '@mui/material/Typography'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useImperativeHandle, useState, type Ref } from 'react'
 import { api } from '../../api/client'
-import { cles, useStockJournee } from '../../api/requetes'
+import { cles, rafraichirJournee, useStockJournee } from '../../api/requetes'
 import type { CuveStock, Imputation, SaisieJaugeage, SaisieReception, StockJournee } from '../../api/types'
 import { envoyerSaisie } from '../../horsligne/file'
 import { AlerteErreur } from '../../shared/composants'
@@ -308,7 +308,7 @@ function DialogueReception({ stock, onFermer }: { stock: StockJournee; onFermer:
       } satisfies SaisieReception),
     onSuccess: (s) => {
       queryClient.setQueryData(cles.stockJournee(s.journeeId), s)
-      queryClient.invalidateQueries({ queryKey: cles.journee(s.journeeId), exact: true })
+      rafraichirJournee(queryClient, s.journeeId, cles.stockJournee(s.journeeId))
       const r = s.receptions[s.receptions.length - 1]
       notifier(
         r?.complementLitres
@@ -459,7 +459,7 @@ function Receptions({ stock }: { stock: StockJournee }) {
     mutationFn: (id: string) => api.delete<StockJournee>(`/journees/${stock.journeeId}/receptions/${id}?version=${stock.version}`),
     onSuccess: (s) => {
       queryClient.setQueryData(cles.stockJournee(s.journeeId), s)
-      queryClient.invalidateQueries({ queryKey: cles.journee(s.journeeId), exact: true })
+      rafraichirJournee(queryClient, s.journeeId, cles.stockJournee(s.journeeId))
       notifier('Réception retirée.')
     },
   })
@@ -663,7 +663,7 @@ export function SectionStock({ journeeId, ref }: { journeeId: string; ref?: Ref<
       }
       setSaisies({})
       queryClient.setQueryData(cles.stockJournee(journeeId), r)
-      queryClient.invalidateQueries({ queryKey: cles.journee(journeeId), exact: true })
+      rafraichirJournee(queryClient, journeeId, cles.stockJournee(journeeId))
     },
   })
 

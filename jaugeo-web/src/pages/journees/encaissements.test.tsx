@@ -2,12 +2,13 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { EncaissementsJournee, ModeEncaissement, RecetteJournee } from '../../api/types'
+import type { EncaissementsJournee, ModeEncaissement, RecetteJournee, StockJournee } from '../../api/types'
 import { Fournisseurs } from '../../app/Fournisseurs'
 import { creerQueryClient } from '../../app/queryClient'
 import { installerFauxServeur } from '../../test/fauxServeur'
 import { SectionEncaissements } from './SectionEncaissements'
 import { SectionRecette } from './SectionRecette'
+import { SectionStock } from './SectionStock'
 
 const LIBELLES: Record<ModeEncaissement, string> = { WAVE: 'Wave', ORANGE_MONEY: 'Orange Money', CARTE: 'Carte bancaire' }
 
@@ -105,5 +106,99 @@ describe('encaissements électroniques de la journée', () => {
     // 35 500 F d'espèces : sous le plafond, plus d'alerte
     expect(screen.queryByTestId('alerte-plafond')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Enregistrer les encaissements' })).toBeDisabled()
+  })
+
+  it("enregistre Wave après une réception sans conflit de version (la réception change la version de la journée)", async () => {
+    let version = 3
+    const puts: { version: number }[] = []
+    const encaissements = (): EncaissementsJournee => ({
+      journeeId: 'j1',
+      version,
+      statut: 'BROUILLON',
+      modifiable: true,
+      lignes: (['WAVE', 'ORANGE_MONEY', 'CARTE'] as const).map((m) => ({ mode: m, libelle: LIBELLES[m], montant: null })),
+      total: 0,
+    })
+    const stock = (): StockJournee => ({
+      journeeId: 'j1',
+      stationId: 's-nia',
+      stationCode: 'NIA',
+      date: '2026-08-16',
+      statut: 'BROUILLON',
+      version,
+      modifiable: true,
+      receptions: [],
+      anomalies: 0,
+      toleranceTransportPct: 0.3,
+      livraisonsAttendues: [],
+      cuves: [
+        {
+          cuveId: 'c1',
+          cuveCode: 'C1',
+          produitCode: 'GASOIL',
+          produitLibelle: 'Gasoil',
+          capaciteLitres: 30000,
+          bareme: false,
+          departReporte: true,
+          ouvertureRequise: false,
+          stockDepart: 10000,
+          ouverture: null,
+          receptions: 0,
+          sorties: 0,
+          stockTheorique: 10000,
+          cloture: null,
+          ecartLitres: null,
+          ecartPctJour: null,
+          prixUnitaire: 755,
+          ecartValeur: null,
+          cumulSortiesMois: null,
+          cumulEcartMois: null,
+          ecartPctMois: null,
+          tolerancePct: 0.5,
+          niveau: null,
+          observationRequise: false,
+          anomalies: [],
+          seuilEauMm: 20,
+          alertes: [],
+        },
+      ],    })
+    installerFauxServeur(({ methode, chemin, corps }) => {
+      if (chemin === '/journees/j1/stock') return { status: 200, corps: stock() }
+      if (chemin === '/journees/j1/receptions' && methode === 'POST') {
+        version++
+        return { status: 201, corps: stock() }
+      }
+      if (chemin === '/journees/j1/encaissements' && methode === 'PUT') {
+        const v = (corps as { version: number }).version
+        puts.push({ version: v })
+        if (v !== version) return { status: 409, corps: { code: 'VERSION_OBSOLETE', detail: 'Version obsolète' } }
+        version++
+        return { status: 200, corps: encaissements() }
+      }
+      if (chemin === '/journees/j1/encaissements') return { status: 200, corps: encaissements() }
+      return undefined
+    })
+    render(
+      <Fournisseurs client={creerQueryClient()}>
+        <MemoryRouter>
+          <SectionStock journeeId="j1" />
+          <SectionEncaissements journeeId="j1" />
+        </MemoryRouter>
+      </Fournisseurs>,
+    )
+    const u = userEvent.setup()
+
+    await u.click(await screen.findByRole('button', { name: 'Ajouter une réception' }))
+    const dialogue = await screen.findByRole('dialog')
+    await u.type(within(dialogue).getByLabelText(/N° de BL/), 'BL-1')
+    await u.type(within(dialogue).getByLabelText(/Fournisseur/), 'Dépôt SAR')
+    await u.type(within(dialogue).getByLabelText(/Quantité BL \(L\)/), '10000')
+    await u.click(within(dialogue).getByRole('button', { name: 'Enregistrer la réception' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+    await u.type(screen.getByLabelText('Wave'), '20000')
+    await u.click(screen.getByRole('button', { name: 'Enregistrer les encaissements' }))
+    await waitFor(() => expect(puts).toEqual([{ version: 4 }]))
+    expect(screen.queryByText(/modifiée par quelqu'un d'autre/)).not.toBeInTheDocument()
   })
 })
