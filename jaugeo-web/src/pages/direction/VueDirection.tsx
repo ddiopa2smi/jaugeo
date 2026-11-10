@@ -442,6 +442,12 @@ export function VueDirection() {
       <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', lg: 'repeat(4, 1fr)' }, mb: 3 }}>
         <Tuile libelle="Ventes" valeur={formaterPrix(vue.periode.ventes)}>
           <Variation v={variation(vue.periode.ventes, vue.precedente.ventes)} libelle={comparaison} />
+          {vue.marge !== null && (
+            <Typography variant="caption" color="text.secondary" component="div" data-testid="direction-marge">
+              Marge sur carburants : {formaterPrix(vue.marge)}
+              {vue.tauxMarge !== null && ` (${vue.tauxMarge.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %)`}
+            </Typography>
+          )}
         </Tuile>
         <Tuile libelle="Litres vendus" valeur={`${formaterNombre(vue.periode.litres)} L`}>
           <Variation v={variation(vue.periode.litres, vue.precedente.litres)} libelle={comparaison} />
@@ -501,7 +507,10 @@ export function VueDirection() {
             </Table>
           </Box>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-            Mois précédent complet : {formaterPrix(vue.ventesMoisPrecedent)}. Marge non calculée : le coût d'achat arrive au lot 2.
+            Mois précédent complet : {formaterPrix(vue.ventesMoisPrecedent)}.{' '}
+            {vue.marge === null
+              ? "Marge non calculée : un prix d'achat convenu manque (Approvisionnement, fournisseurs)."
+              : "Marge = ventes − litres vendus × prix d'achat convenu du jour."}
           </Typography>
         </Bloc>
       </Box>

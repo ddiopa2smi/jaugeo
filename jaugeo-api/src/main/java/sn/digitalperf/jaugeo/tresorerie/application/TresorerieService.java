@@ -29,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 import sn.digitalperf.jaugeo.commun.ErreurMetier;
 import sn.digitalperf.jaugeo.commun.Libelles;
 import sn.digitalperf.jaugeo.commun.PieceJointe;
+import sn.digitalperf.jaugeo.commun.VerrouPeriode;
 import sn.digitalperf.jaugeo.exploitation.JourneesExploitation;
 import sn.digitalperf.jaugeo.exploitation.JourneesExploitation.JourneeRef;
 import sn.digitalperf.jaugeo.referentiel.ReferentielConsultation;
@@ -93,6 +94,8 @@ public class TresorerieService implements SyntheseCaisse {
     private final int delaiVersementJours;
     /** Plafond d'especes des stations sans plafond propre (null : aucun). */
     private final BigDecimal plafondReseau;
+    /** Mois clotures : ni versement ni arrete de caisse date dans un mois clos. */
+    private final VerrouPeriode verrou;
 
     public TresorerieService(RecetteJourneeDepot recettes, VersementDepot versements, PieceVersementDepot pieces,
                              ArreteCaisseDepot arretes, ManquantGerantDepot manquants, PlafondEspecesDepot plafonds,
@@ -102,8 +105,10 @@ public class TresorerieService implements SyntheseCaisse {
                              JourneesExploitation exploitation, ReferentielConsultation referentiel,
                              PerimetreCourant perimetre, Clock horloge,
                              @Value("${jaugeo.tresorerie.delai-versement-jours:3}") int delaiVersementJours,
-                             @Value("${jaugeo.tresorerie.plafond-especes:#{null}}") BigDecimal plafondReseau) {
+                             @Value("${jaugeo.tresorerie.plafond-especes:#{null}}") BigDecimal plafondReseau,
+                             VerrouPeriode verrou) {
         this.plafondReseau = plafondReseau;
+        this.verrou = verrou;
         this.recettes = recettes;
         this.versements = versements;
         this.pieces = pieces;
@@ -155,6 +160,12 @@ public class TresorerieService implements SyntheseCaisse {
 
     public LivreCaisse livre(UUID stationUuid, YearMonth mois) {
         return livre(stationAccessible(stationUuid), mois);
+    }
+
+    @Override
+    public long versementsAVerifier(long stationId, YearMonth mois) {
+        return versements.countByStationIdAndStatutAndDateDepotBetween(stationId, Versement.Statut.SAISI, mois.atDay(1),
+                mois.atEndOfMonth());
     }
 
     @Override
@@ -305,6 +316,7 @@ public class TresorerieService implements SyntheseCaisse {
         Versement v = versements.findByUuid(id).orElseThrow(() -> ErreurMetier.introuvable("Versement"));
         perimetre.exigerStation(v.getStationId());
         v.verifierVersion(version);
+        verrou.exigerOuvert(v.getStationId(), v.getDateDepot());
         if (valide) {
             v.verifier(perimetre.identifiant(), horloge.instant(), pieces.existe(v.getId()));
         } else {
@@ -336,6 +348,7 @@ public class TresorerieService implements SyntheseCaisse {
 
     /** Un arrete de caisse fige le passe : aucun versement ne peut etre ajoute, modifie ou retire a sa date ou avant. */
     private void exigerApresDernierArrete(long stationId, LocalDate date) {
+        verrou.exigerOuvert(stationId, date);
         arretes.findFirstByStationIdOrderByDateJourDesc(stationId).filter(a -> !date.isAfter(a.getDateJour())).ifPresent(a -> {
             throw ErreurMetier.regle("CAISSE_ARRETEE", "La caisse a été arrêtée le " + Libelles.date(a.getDateJour())
                     + " : un versement déposé à cette date ou avant ne peut plus être saisi ni modifié.");
@@ -400,6 +413,7 @@ public class TresorerieService implements SyntheseCaisse {
         if (date == null || date.isAfter(aujourdhui())) {
             throw ErreurMetier.regle("DATE_INVALIDE", "La caisse s'arrête à la fin d'une journée passée ou du jour.");
         }
+        verrou.exigerOuvert(s.id(), date);
         arretes.findFirstByStationIdOrderByDateJourDesc(s.id()).filter(a -> !date.isAfter(a.getDateJour())).ifPresent(a -> {
             throw ErreurMetier.regle("ARRETE_ANTERIEUR", "La caisse a déjà été arrêtée le " + Libelles.date(a.getDateJour())
                     + " : un nouvel arrêté doit être postérieur.");

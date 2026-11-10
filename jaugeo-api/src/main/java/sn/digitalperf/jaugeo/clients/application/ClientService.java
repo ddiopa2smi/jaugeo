@@ -47,6 +47,7 @@ import sn.digitalperf.jaugeo.clients.domaine.OperationCompte;
 import sn.digitalperf.jaugeo.clients.domaine.OperationCompteDepot;
 import sn.digitalperf.jaugeo.commun.ErreurMetier;
 import sn.digitalperf.jaugeo.commun.Libelles;
+import sn.digitalperf.jaugeo.commun.VerrouPeriode;
 import sn.digitalperf.jaugeo.referentiel.ReferentielConsultation;
 import sn.digitalperf.jaugeo.referentiel.ReferentielConsultation.ProduitRef;
 import sn.digitalperf.jaugeo.referentiel.ReferentielConsultation.StationRef;
@@ -78,12 +79,16 @@ public class ClientService implements ComptesClients {
     private final RelanceDepot relances;
     private final ImputationClients imputation;
     private final MouvementCarteDepot pleins;
+    /** Mois clotures : ni reprise ni reglement date dans un mois clos. */
+    private final VerrouPeriode verrou;
 
     public ClientService(ClientDepot clients, BonDepot bons, OperationCompteDepot operations,
                          ReferentielConsultation referentiel, PerimetreCourant perimetre, Clock horloge,
                          EnginClientDepot engins, RemiseClientDepot remises, FactureDepot factures, CarteDepot cartes,
-                         RelanceDepot relances, ImputationClients imputation, MouvementCarteDepot pleins) {
+                         RelanceDepot relances, ImputationClients imputation, MouvementCarteDepot pleins,
+                         VerrouPeriode verrou) {
         this.pleins = pleins;
+        this.verrou = verrou;
         this.clients = clients;
         this.bons = bons;
         this.operations = operations;
@@ -345,6 +350,7 @@ public class ClientService implements ComptesClients {
         } else {
             throw ErreurMetier.regle("TYPE_INVALIDE", "Une opération de compte est une reprise de créance ou un règlement.");
         }
+        verrou.exigerOuvert(st.id(), o.getDateOperation());
         operations.saveAndFlush(o);
         return fiche(clientId);
     }
@@ -358,6 +364,7 @@ public class ClientService implements ComptesClients {
         if (o.getMode() == OperationCompte.Mode.ESPECES_STATION) {
             throw ErreurMetier.regle("OPERATION_DE_JOURNEE", "Ce recouvrement en espèces se retire de la journée de la station.");
         }
+        verrou.exigerOuvert(o.getStationId(), o.getDateOperation());
         operations.delete(o);
         operations.flush();
         exigerCreancePositive(o.getClientId(), o.getStationId());

@@ -1605,6 +1605,9 @@ export interface VueDirection {
   produits: ProduitDirection[]
   jours: JourDirection[]
   stations: StationDirection[]
+  /** Marge sur carburants de la période ; nulle si un prix d'achat convenu manque */
+  marge: number | null
+  tauxMarge: number | null
 }
 // ------------------------------------------------------------ Lubrifiants et boutique (lot 2, M4)
 
@@ -2160,4 +2163,136 @@ export interface SaisiePoste {
     observation: string | null
     lignes: { pistoletId: string; indexFin: number; remiseCuve: number | null }[]
   }[]
+}
+
+// ------------------------------------------------------------ Clôture mensuelle, compte d'exploitation, budget (lot 2, M12)
+
+/** Un carburant dans le compte d'exploitation ; coût, marge ou valeur d'écart nuls = prix d'achat inconnu. */
+export interface ProduitCompte {
+  code: string
+  libelle: string
+  litres: number
+  chiffreAffaires: number
+  coutAchat: number | null
+  marge: number | null
+  ecartStockLitres: number
+  ecartStockValeur: number | null
+}
+
+/**
+ * Compte d'exploitation d'une station (ou du réseau : stationId nul) pour un mois.
+ * Marge brute = marge carburants + marge articles − remises ;
+ * résultat = marge brute + écarts de stock − dépenses + régularisations.
+ */
+export interface CompteExploitation {
+  stationId: string | null
+  stationCode: string
+  stationNom: string
+  produits: ProduitCompte[]
+  chiffreAffaires: number
+  coutAchat: number
+  margeCarburants: number
+  ventesArticles: number
+  coutArticles: number
+  margeArticles: number
+  remises: number
+  margeBrute: number
+  tauxMarge: number | null
+  ecartsStock: number
+  depenses: number
+  regularisations: number
+  resultat: number
+  /** Faux : un prix d'achat manque, la marge ne couvre que les produits dont le coût est connu */
+  coutComplet: boolean
+  prixManquants: string[]
+  clos: boolean
+  cloturePar: string | null
+  clotureLe: string | null
+}
+
+export interface CompteReseau {
+  mois: string
+  stations: CompteExploitation[]
+  total: CompteExploitation
+}
+
+export type StatutClotureMois = 'CLOS' | 'PRET' | 'BLOQUE'
+
+export interface EtatClotureStation {
+  stationId: string
+  stationCode: string
+  stationNom: string
+  statut: StatutClotureMois
+  blocages: string[]
+  journees: number
+  journeesValidees: number
+  cloturePar: string | null
+  clotureLe: string | null
+}
+
+export interface EtatClotureMois {
+  mois: string
+  stations: EtatClotureStation[]
+  closes: number
+  pretes: number
+}
+
+export type PosteRegularisation = 'CHIFFRE_AFFAIRES' | 'COUT_ACHAT' | 'STOCK' | 'DEPENSES' | 'AUTRE'
+
+export interface Regularisation {
+  id: string
+  stationId: string
+  stationCode: string
+  stationNom: string
+  moisConcerne: string
+  moisComptable: string
+  poste: PosteRegularisation
+  /** Effet sur le résultat : positif = l'améliore */
+  montant: number
+  motif: string
+  reference: string | null
+  par: string
+  le: string
+}
+
+export interface MoisBudget {
+  litres: number
+  montant: number
+}
+
+export interface ProduitBudget {
+  produitId: string
+  code: string
+  libelle: string
+  /** Douze mois, de janvier à décembre */
+  mois: MoisBudget[]
+}
+
+export interface BudgetStation {
+  stationId: string
+  stationCode: string
+  stationNom: string
+  annee: number
+  produits: ProduitBudget[]
+  depenses: number[]
+}
+
+export interface SuiviMoisBudget {
+  /** Nul pour le cumul des mois écoulés */
+  mois: string | null
+  ecoule: boolean
+  litresBudget: number
+  litresReel: number
+  caBudget: number
+  caReel: number
+  depensesBudget: number
+  depensesReel: number
+}
+
+export interface SuiviBudget {
+  annee: number
+  stationId: string | null
+  mois: SuiviMoisBudget[]
+  produits: { code: string; libelle: string; litresBudget: number; litresReel: number; caBudget: number; caReel: number }[]
+  cumul: SuiviMoisBudget
 }

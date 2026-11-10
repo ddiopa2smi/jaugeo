@@ -4,6 +4,7 @@ import AssessmentIcon from '@mui/icons-material/Assessment'
 import BadgeIcon from '@mui/icons-material/Badge'
 import CreditCardIcon from '@mui/icons-material/CreditCard'
 import DashboardIcon from '@mui/icons-material/Dashboard'
+import EventAvailableIcon from '@mui/icons-material/EventAvailable'
 import EventNoteIcon from '@mui/icons-material/EventNote'
 import GroupsIcon from '@mui/icons-material/Groups'
 import HistoryIcon from '@mui/icons-material/History'
@@ -62,6 +63,7 @@ const SECTIONS: { titre: string; entrees: EntreeMenu[] }[] = [
     entrees: [
       { chemin: '/', libelle: 'Tableau de bord', icone: <DashboardIcon /> },
       { chemin: '/reseau', libelle: 'Réseau', icone: <MapIcon />, permission: 'TABLEAU_BORD_RESEAU' },
+      { chemin: '/cloture', libelle: 'Clôture mensuelle', icone: <EventAvailableIcon />, permission: 'CLOTURE_MENSUELLE' },
     ],
   },
   {
