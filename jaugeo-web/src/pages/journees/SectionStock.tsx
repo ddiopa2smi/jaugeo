@@ -26,7 +26,7 @@ import Typography from '@mui/material/Typography'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useImperativeHandle, useState, type Ref } from 'react'
 import { api } from '../../api/client'
-import { cles, useStockJournee } from '../../api/requetes'
+import { cles, rafraichirJournee, useStockJournee } from '../../api/requetes'
 import type { CuveStock, Imputation, SaisieJaugeage, SaisieReception, StockJournee } from '../../api/types'
 import { envoyerSaisie } from '../../horsligne/file'
 import { AlerteErreur } from '../../shared/composants'
@@ -229,6 +229,8 @@ function CarteCuve({
 
 const receptionVide = (cuveId: string) => ({
   cuveId,
+  /** Livraison de tournée attendue ('' = hors tournée) */
+  livraisonId: '',
   numeroBl: '',
   fournisseur: '',
   transporteur: '',
@@ -255,11 +257,38 @@ function DialogueReception({ stock, onFermer }: { stock: StockJournee; onFermer:
   const queryClient = useQueryClient()
   const [f, setF] = useState<FormulaireReception>(() => receptionVide(stock.cuves[0]?.cuveId ?? ''))
   const maj = (champ: keyof FormulaireReception) => (e: { target: { value: string } }) => setF({ ...f, [champ]: e.target.value })
+  const attendues = stock.livraisonsAttendues ?? []
+  const attendue = attendues.find((l) => l.id === f.livraisonId)
+  const tolerancePct = attendue?.tolerancePct ?? stock.toleranceTransportPct
+  /** Reprend le BL, le transport et la cuve du produit de la livraison attendue choisie. */
+  const choisirLivraison = (id: string) => {
+    const l = attendues.find((x) => x.id === id)
+    if (!l) {
+      setF({ ...f, livraisonId: '' })
+      return
+    }
+    const texte = (v: string | null) => v ?? ''
+    const nombre = (v: number | null) => (v === null ? '' : String(v))
+    setF({
+      ...f,
+      livraisonId: l.id,
+      cuveId: stock.cuves.find((c) => c.produitCode === l.produitCode)?.cuveId ?? f.cuveId,
+      numeroBl: texte(l.numeroBl),
+      fournisseur: l.fournisseur,
+      transporteur: l.transporteur,
+      chauffeur: texte(l.chauffeur),
+      immatriculation: texte(l.immatriculation),
+      scelles: texte(l.scelles),
+      quantiteBl: nombre(l.quantiteBl ?? l.quantiteCommandee),
+      quantiteBl15: nombre(l.quantiteBl15),
+    })
+  }
   const ajout = useMutation({
     mutationFn: () =>
       api.post<StockJournee>(`/journees/${stock.journeeId}/receptions`, {
         version: stock.version,
         cuveId: f.cuveId,
+        livraisonId: f.livraisonId || null,
         numeroBl: f.numeroBl.trim(),
         fournisseur: f.fournisseur.trim(),
         transporteur: videVersNull(f.transporteur),
@@ -279,7 +308,7 @@ function DialogueReception({ stock, onFermer }: { stock: StockJournee; onFermer:
       } satisfies SaisieReception),
     onSuccess: (s) => {
       queryClient.setQueryData(cles.stockJournee(s.journeeId), s)
-      queryClient.invalidateQueries({ queryKey: cles.journee(s.journeeId), exact: true })
+      rafraichirJournee(queryClient, s.journeeId, cles.stockJournee(s.journeeId))
       const r = s.receptions[s.receptions.length - 1]
       notifier(
         r?.complementLitres
@@ -305,7 +334,7 @@ function DialogueReception({ stock, onFermer }: { stock: StockJournee; onFermer:
   const livre = a15 ? bl15 : bl
   const mesure = a15 ? recue15 : recue
   const manquant = livre !== null && mesure !== null ? Math.round((livre - mesure) * 100) / 100 : null
-  const horsTolerance = manquant !== null && livre !== null && manquant > (livre * stock.toleranceTransportPct) / 100
+  const horsTolerance = manquant !== null && livre !== null && manquant > (livre * tolerancePct) / 100
   const imputation: Imputation = f.imputation
     ? (f.imputation as Imputation)
     : f.scellesIntacts === 'oui'
@@ -316,6 +345,25 @@ function DialogueReception({ stock, onFermer }: { stock: StockJournee; onFermer:
     <Dialog open onClose={onFermer} maxWidth="sm" fullWidth>
       <DialogTitle>Réception citerne</DialogTitle>
       <DialogContent>
+        {attendues.length > 0 && (
+          <TextField
+            select
+            fullWidth
+            label="Livraison attendue"
+            value={f.livraisonId}
+            onChange={(e) => choisirLivraison(e.target.value)}
+            helperText="Reprend le BL et le transport de la tournée ; la livraison sera marquée dépotée."
+            sx={{ mt: 1, mb: 1 }}
+          >
+            <MenuItem value="">Hors tournée</MenuItem>
+            {attendues.map((l) => (
+              <MenuItem key={l.id} value={l.id}>
+                {l.tourneeNumero} · {l.produitCode} · {l.numeroBl ? `BL ${l.numeroBl}` : 'BL à venir'} ·{' '}
+                {formaterNombre(l.quantiteBl ?? l.quantiteCommandee)} L · {l.transporteur}
+              </MenuItem>
+            ))}
+          </TextField>
+        )}
         <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, pt: 1 }}>
           <TextField select label="Cuve" value={f.cuveId} onChange={maj('cuveId')} required>
             {stock.cuves.map((c) => (
@@ -382,7 +430,7 @@ function DialogueReception({ stock, onFermer }: { stock: StockJournee; onFermer:
             {recue15 !== null && `À 15 °C : ${litres(recue15)} (facteur ${vcf!.toLocaleString('fr-FR', { minimumFractionDigits: 4 })}). `}
             {a15 ? 'Comparaison à 15 °C. ' : ''}
             {manquant! > 0
-              ? `Manquant ${litres(manquant)}${horsTolerance ? ` au-delà de la tolérance transport (${formaterPct(stock.toleranceTransportPct)}) : complément citerne à la charge du ${IMPUTATIONS[imputation]}.` : ', dans la tolérance transport.'}`
+              ? `Manquant ${litres(manquant)}${horsTolerance ? ` au-delà de la tolérance transport (${formaterPct(tolerancePct)}) : complément citerne à la charge du ${IMPUTATIONS[imputation]}.` : ', dans la tolérance transport.'}`
               : manquant! < 0
                 ? `Excédent ${litres(-manquant!)}.`
                 : 'Conforme au BL.'}
@@ -411,7 +459,7 @@ function Receptions({ stock }: { stock: StockJournee }) {
     mutationFn: (id: string) => api.delete<StockJournee>(`/journees/${stock.journeeId}/receptions/${id}?version=${stock.version}`),
     onSuccess: (s) => {
       queryClient.setQueryData(cles.stockJournee(s.journeeId), s)
-      queryClient.invalidateQueries({ queryKey: cles.journee(s.journeeId), exact: true })
+      rafraichirJournee(queryClient, s.journeeId, cles.stockJournee(s.journeeId))
       notifier('Réception retirée.')
     },
   })
@@ -454,6 +502,7 @@ function Receptions({ stock }: { stock: StockJournee }) {
                     {r.numeroBl}
                     <Typography variant="caption" color="text.secondary" component="div">
                       {r.fournisseur}
+                      {r.tourneeNumero ? ` · tournée ${r.tourneeNumero}` : ''}
                     </Typography>
                   </TableCell>
                   <TableCell>{r.cuveCode}</TableCell>
@@ -483,11 +532,9 @@ function Receptions({ stock }: { stock: StockJournee }) {
                   </TableCell>
                   <TableCell align="right">
                     {formaterNombre(r.ecartLivraison)} ({formaterPct(r.ecartLivraisonPct)})
-                    {r.compareeA15 && (
-                      <Typography variant="caption" color="text.secondary" component="div">
-                        à 15 °C
-                      </Typography>
-                    )}
+                    <Typography variant="caption" color="text.secondary" component="div">
+                      {r.compareeA15 ? 'à 15 °C · ' : ''}toléré {formaterPct(r.tolerancePct)}
+                    </Typography>
                     {r.complementLitres && (
                       <Chip
                         size="small"
@@ -616,7 +663,7 @@ export function SectionStock({ journeeId, ref }: { journeeId: string; ref?: Ref<
       }
       setSaisies({})
       queryClient.setQueryData(cles.stockJournee(journeeId), r)
-      queryClient.invalidateQueries({ queryKey: cles.journee(journeeId), exact: true })
+      rafraichirJournee(queryClient, journeeId, cles.stockJournee(journeeId))
     },
   })
 

@@ -3,7 +3,6 @@ package sn.digitalperf.jaugeo.stock.application;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import sn.digitalperf.jaugeo.commun.ErreurMetier;
@@ -33,17 +32,16 @@ class ClotureStock implements ParticipantCloture {
     private final ReceptionDepot receptions;
     private final ComplementCiterneDepot complements;
     private final Tarification tarification;
-    private final BigDecimal toleranceTransportPct;
+    private final ToleranceTransport tolerance;
 
     ClotureStock(EvaluationStock evaluation, EcartStockDepot ecarts, ReceptionDepot receptions,
-                 ComplementCiterneDepot complements, Tarification tarification,
-                 @Value("${jaugeo.stock.tolerance-transport-pct:0.3}") BigDecimal toleranceTransportPct) {
+                 ComplementCiterneDepot complements, Tarification tarification, ToleranceTransport tolerance) {
         this.evaluation = evaluation;
         this.ecarts = ecarts;
         this.receptions = receptions;
         this.complements = complements;
         this.tarification = tarification;
-        this.toleranceTransportPct = toleranceTransportPct;
+        this.tolerance = tolerance;
     }
 
     @Override
@@ -69,8 +67,9 @@ class ClotureStock implements ParticipantCloture {
                     c.cuve().toleranceEcartPct(), r, c.cloture().getObservation()));
         }
         for (Reception r : receptions.findByJourneeIdOrderByIdAsc(j.id())) {
-            // Manquant juge a 15 °C quand le BL et les releves le permettent, a temperature ambiante sinon
-            BigDecimal manquant = CalculStock.complement(r.quantiteLivree(), r.quantiteMesuree(), toleranceTransportPct);
+            // Manquant juge a 15 °C quand le BL et les releves le permettent, a temperature ambiante sinon ;
+            // tolerance du transporteur (contrat) ou du reseau
+            BigDecimal manquant = CalculStock.complement(r.quantiteLivree(), r.quantiteMesuree(), tolerance.pour(r));
             if (manquant.signum() > 0) {
                 BigDecimal prix = tarification.prixEnVigueur(j.stationId(), r.getProduitId(), j.fin().minusSeconds(1)).orElse(null);
                 complements.save(new ComplementCiterne(r, manquant, prix));
@@ -91,7 +90,11 @@ class ClotureStock implements ParticipantCloture {
     }
 
     BigDecimal toleranceTransportPct() {
-        return toleranceTransportPct;
+        return tolerance.reseauPct();
+    }
+
+    BigDecimal tolerancePct(Reception r) {
+        return tolerance.pour(r);
     }
 
     static String libelle(CuveEvaluee c) {

@@ -66,7 +66,7 @@ class StockController {
                            @DecimalMin("0.5") @DecimalMax("1.2") @Digits(integer = 1, fraction = 4) BigDecimal densite,
                            @Size(max = 500) String observation,
                            @Positive @Digits(integer = 10, fraction = 2) BigDecimal quantiteBl15,
-                           Boolean scellesIntacts, Reception.Imputation imputation) {
+                           Boolean scellesIntacts, Reception.Imputation imputation, UUID livraisonId) {
         Reception.Donnees donnees() {
             return new Reception.Donnees(numeroBl, fournisseur, transporteur, chauffeur, immatriculation, scelles,
                     quantiteBl, jaugeAvant, jaugeApres, quantiteRecue, temperatureC, densite, observation,
@@ -104,14 +104,14 @@ class StockController {
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAuthority('JOURNEE_SAISIR')")
     StockJournee ajouterReception(@PathVariable UUID id, @Valid @RequestBody ReceptionSaisie r) {
-        return service.ajouterReception(id, r.version(), r.cuveId(), r.donnees());
+        return service.ajouterReception(id, r.version(), r.cuveId(), r.livraisonId(), r.donnees());
     }
 
     @Operation(summary = "Corrige une réception de la journée en saisie")
     @PutMapping("/journees/{id}/receptions/{receptionId}")
     @PreAuthorize("hasAuthority('JOURNEE_SAISIR')")
     StockJournee modifierReception(@PathVariable UUID id, @PathVariable UUID receptionId, @Valid @RequestBody ReceptionSaisie r) {
-        return service.modifierReception(id, receptionId, r.version(), r.cuveId(), r.donnees());
+        return service.modifierReception(id, receptionId, r.version(), r.cuveId(), r.livraisonId(), r.donnees());
     }
 
     @Operation(summary = "Retire une réception saisie par erreur (journée en saisie)")

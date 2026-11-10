@@ -49,7 +49,7 @@ class ConsultationStock implements StocksJournee {
         }
         BigDecimal total = BigDecimal.ZERO;
         for (Reception r : receptions.findByJourneeIdOrderByIdAsc(journeeId)) {
-            BigDecimal manquant = CalculStock.complement(r.quantiteLivree(), r.quantiteMesuree(), cloture.toleranceTransportPct());
+            BigDecimal manquant = CalculStock.complement(r.quantiteLivree(), r.quantiteMesuree(), cloture.tolerancePct(r));
             if (manquant.signum() > 0) {
                 BigDecimal prix = tarification.prixEnVigueur(j.stationId(), r.getProduitId(), j.fin().minusSeconds(1)).orElse(null);
                 if (prix != null) {

@@ -19,6 +19,7 @@ const PageStation = differe(() => import('../pages/stations/PageStation'), 'Page
 const PageJournees = differe(() => import('../pages/journees/PageJournees'), 'PageJournees')
 const PageJournee = differe(() => import('../pages/journees/PageJournee'), 'PageJournee')
 const PageStocks = differe(() => import('../pages/stocks/PageStocks'), 'PageStocks')
+const PageAppro = differe(() => import('../pages/appro/PageAppro'), 'PageAppro')
 const PageArticles = differe(() => import('../pages/articles/PageArticles'), 'PageArticles')
 const PageTresorerie = differe(() => import('../pages/tresorerie/PageTresorerie'), 'PageTresorerie')
 const PageClients = differe(() => import('../pages/clients/PageClients'), 'PageClients')
@@ -55,11 +56,12 @@ export const routes: RouteObject[] = [
           { path: 'journees', element: protegee('REFERENTIEL_CONSULTER', <PageJournees />) },
           { path: 'journees/:id', element: protegee('REFERENTIEL_CONSULTER', <PageJournee />) },
           { path: 'stocks', element: protegee('REFERENTIEL_CONSULTER', <PageStocks />) },
+          { path: 'approvisionnement', element: protegee('TABLEAU_BORD_RESEAU', <PageAppro />) },
           { path: 'boutique', element: protegee('REFERENTIEL_CONSULTER', <PageArticles />) },
           { path: 'tresorerie', element: protegee('REFERENTIEL_CONSULTER', <PageTresorerie />) },
           { path: 'clients', element: protegee('REFERENTIEL_CONSULTER', <PageClients />) },
-      { path: 'creances', element: protegee('REFERENTIEL_CONSULTER', <PageCreances />) },
-      { path: 'cartes', element: protegee('REFERENTIEL_CONSULTER', <PageCartes />) },
+          { path: 'creances', element: protegee('REFERENTIEL_CONSULTER', <PageCreances />) },
+          { path: 'cartes', element: protegee('REFERENTIEL_CONSULTER', <PageCartes />) },
           { path: 'syntheses', element: protegee('REFERENTIEL_CONSULTER', <PageSyntheses />) },
           { path: 'prix', element: protegee('REFERENTIEL_CONSULTER', <PagePrix />) },
           { path: 'produits', element: protegee('REFERENTIEL_CONSULTER', <PageProduits />) },

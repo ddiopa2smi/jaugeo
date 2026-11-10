@@ -25,6 +25,7 @@ import sn.digitalperf.jaugeo.referentiel.ReferentielConsultation;
 import sn.digitalperf.jaugeo.referentiel.ReferentielConsultation.CuveRef;
 import sn.digitalperf.jaugeo.referentiel.ReferentielConsultation.StationRef;
 import sn.digitalperf.jaugeo.securite.PerimetreCourant;
+import sn.digitalperf.jaugeo.stock.LivraisonsAttendues.LivraisonAttendue;
 import sn.digitalperf.jaugeo.stock.StocksMensuels;
 import sn.digitalperf.jaugeo.stock.application.EvaluationStock.CuveEvaluee;
 import sn.digitalperf.jaugeo.stock.application.VuesStock.AnalyseMensuelle;
@@ -32,6 +33,7 @@ import sn.digitalperf.jaugeo.stock.application.VuesStock.AnomalieVue;
 import sn.digitalperf.jaugeo.stock.application.VuesStock.ComplementVue;
 import sn.digitalperf.jaugeo.stock.application.VuesStock.CuveStock;
 import sn.digitalperf.jaugeo.stock.application.VuesStock.JaugeageVue;
+import sn.digitalperf.jaugeo.stock.application.VuesStock.LivraisonAttendueVue;
 import sn.digitalperf.jaugeo.stock.application.VuesStock.LigneStock;
 import sn.digitalperf.jaugeo.stock.application.VuesStock.ReceptionVue;
 import sn.digitalperf.jaugeo.stock.application.VuesStock.SaisieJaugeage;
@@ -63,11 +65,13 @@ public class StockService implements StocksMensuels {
     private final ComplementCiterneDepot complements;
     private final EvaluationStock evaluation;
     private final ClotureStock cloture;
+    private final ToleranceTransport tolerance;
     private final BigDecimal autonomieAlerteJours;
 
     public StockService(JourneesExploitation exploitation, ReferentielConsultation referentiel, PerimetreCourant perimetre,
                         JaugeageDepot jaugeages, ReceptionDepot receptions, EcartStockDepot ecarts,
                         ComplementCiterneDepot complements, EvaluationStock evaluation, ClotureStock cloture,
+                        ToleranceTransport tolerance,
                         @org.springframework.beans.factory.annotation.Value("${jaugeo.stock.autonomie-alerte-jours:3}")
                         BigDecimal autonomieAlerteJours) {
         this.autonomieAlerteJours = autonomieAlerteJours;
@@ -80,6 +84,7 @@ public class StockService implements StocksMensuels {
         this.complements = complements;
         this.evaluation = evaluation;
         this.cloture = cloture;
+        this.tolerance = tolerance;
     }
 
     // ---------------------------------------------------------------- Journee
@@ -137,17 +142,18 @@ public class StockService implements StocksMensuels {
     }
 
     @Transactional
-    public StockJournee ajouterReception(UUID journeeUuid, Integer version, UUID cuveId, Reception.Donnees d) {
+    public StockJournee ajouterReception(UUID journeeUuid, Integer version, UUID cuveId, UUID livraisonId, Reception.Donnees d) {
         JourneeRef j = verrouiller(journeeUuid, version);
         Reception r = new Reception(j.id(), j.stationId(), j.date());
-        renseigner(j, r, cuveId, d);
+        renseigner(j, r, cuveId, livraisonId, d);
         return vue(j);
     }
 
     @Transactional
-    public StockJournee modifierReception(UUID journeeUuid, UUID receptionId, Integer version, UUID cuveId, Reception.Donnees d) {
+    public StockJournee modifierReception(UUID journeeUuid, UUID receptionId, Integer version, UUID cuveId, UUID livraisonId,
+                                          Reception.Donnees d) {
         JourneeRef j = verrouiller(journeeUuid, version);
-        renseigner(j, reception(j, receptionId), cuveId, d);
+        renseigner(j, reception(j, receptionId), cuveId, livraisonId, d);
         return vue(j);
     }
 
@@ -159,10 +165,27 @@ public class StockService implements StocksMensuels {
         return vue(j);
     }
 
-    private void renseigner(JourneeRef j, Reception r, UUID cuveId, Reception.Donnees d) {
+    private void renseigner(JourneeRef j, Reception r, UUID cuveId, UUID livraisonId, Reception.Donnees d) {
         CuveRef c = cuvesParUuid(j.stationId()).get(cuveId);
         if (c == null || !c.actif()) {
             throw ErreurMetier.regle("CUVE_INCONNUE", "Choisissez une cuve en service de la station.");
+        }
+        Long livraison = null;
+        if (livraisonId != null) {
+            LivraisonAttendue l = tolerance.livraison(livraisonId).orElseThrow(() -> ErreurMetier.introuvable("Livraison"));
+            if (l.stationId() != j.stationId()) {
+                throw ErreurMetier.regle("LIVRAISON_AUTRE_STATION", "La livraison de la tournée " + l.tourneeNumero()
+                        + " est destinée à une autre station.");
+            }
+            if (l.produitId() != c.produitId()) {
+                throw ErreurMetier.regle("LIVRAISON_AUTRE_PRODUIT", "La livraison de la tournée " + l.tourneeNumero()
+                        + " ne porte pas le produit de la cuve " + c.code() + " (" + c.produitLibelle() + ").");
+            }
+            receptions.findByLivraisonId(l.id()).filter(x -> !x.getId().equals(r.getId())).ifPresent(x -> {
+                throw ErreurMetier.conflit("LIVRAISON_DEJA_RECEPTIONNEE", "La livraison de la tournée " + l.tourneeNumero()
+                        + " a déjà été réceptionnée le " + EvaluationStock.date(x.getDateJour()) + " (BL n° " + x.getNumeroBl() + ").");
+            });
+            livraison = l.id();
         }
         receptions.parBl(d.fournisseur().trim(), d.numeroBl().trim()).filter(x -> !x.getId().equals(r.getId())).ifPresent(x -> {
             String ou = referentiel.station(x.getStationId()).map(StationRef::code).orElse("?");
@@ -174,6 +197,7 @@ public class StockService implements StocksMensuels {
                     + EvaluationStock.litres(c.capaciteLitres()) + ".");
         }
         r.renseigner(c.id(), c.produitId(), d);
+        r.rattacher(livraison);
         receptions.saveAndFlush(r);
     }
 
@@ -226,8 +250,10 @@ public class StockService implements StocksMensuels {
         List<ReceptionVue> recues = livraisons.stream().map(r -> {
             CuveRef c = cuvesParId.get(r.getCuveId());
             ComplementCiterne cc = complementsParReception.get(r.getId());
+            BigDecimal tolerancePct = cloture.tolerancePct(r);
             BigDecimal complement = cc != null ? cc.getLitres()
-                    : CalculStock.complement(r.quantiteLivree(), r.quantiteMesuree(), cloture.toleranceTransportPct());
+                    : CalculStock.complement(r.quantiteLivree(), r.quantiteMesuree(), tolerancePct);
+            LivraisonAttendue l = tolerance.livraison(r.getLivraisonId()).orElse(null);
             return new ReceptionVue(r.getUuid(), c.uuid(), c.code(), c.produitCode(), r.getNumeroBl(), r.getFournisseur(),
                     r.getTransporteur(), r.getChauffeur(), r.getImmatriculation(), r.getScelles(), r.getQuantiteBl(),
                     r.getJaugeAvant(), r.getJaugeApres(), r.getQuantiteRecue(), r.getTemperatureC(), r.getDensite(),
@@ -235,11 +261,22 @@ public class StockService implements StocksMensuels {
                     CalculStock.pourcentageLivraison(r.quantiteLivree(), r.quantiteMesuree()),
                     complement.signum() > 0 ? complement : null, cc == null ? null : cc.getStatut().name(),
                     r.getModifiePar(), r.getModifieLe(), r.getQuantiteBl15(), r.getFacteur15(), r.getQuantiteRecue15(),
-                    r.compareeA15(), r.getScellesIntacts(), r.getImputation().name());
+                    r.compareeA15(), r.getScellesIntacts(), r.getImputation().name(), l == null ? null : l.uuid(),
+                    l == null ? null : l.tourneeNumero(), tolerancePct);
         }).toList();
         int anomalies = cuves.stream().mapToInt(c -> c.anomalies().size()).sum();
+        List<LivraisonAttendueVue> attendues = List.of();
+        if (j.brouillon()) {
+            Map<Long, String> produits = referentiel.produits().stream()
+                    .collect(Collectors.toMap(ReferentielConsultation.ProduitRef::id, ReferentielConsultation.ProduitRef::code));
+            attendues = tolerance.attendues(j.stationId()).stream().map(a -> new LivraisonAttendueVue(a.uuid(), a.tourneeNumero(),
+                    a.tourneeStatut(), produits.get(a.produitId()), a.quantiteCommandee(), a.numeroBl(), a.quantiteBl(),
+                    a.quantiteBl15(), a.fournisseur(), a.transporteur(), a.chauffeur(), a.immatriculation(), a.scelles(),
+                    a.dateLivraisonPrevue(), tolerance.pour(a.id(), a.transporteur()))).toList();
+        }
         return new StockJournee(j.uuid(), s.uuid(), s.code(), j.date(), j.statut(), j.version(),
-                j.brouillon() && aPermission("JOURNEE_SAISIR"), cuves, recues, anomalies, cloture.toleranceTransportPct());
+                j.brouillon() && aPermission("JOURNEE_SAISIR"), cuves, recues, anomalies, cloture.toleranceTransportPct(),
+                attendues);
     }
 
     private static JaugeageVue vue(Jaugeage m) {
