@@ -29,6 +29,7 @@ import { cles, rafraichirJournee, useJournee } from '../../api/requetes'
 import type { CreditJournee, DepensesJournee, DetailJournee, LigneReleve, RecetteJournee, SaisieJournee, StockJournee } from '../../api/types'
 import { envoyerSaisie, estPanneReseau, useHorsLigne } from '../../horsligne/file'
 import { EnvoisJournee } from '../../horsligne/IndicateurHorsLigne'
+import { PastilleStation } from '../../shared/CarteStation'
 import { AlerteErreur, Chargement } from '../../shared/composants'
 import { apercu, memeSaisie, saisieInitiale, STATUTS_JOURNEE, type SaisieLigne } from '../../shared/journee'
 import { formaterDate, formaterDateHeureCourte, formaterNombre, formaterPrix, versNombre } from '../../shared/libelles'
@@ -386,9 +387,12 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
         <Stack spacing={2} sx={{ flexGrow: 1, width: '100%' }}>
           {[...groupes.entries()].map(([pompe, lignes]) => (
             <Paper key={pompe} variant="outlined" sx={{ px: 2, py: 1 }}>
-              <Typography variant="overline" color="text.secondary">
-                Pompe {pompe}
-              </Typography>
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center', py: 0.5 }}>
+                <PastilleStation taille={30} />
+                <Typography variant="overline" color="text.secondary" sx={{ lineHeight: 1.4 }}>
+                  Pompe {pompe}
+                </Typography>
+              </Stack>
               {lignes.map((l, i) => (
                 <Box key={l.pistoletId}>
                   {i > 0 && <Divider />}

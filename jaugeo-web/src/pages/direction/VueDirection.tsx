@@ -27,6 +27,7 @@ import {
 } from '../../api/requetes'
 import type { NiveauEcart, VueDirection as Vue } from '../../api/types'
 import { useSession } from '../../auth/session'
+import { NomStation, PastilleStation } from '../../shared/CarteStation'
 import { AlerteErreur, Chargement } from '../../shared/composants'
 import { formaterDateHeureCourte, formaterNombre, formaterPrix } from '../../shared/libelles'
 import { aujourdhui } from '../../shared/tresorerie'
@@ -164,7 +165,7 @@ function ArgentDu({ vue }: { vue: Vue }) {
             Ce mois : {formaterPrix(vue.versements)} versés sur {formaterPrix(vue.montantDu)} dus
             {auDelaPlafond.length > 0 && (
               <Box component="span" sx={{ display: 'block', color: 'warning.main' }} data-testid="direction-plafond">
-                Espèces au-delà du plafond : {auDelaPlafond.map((s) => s.stationCode).join(', ')}
+                Espèces au-delà du plafond : {auDelaPlafond.map((s) => s.stationNom).join(', ')}
               </Box>
             )}
           </>
@@ -257,7 +258,7 @@ function Risques({ date }: { date: string }) {
         libelle="Cuves à réapprovisionner"
         detail={
           reappro.length > 0
-            ? reappro.map((c) => `${c.stationCode} ${c.produitLibelle}${c.autonomieJours === null ? '' : ` (${formaterNombre(c.autonomieJours)} j)`}`).join(' · ')
+            ? reappro.map((c) => `${c.stationNom} ${c.produitLibelle}${c.autonomieJours === null ? '' : ` (${formaterNombre(c.autonomieJours)} j)`}`).join(' · ')
             : 'Autonomie suffisante partout'
         }
         valeur={String(reappro.length)}
@@ -269,7 +270,7 @@ function Risques({ date }: { date: string }) {
           <Divider />
           <Ligne
             libelle="Eau en fond de cuve"
-            detail={eau.map((c) => `${c.stationCode} ${c.cuveCode} : ${c.hauteurEauMm} mm`).join(' · ')}
+            detail={eau.map((c) => `${c.stationNom} ${c.cuveCode} : ${c.hauteurEauMm} mm`).join(' · ')}
             valeur={String(eau.length)}
             vers="/stocks?onglet=autonomie"
             alerte
@@ -283,8 +284,8 @@ function Risques({ date }: { date: string }) {
         </Typography>
       ) : (
         aSurveiller.map((s) => (
-          <Stack key={s.stationId} direction="row" spacing={1} sx={{ py: 0.75, alignItems: 'flex-start' }}>
-            <Chip size="small" color={NIVEAUX[s.niveau].couleur} label={s.code} sx={{ minWidth: 48 }} />
+          <Stack key={s.stationId} direction="row" spacing={1.5} sx={{ py: 0.75, alignItems: 'center' }}>
+            <PastilleStation teinte={NIVEAUX[s.niveau].couleur} taille={36} />
             <Box sx={{ minWidth: 0 }}>
               <Typography variant="body2">{s.nom}</Typography>
               <Typography variant="caption" color="text.secondary">
@@ -371,8 +372,8 @@ function Stations({ vue }: { vue: Vue }) {
               const v = variation(s.ventes, s.ventesPrecedent)
               return (
                 <TableRow key={s.stationId} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/stations/${s.stationId}`)}>
-                  <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                    {s.code} · {s.nom}
+                  <TableCell>
+                    <NomStation nom={s.nom} />
                   </TableCell>
                   <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
                     {formaterPrix(s.ventes)}

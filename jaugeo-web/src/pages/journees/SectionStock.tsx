@@ -2,6 +2,7 @@ import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/Delete'
 import EditIcon from '@mui/icons-material/Edit'
 import LocalShippingIcon from '@mui/icons-material/LocalShipping'
+import OilBarrelIcon from '@mui/icons-material/OilBarrel'
 import SaveIcon from '@mui/icons-material/Save'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
@@ -30,6 +31,7 @@ import { api } from '../../api/client'
 import { cles, rafraichirJournee, useStockJournee } from '../../api/requetes'
 import type { CuveStock, Imputation, Reception, SaisieJaugeage, SaisieReception, StockJournee } from '../../api/types'
 import { envoyerSaisie } from '../../horsligne/file'
+import { PastilleStation } from '../../shared/CarteStation'
 import { AlerteErreur } from '../../shared/composants'
 import { confirmerPuis } from '../../shared/confirmation'
 import { formaterDate, formaterNombre, formaterPrix, versNombre, videVersNull } from '../../shared/libelles'
@@ -138,7 +140,8 @@ function CarteCuve({
 
   return (
     <Box sx={{ py: 1.5 }} data-testid={`cuve-${cuve.cuveCode}`}>
-      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1, flexWrap: 'wrap' }}>
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1, flexWrap: 'wrap', rowGap: 0.5 }}>
+        <PastilleStation taille={30} icone={OilBarrelIcon} />
         <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
           Cuve {cuve.cuveCode} · {cuve.produitLibelle}
         </Typography>

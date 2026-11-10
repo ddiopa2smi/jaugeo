@@ -13,6 +13,7 @@ import { lazy, Suspense, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useTableauReseau } from '../../api/requetes'
 import type { NiveauEcart, StationReseau } from '../../api/types'
+import { NomStation } from '../../shared/CarteStation'
 import { AlerteErreur, Chargement } from '../../shared/composants'
 import { formaterDate, formaterNombre, formaterPrix } from '../../shared/libelles'
 import { NIVEAUX_ECART } from '../../shared/stock'
@@ -151,12 +152,7 @@ export function PageReseau() {
                       data-testid={`station-${s.code}`}
                     >
                       <TableCell>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {s.code}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {s.nom}
-                        </Typography>
+                        <NomStation nom={s.nom} teinte={NIVEAUX_ECART[s.niveau].couleur} />
                       </TableCell>
                       <TableCell>
                         <Chip size="small" color={NIVEAUX_ECART[s.niveau].couleur} label={LIBELLES_NIVEAU[s.niveau]} />
