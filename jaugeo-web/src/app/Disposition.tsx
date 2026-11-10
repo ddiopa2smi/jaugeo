@@ -5,6 +5,7 @@ import BadgeIcon from '@mui/icons-material/Badge'
 import CreditCardIcon from '@mui/icons-material/CreditCard'
 import DashboardIcon from '@mui/icons-material/Dashboard'
 import EventNoteIcon from '@mui/icons-material/EventNote'
+import GroupsIcon from '@mui/icons-material/Groups'
 import HistoryIcon from '@mui/icons-material/History'
 import InventoryIcon from '@mui/icons-material/Inventory'
 import LocalGasStationIcon from '@mui/icons-material/LocalGasStation'
@@ -70,6 +71,7 @@ const SECTIONS: { titre: string; entrees: EntreeMenu[] }[] = [
       { chemin: '/stocks', libelle: 'Stocks', icone: <InventoryIcon />, permission: 'REFERENTIEL_CONSULTER' },
       { chemin: '/approvisionnement', libelle: 'Approvisionnement', icone: <LocalShippingIcon />, permission: 'TABLEAU_BORD_RESEAU' },
       { chemin: '/boutique', libelle: 'Lubrifiants et boutique', icone: <StorefrontIcon />, permission: 'REFERENTIEL_CONSULTER' },
+      { chemin: '/personnel', libelle: 'Personnel', icone: <GroupsIcon />, permission: 'REFERENTIEL_CONSULTER' },
       { chemin: '/tresorerie', libelle: 'Trésorerie', icone: <AccountBalanceIcon />, permission: 'REFERENTIEL_CONSULTER' },
       { chemin: '/clients', libelle: 'Clients en compte', icone: <BadgeIcon />, permission: 'REFERENTIEL_CONSULTER' },
       { chemin: '/creances', libelle: 'Créances et factures', icone: <ReceiptLongIcon />, permission: 'REFERENTIEL_CONSULTER' },

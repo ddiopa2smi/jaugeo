@@ -37,6 +37,7 @@ import { SectionArticles } from './SectionArticles'
 import { SectionEncaissements } from './SectionEncaissements'
 import { RecapCredit, SectionCredit } from './SectionCredit'
 import { RecapDepenses, SectionDepenses } from './SectionDepenses'
+import { SectionPostes } from './SectionPostes'
 import { DetailMontant, SectionRecette } from './SectionRecette'
 import { RecapStock, SectionStock, type PoigneeStock } from './SectionStock'
 
@@ -402,6 +403,7 @@ function FicheJournee({ journee }: { journee: DetailJournee }) {
               ))}
             </Paper>
           ))}
+          <SectionPostes journeeId={journee.id} />
           <SectionStock journeeId={journee.id} ref={poigneeStock} />
           <SectionArticles journeeId={journee.id} />
           <SectionEncaissements journeeId={journee.id} />

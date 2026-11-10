@@ -57,6 +57,11 @@ import type {
   StockArticles,
   Utilisateur,
   VentesArticlesJournee,
+  EcartsStation,
+  EmployeDetail,
+  PersonnelStation,
+  PlanningSemaine,
+  PostesJournee,
 } from './types'
 
 export const cles = {
@@ -124,6 +129,12 @@ export const cles = {
   tournee: (id: string) => ['appro', 'tournee', id] as const,
   facturesFournisseur: ['appro', 'factures'] as const,
   factureFournisseur: (id: string) => ['appro', 'facture', id] as const,
+  personnel: ['personnel'] as const,
+  personnelStation: (stationId: string) => ['personnel', 'station', stationId] as const,
+  employe: (id: string, mois: string) => ['personnel', 'employe', id, mois] as const,
+  ecartsPersonnel: (stationId: string, mois: string) => ['personnel', 'ecarts', stationId, mois] as const,
+  planning: (stationId: string, du: string) => ['personnel', 'planning', stationId, du] as const,
+  postes: (id: string) => ['journees', id, 'postes'] as const,
 }
 
 export const useRegions = () => useQuery({ queryKey: cles.regions, queryFn: () => api.get<Region[]>('/regions'), staleTime: 10 * 60_000 })
@@ -404,3 +415,36 @@ export const useFactureFournisseur = (id: string | null) =>
     queryFn: () => api.get<FactureFournisseurDetail>(`/appro/factures/${id}`),
     enabled: !!id,
   })
+
+// ---------------------------------------------------------------- Personnel (M9)
+
+export const usePersonnelStation = (stationId: string | null) =>
+  useQuery({
+    queryKey: cles.personnelStation(stationId ?? ''),
+    queryFn: () => api.get<PersonnelStation>(`/personnel/stations/${stationId}`),
+    enabled: !!stationId,
+  })
+
+export const useEmploye = (id: string | null, mois: string) =>
+  useQuery({
+    queryKey: cles.employe(id ?? '', mois),
+    queryFn: () => api.get<EmployeDetail>(`/personnel/employes/${id}?mois=${mois}`),
+    enabled: !!id && moisValide(mois),
+  })
+
+export const useEcartsPersonnel = (stationId: string | null, mois: string) =>
+  useQuery({
+    queryKey: cles.ecartsPersonnel(stationId ?? '', mois),
+    queryFn: () => api.get<EcartsStation>(`/personnel/stations/${stationId}/ecarts?mois=${mois}`),
+    enabled: !!stationId && moisValide(mois),
+  })
+
+export const usePlanning = (stationId: string | null, du: string) =>
+  useQuery({
+    queryKey: cles.planning(stationId ?? '', du),
+    queryFn: () => api.get<PlanningSemaine>(`/personnel/stations/${stationId}/planning?du=${du}`),
+    enabled: !!stationId && /^\d{4}-\d{2}-\d{2}$/.test(du),
+  })
+
+export const usePostes = (id: string) =>
+  useQuery({ queryKey: cles.postes(id), queryFn: () => api.get<PostesJournee>(`/journees/${id}/postes`) })
