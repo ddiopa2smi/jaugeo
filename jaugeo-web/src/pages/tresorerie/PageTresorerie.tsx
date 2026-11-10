@@ -40,6 +40,7 @@ import {
 import type { DepenseAValider, LivreCaisse, Manquant, TypeArrete, Versement } from '../../api/types'
 import { usePermission, useSession } from '../../auth/session'
 import { AlerteErreur, Chargement, EnTetePage } from '../../shared/composants'
+import { confirmerPuis } from '../../shared/confirmation'
 import { formaterDate, formaterPrix, versNombre, videVersNull } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
 import { BoutonPiece, VoirPiece } from '../../shared/PieceJointe'
@@ -200,7 +201,15 @@ function TableVersements({ versements, avecStation }: { versements: Versement[];
                       <IconButton
                         size="small"
                         aria-label={`Retirer le BV ${v.referenceBv}`}
-                        onClick={() => suppression.mutate(v)}
+                        onClick={() =>
+                          confirmerPuis(
+                            {
+                              titre: 'Supprimer le versement ?',
+                              message: `Le versement BV ${v.referenceBv} de ${formaterPrix(v.montant)} (${v.banque}) sera supprimé.`,
+                            },
+                            () => suppression.mutate(v),
+                          )
+                        }
                         disabled={suppression.isPending}
                       >
                         <DeleteIcon fontSize="small" />

@@ -29,6 +29,7 @@ import { cles, useFournisseursAppro, usePenalites, useProduits, useTransporteur,
 import type { Citerne, FournisseurAppro, PenaliteTransport, Transporteur, TransporteurDetail } from '../../api/types'
 import { usePermission } from '../../auth/session'
 import { AlerteErreur, Chargement, PuceStatut } from '../../shared/composants'
+import { confirmerPuis } from '../../shared/confirmation'
 import { formaterDate, formaterNombre, formaterPrix, versNombre, videVersNull } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
 import { formaterPct } from '../../shared/stock'
@@ -625,7 +626,16 @@ function DialoguePrix({ fournisseur, onFermer }: { fournisseur: FournisseurAppro
                   </TableCell>
                   <TableCell padding="checkbox">
                     {peutGerer && (
-                      <IconButton aria-label="Retirer le prix" size="small" onClick={() => suppression.mutate(p.id)}>
+                      <IconButton aria-label="Retirer le prix" size="small" onClick={() =>
+                          confirmerPuis(
+                            {
+                              titre: 'Supprimer le prix ?',
+                              message: `Le prix ${p.produitLibelle} de ${formaterPrix(p.prix)} convenu à partir du ${formaterDate(p.debut)} sera retiré.`,
+                            },
+                            () => suppression.mutate(p.id),
+                          )
+                        }
+                      >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
                     )}

@@ -1,14 +1,21 @@
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Chip from '@mui/material/Chip'
+import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
+import Dialog from '@mui/material/Dialog'
+import DialogActions from '@mui/material/DialogActions'
+import DialogContent from '@mui/material/DialogContent'
+import DialogContentText from '@mui/material/DialogContentText'
+import DialogTitle from '@mui/material/DialogTitle'
 import Snackbar from '@mui/material/Snackbar'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
-import type { ComponentProps, ReactNode } from 'react'
+import { useState, type ComponentProps, type ReactNode } from 'react'
 import { Controller, type Control, type FieldPath, type FieldValues } from 'react-hook-form'
 import { messageErreur } from '../api/client'
+import { useConfirmation } from './confirmation'
 import { useNotification } from './notifications'
 
 export function EnTetePage({ titre, sousTitre, actions }: { titre: string; sousTitre?: string; actions?: ReactNode }) {
@@ -56,6 +63,30 @@ export function PuceStatut({ actif, libelleInactif = 'Inactif' }: { actif: boole
     <Chip size="small" color="success" variant="outlined" label="Actif" />
   ) : (
     <Chip size="small" variant="outlined" label={libelleInactif} />
+  )
+}
+
+/** Modale de confirmation commune à toutes les suppressions (voir `confirmer`). */
+export function ZoneConfirmation() {
+  const { demande, repondre } = useConfirmation()
+  // Le dernier texte reste affiché pendant la fermeture de la modale
+  const [affichee, setAffichee] = useState(demande)
+  if (demande && demande !== affichee) setAffichee(demande)
+  return (
+    <Dialog open={demande !== null} onClose={() => repondre(false)} maxWidth="xs" fullWidth aria-labelledby="titre-confirmation">
+      <DialogTitle id="titre-confirmation">{affichee?.titre}</DialogTitle>
+      <DialogContent>
+        <DialogContentText>{affichee?.message}</DialogContentText>
+      </DialogContent>
+      <DialogActions>
+        <Button autoFocus onClick={() => repondre(false)}>
+          Annuler
+        </Button>
+        <Button color="error" variant="contained" onClick={() => repondre(true)}>
+          {affichee?.action ?? 'Supprimer'}
+        </Button>
+      </DialogActions>
+    </Dialog>
   )
 }
 

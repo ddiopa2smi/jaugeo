@@ -26,6 +26,7 @@ import type { CarteCarburant, CarteDetail, ModeRecharge, StatutCarte } from '../
 import { usePermission } from '../../auth/session'
 import { MODES_RECHARGE, STATUTS_CARTE } from '../../shared/clients'
 import { AlerteErreur, Chargement, EnTetePage } from '../../shared/composants'
+import { confirmerPuis } from '../../shared/confirmation'
 import { formaterDate, formaterNombre, formaterPrix, versNombre, videVersNull } from '../../shared/libelles'
 import { imprimerCarte } from '../../shared/impressionCarte'
 import { notifier } from '../../shared/notifications'
@@ -240,7 +241,18 @@ export function DialogueCarte({ id, onFermer }: { id: string; onFermer: () => vo
               </Button>
             )}
             {d.carte.solde === 0 && (
-              <Button color="error" onClick={() => changement.mutate('ANNULEE')} disabled={changement.isPending}>
+              <Button color="error" disabled={changement.isPending}
+                onClick={() =>
+                  confirmerPuis(
+                    {
+                      titre: 'Annuler la carte ?',
+                      message: `La carte ${d.carte.numero} de ${d.carte.porteur} sera annulée définitivement : elle ne pourra plus être rechargée ni utilisée.`,
+                      action: 'Annuler la carte',
+                    },
+                    () => changement.mutate('ANNULEE'),
+                  )
+                }
+              >
                 Annuler la carte
               </Button>
             )}

@@ -22,6 +22,7 @@ import { api } from '../../api/client'
 import { cles, rafraichirJournee, usePostes } from '../../api/requetes'
 import type { PosteJournee, PostesJournee, SaisiePoste, TypePoste } from '../../api/types'
 import { AlerteErreur } from '../../shared/composants'
+import { confirmerPuis } from '../../shared/confirmation'
 import { formaterNombre, formaterPrix, versNombre, videVersNull } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
 import { COULEUR_ECART, formaterEcart, LIBELLES_POSTE, POSTES } from '../../shared/personnel'
@@ -370,7 +371,15 @@ export function SectionPostes({ journeeId }: { journeeId: string }) {
             poste={poste}
             modifiable={p.modifiable}
             onModifier={() => setEdition(poste.poste)}
-            onRetirer={() => retrait.mutate(poste.poste)}
+            onRetirer={() =>
+              confirmerPuis(
+                {
+                  titre: 'Supprimer le poste ?',
+                  message: `Le poste du ${poste.libelle.toLowerCase()} et ses ${poste.feuilles.length} feuille(s) de caisse seront retirés de la journée.`,
+                },
+                () => retrait.mutate(poste.poste),
+              )
+            }
           />
         ))}
       </Stack>

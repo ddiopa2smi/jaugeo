@@ -27,6 +27,7 @@ import { api } from '../../api/client'
 import { cles, rafraichirJournee, useDepensesJournee, useNaturesDepense } from '../../api/requetes'
 import type { Depense, DepensesJournee, SaisieDepense } from '../../api/types'
 import { AlerteErreur } from '../../shared/composants'
+import { confirmerPuis } from '../../shared/confirmation'
 import { formaterPrix, versNombre, videVersNull } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
 import { BoutonPiece, VoirPiece } from '../../shared/PieceJointe'
@@ -324,7 +325,15 @@ export function SectionDepenses({ journeeId }: { journeeId: string }) {
                         <IconButton
                           size="small"
                           aria-label={`Retirer ${x.libelle}`}
-                          onClick={() => suppression.mutate(x.id)}
+                          onClick={() =>
+                            confirmerPuis(
+                              {
+                                titre: 'Supprimer la dépense ?',
+                                message: `La dépense « ${x.libelle} » de ${formaterPrix(x.montant)} sera retirée de la journée.`,
+                              },
+                              () => suppression.mutate(x.id),
+                            )
+                          }
                           disabled={suppression.isPending}
                         >
                           <DeleteIcon fontSize="small" />
