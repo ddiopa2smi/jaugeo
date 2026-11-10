@@ -17,5 +17,8 @@ public interface PrixAchatDepot extends JpaRepository<PrixAchat, Long> {
                                                                                                     Long produitId,
                                                                                                     LocalDate date);
 
+    /** Tous les prix convenus d'un produit, tous fournisseurs, par date d'effet. */
+    List<PrixAchat> findByProduitIdOrderByDebutAscIdAsc(Long produitId);
+
     boolean existsByFournisseurIdAndProduitIdAndDebut(Long fournisseurId, Long produitId, LocalDate debut);
 }

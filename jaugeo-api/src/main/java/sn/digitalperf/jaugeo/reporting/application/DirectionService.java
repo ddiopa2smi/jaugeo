@@ -15,11 +15,15 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import sn.digitalperf.jaugeo.approvisionnement.PrixAchats;
+import sn.digitalperf.jaugeo.approvisionnement.PrixAchats;
 import sn.digitalperf.jaugeo.exploitation.JourneesExploitation;
 import sn.digitalperf.jaugeo.exploitation.JourneesExploitation.VenteJour;
 import sn.digitalperf.jaugeo.referentiel.ReferentielConsultation;
 import sn.digitalperf.jaugeo.referentiel.ReferentielConsultation.ProduitRef;
 import sn.digitalperf.jaugeo.referentiel.ReferentielConsultation.StationRef;
+import sn.digitalperf.jaugeo.reporting.domaine.CalculMarge;
+import sn.digitalperf.jaugeo.reporting.domaine.CalculMarge.VenteDuJour;
 import sn.digitalperf.jaugeo.securite.PerimetreCourant;
 import sn.digitalperf.jaugeo.tresorerie.SyntheseCaisse;
 import sn.digitalperf.jaugeo.tresorerie.SyntheseCaisse.MoisCaisse;
@@ -57,16 +61,18 @@ public class DirectionService {
     public record VueDirection(LocalDate date, YearMonth mois, Periode periode, Periode precedente,
                                BigDecimal ventesMoisPrecedent, BigDecimal montantDu, BigDecimal versements,
                                BigDecimal soldeCaisse, List<ProduitDirection> produits, List<JourDirection> jours,
-                               List<StationDirection> stations) {
+                               List<StationDirection> stations, BigDecimal marge, BigDecimal tauxMarge) {
     }
 
     private final ReferentielConsultation referentiel;
     private final JourneesExploitation exploitation;
     private final SyntheseCaisse caisse;
     private final PerimetreCourant perimetre;
+    private final PrixAchats prixAchats;
 
     public DirectionService(ReferentielConsultation referentiel, JourneesExploitation exploitation,
-                            SyntheseCaisse caisse, PerimetreCourant perimetre) {
+                            SyntheseCaisse caisse, PerimetreCourant perimetre, PrixAchats prixAchats) {
+        this.prixAchats = prixAchats;
         this.referentiel = referentiel;
         this.exploitation = exploitation;
         this.caisse = caisse;
@@ -99,6 +105,8 @@ public class DirectionService {
             parJour.put(d, new JourCumul());
         }
         List<StationDirection> lignes = new ArrayList<>();
+        // Litres vendus par produit et par jour, pour le cout d'achat au prix convenu du jour
+        Map<Long, List<VenteDuJour>> parProduitJour = new LinkedHashMap<>();
         BigDecimal ventesMoisPrec = BigDecimal.ZERO;
         for (StationRef s : stations) {
             BigDecimal litres = BigDecimal.ZERO;
@@ -108,6 +116,7 @@ public class DirectionService {
                 c[0] = c[0].add(v.litres());
                 c[1] = c[1].add(v.montant());
                 parJour.get(v.date()).ajouter(code(produits, v.produitId()), v.litres(), v.montant());
+                parProduitJour.computeIfAbsent(v.produitId(), k -> new ArrayList<>()).add(new VenteDuJour(v.date(), v.litres()));
                 litres = litres.add(v.litres());
                 ventes = ventes.add(v.montant());
             }
@@ -143,9 +152,17 @@ public class DirectionService {
                 somme(lignesProduits, ProduitDirection::ventes));
         Periode precedente = new Periode(duPrec, auPrec, somme(lignesProduits, ProduitDirection::litresPrecedent),
                 somme(lignesProduits, ProduitDirection::ventesPrecedent));
+        // Marge sur carburants : inconnue des qu'un produit vendu n'a pas de prix d'achat convenu en vigueur
+        BigDecimal cout = BigDecimal.ZERO;
+        for (Map.Entry<Long, List<VenteDuJour>> e : parProduitJour.entrySet()) {
+            BigDecimal c = CalculMarge.coutDesVentes(e.getValue(), prixAchats.prixConvenus(e.getKey()));
+            cout = c == null || cout == null ? null : cout.add(c);
+        }
+        BigDecimal marge = cout == null || periode.ventes().signum() == 0 ? null : periode.ventes().subtract(cout);
         return new VueDirection(date, mois, periode, precedente, ventesMoisPrec,
                 somme(lignes, StationDirection::montantDu), somme(lignes, StationDirection::versements),
-                somme(lignes, StationDirection::soldeCaisse), lignesProduits, jours, lignes);
+                somme(lignes, StationDirection::soldeCaisse), lignesProduits, jours, lignes, marge,
+                CalculMarge.taux(marge, periode.ventes()));
     }
 
     /** [litres, ventes, litres precedents, ventes precedentes] d'un produit. */

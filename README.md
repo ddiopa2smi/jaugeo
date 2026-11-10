@@ -191,6 +191,20 @@ Sprint M5 (module `tresorerie`, Flyway V16) :
 - **Manquants des gérants** : reconnaissance de dette (référence du document signé) et échéancier mensuel ; règlements partiels par remboursement ou retenue, imputés dans l'ordre des échéances ; le manquant est soldé quand le cumul atteint son montant. Les échéances échues non honorées sont signalées ; la situation de trésorerie ne compte plus que le reste dû.
 - **Écrans** : section « Wave, Orange Money et carte » de la fiche journée ; colonne et plafond dans l'onglet Caisse ; onglet « Rapprochement » de la trésorerie (siège : comptabilité, contrôle) ; fiche d'un manquant (échéancier, règlements).
 
+Sprint M12 (module `reporting`, Flyway V20) :
+
+- **Compte d'exploitation** par station et pour le réseau, sur les journées clôturées du mois : chiffre d'affaires − coût d'achat = marge sur carburants ; + marge sur lubrifiants et boutique (CMUP) − remises = marge brute ; ± écarts de stock au coût d'achat − dépenses ± régularisations = résultat.
+  - Coût d'achat = litres vendus chaque jour × prix d'achat convenu avec le fournisseur (M8) en vigueur ce jour-là : celui du fournisseur principal s'il en a pour le produit, sinon celui des autres.
+  - Sans prix convenu un jour de vente, le coût du produit est inconnu : la marge ne couvre que les produits dont le coût est connu, et le produit est signalé.
+- **Clôture d'un mois, station par station** : mois terminé, toutes les journées validées jusqu'au dernier jour, versements du mois vérifiés ou rejetés, mois précédent clos. La clôture fige le compte d'exploitation (`reporting.compte_fige`) et ne se défait pas.
+- **Mois verrouillé** (`MOIS_CLOS`) : plus d'ouverture ni de renvoi de journée, de versement, d'arrêté de caisse, de reprise ou de règlement client daté dans le mois. Les modules d'écriture interrogent l'interface `commun.VerrouPeriode`, mise en œuvre par le reporting.
+- **Régularisation** d'un mois clos : poste, montant qui augmente ou diminue le résultat, motif obligatoire. Elle s'ajoute au résultat du mois en cours ; en insertion seule, une erreur se corrige par une régularisation contraire.
+- **Budget** annuel par station : litres et chiffre d'affaires par produit et par mois, dépenses par mois ; réel contre budget mois par mois, cumul sur les mois terminés.
+- **Exports** : classeur Excel (compte d'exploitation du mois, réel contre budget de l'année) et PDF du compte.
+- **Droits** : tout passe par `CLOTURE_MENSUELLE` (contrôle de gestion, comptabilité, et Direction depuis V20). La vue Direction affiche la marge sur carburants.
+- **Écran** : page « Clôture mensuelle » (compte d'exploitation, clôture, régularisations, budget).
+- Non livré : l'export des écritures comptables (lot A, en attente du logiciel comptable cible).
+
 ## Prérequis
 
 - JDK 17 (sur ce poste, `JAVA_HOME` système pointe vers un JDK 8 : utilisez `scripts/env-dev.ps1`)
@@ -250,8 +264,8 @@ Documentation de l'API : http://localhost:8080/swagger-ui.html
 ## Tests
 
 ```powershell
-cd jaugeo-api; mvn test        # 153 tests : unitaires, architecture modulaire, intégration sur PostgreSQL 18 (Testcontainers), dont la reprise d'un classeur synthétique par l'API HTTP
-cd jaugeo-web; npm test        # 60 tests : file des saisies hors ligne (coupure, rejeu, conflit), page Réseau, client API, parcours d'écrans, page Prix, saisie et clôture d'une journée avec jaugeage et recette, page Stocks, lubrifiants et boutique (réception, inventaire, ventes de la journée), trésorerie (versement avec photo du BV, vérification, encaissements Wave / Orange Money / carte, rapprochement bancaire, échéancier d’un manquant), clients (création, fiche, relevé), bon à crédit avec alerte de plafond, synthèse mensuelle (observation, export), barèmes, échéances
+cd jaugeo-api; mvn test        # 180 tests : unitaires, architecture modulaire, intégration sur PostgreSQL 18 (Testcontainers), dont la reprise d'un classeur synthétique par l'API HTTP
+cd jaugeo-web; npm test        # 77 tests : file des saisies hors ligne (coupure, rejeu, conflit), page Réseau, client API, parcours d'écrans, page Prix, saisie et clôture d'une journée avec jaugeage et recette, page Stocks, lubrifiants et boutique (réception, inventaire, ventes de la journée), trésorerie (versement avec photo du BV, vérification, encaissements Wave / Orange Money / carte, rapprochement bancaire, échéancier d’un manquant), clients (création, fiche, relevé), bon à crédit avec alerte de plafond, synthèse mensuelle (observation, export), barèmes, échéances
 cd jaugeo-web; npm run lint; npm run build
 ```
 

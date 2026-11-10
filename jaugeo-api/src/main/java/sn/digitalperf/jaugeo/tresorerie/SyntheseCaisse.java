@@ -18,4 +18,7 @@ public interface SyntheseCaisse {
 
     /** Aucun filtrage par perimetre : c'est au module appelant de l'appliquer. */
     MoisCaisse mois(long stationId, YearMonth mois);
+
+    /** Versements deposes dans le mois que la comptabilite n'a encore ni verifies ni rejetes. */
+    long versementsAVerifier(long stationId, YearMonth mois);
 }

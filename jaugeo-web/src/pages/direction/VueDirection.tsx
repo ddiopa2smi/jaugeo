@@ -27,6 +27,7 @@ import {
 } from '../../api/requetes'
 import type { NiveauEcart, VueDirection as Vue } from '../../api/types'
 import { useSession } from '../../auth/session'
+import { NomStation, PastilleStation } from '../../shared/CarteStation'
 import { AlerteErreur, Chargement } from '../../shared/composants'
 import { formaterDateHeureCourte, formaterNombre, formaterPrix } from '../../shared/libelles'
 import { aujourdhui } from '../../shared/tresorerie'
@@ -164,7 +165,7 @@ function ArgentDu({ vue }: { vue: Vue }) {
             Ce mois : {formaterPrix(vue.versements)} versés sur {formaterPrix(vue.montantDu)} dus
             {auDelaPlafond.length > 0 && (
               <Box component="span" sx={{ display: 'block', color: 'warning.main' }} data-testid="direction-plafond">
-                Espèces au-delà du plafond : {auDelaPlafond.map((s) => s.stationCode).join(', ')}
+                Espèces au-delà du plafond : {auDelaPlafond.map((s) => s.stationNom).join(', ')}
               </Box>
             )}
           </>
@@ -257,7 +258,7 @@ function Risques({ date }: { date: string }) {
         libelle="Cuves à réapprovisionner"
         detail={
           reappro.length > 0
-            ? reappro.map((c) => `${c.stationCode} ${c.produitLibelle}${c.autonomieJours === null ? '' : ` (${formaterNombre(c.autonomieJours)} j)`}`).join(' · ')
+            ? reappro.map((c) => `${c.stationNom} ${c.produitLibelle}${c.autonomieJours === null ? '' : ` (${formaterNombre(c.autonomieJours)} j)`}`).join(' · ')
             : 'Autonomie suffisante partout'
         }
         valeur={String(reappro.length)}
@@ -269,7 +270,7 @@ function Risques({ date }: { date: string }) {
           <Divider />
           <Ligne
             libelle="Eau en fond de cuve"
-            detail={eau.map((c) => `${c.stationCode} ${c.cuveCode} : ${c.hauteurEauMm} mm`).join(' · ')}
+            detail={eau.map((c) => `${c.stationNom} ${c.cuveCode} : ${c.hauteurEauMm} mm`).join(' · ')}
             valeur={String(eau.length)}
             vers="/stocks?onglet=autonomie"
             alerte
@@ -283,8 +284,8 @@ function Risques({ date }: { date: string }) {
         </Typography>
       ) : (
         aSurveiller.map((s) => (
-          <Stack key={s.stationId} direction="row" spacing={1} sx={{ py: 0.75, alignItems: 'flex-start' }}>
-            <Chip size="small" color={NIVEAUX[s.niveau].couleur} label={s.code} sx={{ minWidth: 48 }} />
+          <Stack key={s.stationId} direction="row" spacing={1.5} sx={{ py: 0.75, alignItems: 'center' }}>
+            <PastilleStation teinte={NIVEAUX[s.niveau].couleur} taille={36} />
             <Box sx={{ minWidth: 0 }}>
               <Typography variant="body2">{s.nom}</Typography>
               <Typography variant="caption" color="text.secondary">
@@ -371,8 +372,8 @@ function Stations({ vue }: { vue: Vue }) {
               const v = variation(s.ventes, s.ventesPrecedent)
               return (
                 <TableRow key={s.stationId} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/stations/${s.stationId}`)}>
-                  <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                    {s.code} · {s.nom}
+                  <TableCell>
+                    <NomStation nom={s.nom} />
                   </TableCell>
                   <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
                     {formaterPrix(s.ventes)}
@@ -441,6 +442,12 @@ export function VueDirection() {
       <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', lg: 'repeat(4, 1fr)' }, mb: 3 }}>
         <Tuile libelle="Ventes" valeur={formaterPrix(vue.periode.ventes)}>
           <Variation v={variation(vue.periode.ventes, vue.precedente.ventes)} libelle={comparaison} />
+          {vue.marge !== null && (
+            <Typography variant="caption" color="text.secondary" component="div" data-testid="direction-marge">
+              Marge sur carburants : {formaterPrix(vue.marge)}
+              {vue.tauxMarge !== null && ` (${vue.tauxMarge.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %)`}
+            </Typography>
+          )}
         </Tuile>
         <Tuile libelle="Litres vendus" valeur={`${formaterNombre(vue.periode.litres)} L`}>
           <Variation v={variation(vue.periode.litres, vue.precedente.litres)} libelle={comparaison} />
@@ -500,7 +507,10 @@ export function VueDirection() {
             </Table>
           </Box>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-            Mois précédent complet : {formaterPrix(vue.ventesMoisPrecedent)}. Marge non calculée : le coût d'achat arrive au lot 2.
+            Mois précédent complet : {formaterPrix(vue.ventesMoisPrecedent)}.{' '}
+            {vue.marge === null
+              ? "Marge non calculée : un prix d'achat convenu manque (Approvisionnement, fournisseurs)."
+              : "Marge = ventes − litres vendus × prix d'achat convenu du jour."}
           </Typography>
         </Bloc>
       </Box>

@@ -57,7 +57,7 @@ import sn.digitalperf.jaugeo.tarification.Tarification;
  */
 @Service
 @Transactional(readOnly = true)
-public class ArticleService {
+public class ArticleService implements sn.digitalperf.jaugeo.stock.ArticlesMensuels {
 
     static final ZoneId DAKAR = ZoneId.of("Africa/Dakar");
     /** Inventaire tournant : un quart des articles par semaine, chacun au moins tous les 30 jours. */
@@ -412,6 +412,17 @@ public class ArticleService {
         StationRef s = referentiel.station(uuid).orElseThrow(() -> ErreurMetier.introuvable("Station"));
         perimetre.exigerStation(s.id());
         return s;
+    }
+
+    @Override
+    public VentesArticles ventesArticles(long stationId, YearMonth mois) {
+        BigDecimal montant = BigDecimal.ZERO;
+        BigDecimal cout = BigDecimal.ZERO;
+        for (var v : ventes.findByStationIdAndDateJourBetweenAndCmupIsNotNull(stationId, mois.atDay(1), mois.atEndOfMonth())) {
+            montant = montant.add(v.getMontant());
+            cout = cout.add(v.getQuantite().multiply(v.getCmup()));
+        }
+        return new VentesArticles(montant, cout.setScale(0, java.math.RoundingMode.HALF_UP));
     }
 
     private LocalDate aujourdhui() {

@@ -23,6 +23,8 @@ public interface VersementDepot extends JpaRepository<Versement, Long> {
 
     List<Versement> findByStationIdAndDateDepotBetweenOrderByDateDepotAscIdAsc(Long stationId, LocalDate du, LocalDate au);
 
+    long countByStationIdAndStatutAndDateDepotBetween(Long stationId, Versement.Statut statut, LocalDate du, LocalDate au);
+
     List<Versement> findByStationIdInAndStatutOrderByDateDepotAscIdAsc(Collection<Long> stationIds, Versement.Statut statut);
 
     /** Versements non rejetes deposes apres une date (exclue) jusqu'a une date incluse. */

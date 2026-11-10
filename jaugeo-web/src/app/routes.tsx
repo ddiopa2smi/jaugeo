@@ -27,6 +27,7 @@ const PageClients = differe(() => import('../pages/clients/PageClients'), 'PageC
 const PageCreances = differe(() => import('../pages/clients/PageCreances'), 'PageCreances')
 const PageCartes = differe(() => import('../pages/clients/Cartes'), 'PageCartes')
 const PageSyntheses = differe(() => import('../pages/syntheses/PageSyntheses'), 'PageSyntheses')
+const PageCloture = differe(() => import('../pages/cloture/PageCloture'), 'PageCloture')
 const PagePrix = differe(() => import('../pages/prix/PagePrix'), 'PagePrix')
 const PageProduits = differe(() => import('../pages/PageProduits'), 'PageProduits')
 const PageUtilisateurs = differe(() => import('../pages/utilisateurs/PageUtilisateurs'), 'PageUtilisateurs')
@@ -65,6 +66,7 @@ export const routes: RouteObject[] = [
           { path: 'creances', element: protegee('REFERENTIEL_CONSULTER', <PageCreances />) },
           { path: 'cartes', element: protegee('REFERENTIEL_CONSULTER', <PageCartes />) },
           { path: 'syntheses', element: protegee('REFERENTIEL_CONSULTER', <PageSyntheses />) },
+          { path: 'cloture', element: protegee('CLOTURE_MENSUELLE', <PageCloture />) },
           { path: 'prix', element: protegee('REFERENTIEL_CONSULTER', <PagePrix />) },
           { path: 'produits', element: protegee('REFERENTIEL_CONSULTER', <PageProduits />) },
           { path: 'utilisateurs', element: protegee('UTILISATEUR_GERER', <PageUtilisateurs />) },

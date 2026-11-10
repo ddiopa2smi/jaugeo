@@ -9,4 +9,8 @@ public interface VenteArticleDepot extends JpaRepository<VenteArticle, Long> {
 
     /** Ventes saisies dans des journees pas encore cloturees (CMUP de sortie non fige) : stock reserve. */
     List<VenteArticle> findByStationIdAndCmupIsNull(Long stationId);
+
+    /** Ventes des journees cloturees (CMUP fige) d'une station entre deux dates incluses. */
+    List<VenteArticle> findByStationIdAndDateJourBetweenAndCmupIsNotNull(Long stationId, java.time.LocalDate du,
+                                                                         java.time.LocalDate au);
 }

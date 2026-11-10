@@ -1,6 +1,11 @@
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { api } from './client'
 import type {
+  BudgetStation,
+  CompteReseau,
+  EtatClotureMois,
+  Regularisation,
+  SuiviBudget,
   TableauReseau,
   VueDirection,
   BalanceAgee,
@@ -135,6 +140,12 @@ export const cles = {
   ecartsPersonnel: (stationId: string, mois: string) => ['personnel', 'ecarts', stationId, mois] as const,
   planning: (stationId: string, du: string) => ['personnel', 'planning', stationId, du] as const,
   postes: (id: string) => ['journees', id, 'postes'] as const,
+  cloture: ['cloture'] as const,
+  compteExploitation: (mois: string) => ['cloture', 'compte', mois] as const,
+  etatCloture: (mois: string) => ['cloture', 'etat', mois] as const,
+  regularisations: (annee: number) => ['cloture', 'regularisations', annee] as const,
+  budget: (stationId: string, annee: number) => ['cloture', 'budget', stationId, annee] as const,
+  suiviBudget: (stationId: string | null, annee: number) => ['cloture', 'suivi', stationId, annee] as const,
 }
 
 export const useRegions = () => useQuery({ queryKey: cles.regions, queryFn: () => api.get<Region[]>('/regions'), staleTime: 10 * 60_000 })
@@ -327,6 +338,39 @@ export const useSyntheseStocks = (mois: string) =>
     queryFn: () => api.get<SyntheseStocks>(`/syntheses/stocks?mois=${mois}`),
     enabled: moisValide(mois),
   })
+
+// Clôture mensuelle, compte d'exploitation, régularisations et budget (permission CLOTURE_MENSUELLE)
+export const useCompteExploitation = (mois: string) =>
+  useQuery({
+    queryKey: cles.compteExploitation(mois),
+    queryFn: () => api.get<CompteReseau>(`/cloture/compte?mois=${mois}`),
+    enabled: moisValide(mois),
+  })
+
+export const useEtatCloture = (mois: string) =>
+  useQuery({
+    queryKey: cles.etatCloture(mois),
+    queryFn: () => api.get<EtatClotureMois>(`/cloture/etat?mois=${mois}`),
+    enabled: moisValide(mois),
+  })
+
+export const useRegularisations = (annee: number) =>
+  useQuery({ queryKey: cles.regularisations(annee), queryFn: () => api.get<Regularisation[]>(`/cloture/regularisations?annee=${annee}`) })
+
+export const useBudget = (stationId: string | null, annee: number) =>
+  useQuery({
+    queryKey: cles.budget(stationId ?? '', annee),
+    queryFn: () => api.get<BudgetStation>(`/cloture/budget?station=${stationId}&annee=${annee}`),
+    enabled: stationId !== null,
+  })
+
+/** Réel contre budget d'une station, ou du réseau du périmètre (station nulle). */
+export const useSuiviBudget = (stationId: string | null, annee: number) =>
+  useQuery({
+    queryKey: cles.suiviBudget(stationId, annee),
+    queryFn: () => api.get<SuiviBudget>(`/cloture/budget/suivi?annee=${annee}${stationId ? `&station=${stationId}` : ''}`),
+  })
+
 /** Tableau de bord du réseau au jour donné (permission TABLEAU_BORD_RESEAU). */
 export const useVueDirection = (date: string) =>
   useQuery({

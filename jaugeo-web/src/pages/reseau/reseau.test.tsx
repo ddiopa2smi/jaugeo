@@ -86,9 +86,9 @@ describe('tableau de bord du réseau', () => {
     const lignes = within(tableau).getAllByRole('row').slice(1)
     // Enquête d'abord, puis alerte, puis normal
     expect(lignes.map((l) => within(l).getAllByRole('cell')[0]!.textContent)).toEqual([
-      'POTStation POT',
-      'YOFStation YOF',
-      'KAYStation KAY',
+      'Station POT',
+      'Station YOF',
+      'Station KAY',
     ])
     expect(within(lignes[0]!).getByText(/seuil d’enquête/)).toBeInTheDocument()
     expect(within(lignes[1]!).getByText('(3 j de retard)')).toBeInTheDocument()

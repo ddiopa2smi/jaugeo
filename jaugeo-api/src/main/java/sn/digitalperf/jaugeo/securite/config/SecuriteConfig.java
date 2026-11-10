@@ -118,6 +118,8 @@ class SecuriteConfig {
                         // Syntheses mensuelles (feuilles d'analyse) : lecture et exports ; observations du controle de gestion
                         .requestMatchers(HttpMethod.GET, "/api/v1/syntheses/**").hasAuthority("REFERENTIEL_CONSULTER")
                         .requestMatchers(HttpMethod.PUT, "/api/v1/syntheses/commentaires").hasAuthority("CLOTURE_MENSUELLE")
+                        // Cloture mensuelle, compte d'exploitation (marge), regularisations et budget
+                        .requestMatchers("/api/v1/cloture/**").hasAuthority("CLOTURE_MENSUELLE")
                         .requestMatchers(HttpMethod.GET, "/api/v1/tableau-bord/**").hasAuthority("TABLEAU_BORD_RESEAU")
                         .requestMatchers(HttpMethod.GET, "/api/v1/appro/**").hasAuthority("TABLEAU_BORD_RESEAU")
                         .requestMatchers("/api/v1/appro/factures", "/api/v1/appro/factures/**")

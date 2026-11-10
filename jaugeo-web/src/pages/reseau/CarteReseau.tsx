@@ -13,7 +13,7 @@ type StationPlacee = Pick<StationReseau, 'code' | 'nom' | 'niveau' | 'motifs'> &
 function bulle(s: StationPlacee): HTMLElement {
   const racine = document.createElement('div')
   const titre = document.createElement('strong')
-  titre.textContent = `${s.code} · ${s.nom}`
+  titre.textContent = s.nom
   racine.append(titre)
   const niveau = document.createElement('div')
   niveau.textContent = s.niveau === 'NORMAL' ? 'Situation normale' : NIVEAUX_ECART[s.niveau].libelle
@@ -60,7 +60,7 @@ export function CarteReseau({ stations }: { stations: StationReseau[] }) {
         fillColor: couleurs[s.niveau],
         fillOpacity: 0.95,
       })
-        .bindTooltip(s.code, { permanent: true, direction: 'right', offset: [10, 0] })
+        .bindTooltip(s.nom,{ permanent: true, direction: 'right', offset: [10, 0] })
         .bindPopup(bulle(s))
         .addTo(carte)
     }

@@ -54,6 +54,8 @@ const VUE: VueDirection = {
       joursNonClotures: 2,
     },
   ],
+  marge: 3_600_000,
+  tauxMarge: 12,
 }
 
 const RESEAU: TableauReseau = {
@@ -146,6 +148,8 @@ describe('vue de la Direction', () => {
     expect(screen.getAllByText('+20 %')).toHaveLength(4)
     expect(screen.getAllByText('vs 1er au 8 octobre')).toHaveLength(2)
     expect(screen.getByText('75 % des 28 000 000 F dus par les stations')).toBeInTheDocument()
+    // Marge sur carburants au prix d'achat convenu du jour
+    expect(screen.getByTestId('direction-marge')).toHaveTextContent('Marge sur carburants : 3 600 000 F (12 %)')
 
     // Argent dû = caisse 7 M + créances 25 M + manquants 150 000 + compléments 80 000
     const argent = await screen.findByLabelText('Argent dû au réseau')
