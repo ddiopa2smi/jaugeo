@@ -100,6 +100,7 @@ describe('saisie et clôture d’une journée', () => {
         receptions: [],
         anomalies: anomalies.length,
         toleranceTransportPct: 0.3,
+        livraisonsAttendues: [],
         cuves: [
           {
             cuveId: 'c1',

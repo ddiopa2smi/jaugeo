@@ -73,7 +73,7 @@ jaugeo:
     duree-verrouillage: 15m
     admin-mot-de-passe-initial: ${JAUGEO_ADMIN_PASSWORD:Jaugeo@2026}
   stock:
-    # Manquant de livraison toléré (% de la quantité du BL) avant complément citerne
+    # Manquant de livraison toléré (% de la quantité du BL) avant complément citerne, sauf tolérance du contrat transporteur
     tolerance-transport-pct: 0.3
     # Écart de stock du mois (% des sorties) au-delà duquel l'alerte devient une enquête
     seuil-enquete-pct: 2
@@ -85,6 +85,15 @@ jaugeo:
     # En-tête des factures et lettres de relance
     societe: ${JAUGEO_SOCIETE:Société exploitante (à paramétrer)}
     adresse-societe: ${JAUGEO_SOCIETE_ADRESSE:Dakar, Sénégal}
+  appro:
+    # Jours ajoutés au délai du dépôt avant de proposer une commande
+    marge-securite-jours: 2
+    # Remplissage visé de la cuve (% de la capacité) à l'arrivée de la citerne
+    taux-remplissage-pct: 95
+    # Écart toléré entre quantité facturée et quantité du BL avant anomalie
+    tolerance-facture-pct: 0.1
+    # Période (jours) sur laquelle les transporteurs sont notés
+    notation-jours: 180
 
 logging:
   level:

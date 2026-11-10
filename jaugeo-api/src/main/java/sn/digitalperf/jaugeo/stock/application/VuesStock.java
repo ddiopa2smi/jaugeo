@@ -42,12 +42,22 @@ public final class VuesStock {
                                String observation, BigDecimal ecartLivraison, BigDecimal ecartLivraisonPct,
                                BigDecimal complementLitres, String complementStatut, String par, Instant le,
                                BigDecimal quantiteBl15, BigDecimal facteur15, BigDecimal quantiteRecue15,
-                               boolean compareeA15, Boolean scellesIntacts, String imputation) {
+                               boolean compareeA15, Boolean scellesIntacts, String imputation, UUID livraisonId,
+                               String tourneeNumero, BigDecimal tolerancePct) {
+    }
+
+    /** Livraison d'une tournee citerne attendue a la station : la reception s'y rattache et en reprend le BL. */
+    public record LivraisonAttendueVue(UUID id, String tourneeNumero, String tourneeStatut, String produitCode,
+                                       BigDecimal quantiteCommandee, String numeroBl, BigDecimal quantiteBl,
+                                       BigDecimal quantiteBl15, String fournisseur, String transporteur,
+                                       String chauffeur, String immatriculation, String scelles,
+                                       LocalDate dateLivraisonPrevue, BigDecimal tolerancePct) {
     }
 
     public record StockJournee(UUID journeeId, UUID stationId, String stationCode, LocalDate date, String statut,
                                Integer version, boolean modifiable, List<CuveStock> cuves,
-                               List<ReceptionVue> receptions, int anomalies, BigDecimal toleranceTransportPct) {
+                               List<ReceptionVue> receptions, int anomalies, BigDecimal toleranceTransportPct,
+                               List<LivraisonAttendueVue> livraisonsAttendues) {
     }
 
     // ---------------------------------------------------------------- Analyse mensuelle

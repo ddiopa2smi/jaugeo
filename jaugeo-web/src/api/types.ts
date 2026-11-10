@@ -485,6 +485,31 @@ export interface Reception {
   compareeA15: boolean
   scellesIntacts: boolean | null
   imputation: Imputation
+  /** Livraison de tournée rattachée (M8) */
+  livraisonId: string | null
+  tourneeNumero: string | null
+  /** Tolérance appliquée : contrat du transporteur, sinon tolérance réseau */
+  tolerancePct: number
+}
+
+/** Livraison d'une tournée chargée ou en route vers la station, pas encore réceptionnée. */
+export interface LivraisonAttendue {
+  id: string
+  tourneeNumero: string
+  tourneeStatut: string
+  produitCode: string
+  quantiteCommandee: number
+  numeroBl: string | null
+  quantiteBl: number | null
+  quantiteBl15: number | null
+  fournisseur: string
+  transporteur: string
+  chauffeur: string | null
+  immatriculation: string | null
+  scelles: string | null
+  dateLivraisonPrevue: string
+  /** Tolérance de manquant du contrat du transporteur, sinon du réseau */
+  tolerancePct: number
 }
 
 export interface StockJournee {
@@ -499,11 +524,13 @@ export interface StockJournee {
   receptions: Reception[]
   anomalies: number
   toleranceTransportPct: number
+  livraisonsAttendues: LivraisonAttendue[]
 }
 
 export interface SaisieReception {
   version: number
   cuveId: string
+  livraisonId: string | null
   numeroBl: string
   fournisseur: string
   transporteur: string | null
@@ -1675,4 +1702,261 @@ export interface VentesArticlesJournee {
   modifiable: boolean
   articles: VenteArticle[]
   total: number
+}
+
+// ---------------------------------------------------------------- Approvisionnement (M8)
+
+export interface PrixAchat {
+  id: string
+  produitId: string
+  produitCode: string
+  produitLibelle: string
+  debut: string
+  prix: number
+  enVigueur: boolean
+}
+
+export interface FournisseurAppro {
+  id: string
+  nom: string
+  telephone: string | null
+  adresse: string | null
+  delaiLivraison: number
+  principal: boolean
+  factureA15: boolean
+  actif: boolean
+  version: number
+  prix: PrixAchat[]
+}
+
+export interface Citerne {
+  id: string
+  immatriculation: string
+  capaciteLitres: number
+  actif: boolean
+  version: number
+}
+
+export interface Notation {
+  note: number | null
+  livraisons: number
+  ponctualitePct: number | null
+  conformitePct: number | null
+  tauxManquantPct: number | null
+  horsTolerance: number
+  jours: number
+}
+
+export interface Transporteur {
+  id: string
+  nom: string
+  telephone: string | null
+  contratReference: string | null
+  contratDebut: string | null
+  contratFin: string | null
+  tolerancePct: number | null
+  toleranceAppliquee: number
+  penalite: number | null
+  actif: boolean
+  observation: string | null
+  version: number
+  citernes: Citerne[]
+  notation: Notation
+  penalitesARegler: number
+}
+
+export type StatutPenalite = 'A_REGLER' | 'REGLE'
+
+export interface PenaliteTransport {
+  id: string
+  transporteurId: string
+  transporteurNom: string
+  tourneeNumero: string | null
+  stationCode: string | null
+  date: string
+  journeeId: string | null
+  numeroBl: string | null
+  manquantLitres: number
+  manquantPct: number
+  tolerancePct: number
+  montant: number
+  statut: StatutPenalite
+  referenceReglement: string | null
+  regleLe: string | null
+  reglePar: string | null
+  version: number
+}
+
+export interface LivraisonNotee {
+  tourneeNumero: string
+  stationCode: string
+  produitCode: string
+  prevue: string
+  recue: string
+  quantiteLivree: number
+  manquant: number
+  manquantPct: number
+  tolerancePct: number
+  aLHeure: boolean
+  horsTolerance: boolean
+}
+
+export interface TransporteurDetail {
+  transporteur: Transporteur
+  penalites: PenaliteTransport[]
+  livraisons: LivraisonNotee[]
+}
+
+export interface PropositionLigne {
+  stationId: string
+  stationCode: string
+  stationNom: string
+  produitId: string
+  produitCode: string
+  produitLibelle: string
+  dateStock: string | null
+  stockAujourdhui: number
+  capaciteUtile: number | null
+  ventesMoyennes: number | null
+  autonomieJours: number | null
+  enCours: number
+  stockArrivee: number
+  quantiteProposee: number | null
+  ruptureLe: string | null
+  aCommander: boolean
+  motif: string | null
+}
+
+export interface Propositions {
+  fournisseurId: string | null
+  fournisseurNom: string | null
+  delaiLivraison: number
+  margeJours: number
+  tauxRemplissagePct: number
+  date: string
+  lignes: PropositionLigne[]
+}
+
+export type StatutTournee = 'COMMANDEE' | 'CHARGEE' | 'EN_ROUTE' | 'DEPOTEE' | 'ANNULEE'
+
+export interface ReceptionLivraison {
+  date: string
+  numeroBl: string
+  quantiteLivree: number
+  quantiteMesuree: number
+  manquant: number
+  manquantPct: number
+  tolerancePct: number
+  horsTolerance: boolean
+  compareeA15: boolean
+  aLHeure: boolean
+}
+
+export interface LivraisonTournee {
+  id: string
+  ordre: number
+  stationId: string
+  stationCode: string
+  stationNom: string
+  produitId: string
+  produitCode: string
+  quantiteCommandee: number
+  numeroBl: string | null
+  quantiteBl: number | null
+  quantiteBl15: number | null
+  reception: ReceptionLivraison | null
+  version: number
+}
+
+export interface Tournee {
+  id: string
+  numero: string
+  statut: StatutTournee
+  fournisseurId: string
+  fournisseurNom: string
+  transporteurId: string
+  transporteurNom: string
+  citerneId: string | null
+  immatriculation: string | null
+  capaciteCiterne: number | null
+  chauffeur: string | null
+  dateChargementPrevue: string
+  dateLivraisonPrevue: string
+  chargeLe: string | null
+  scelles: string | null
+  partiLe: string | null
+  motifAnnulation: string | null
+  observation: string | null
+  quantiteCommandee: number
+  livraisons: number
+  receptionnees: number
+  version: number
+  lignes: LivraisonTournee[]
+}
+
+export interface SaisieTournee {
+  fournisseurId: string
+  transporteurId: string
+  citerneId: string | null
+  immatriculation: string | null
+  chauffeur: string | null
+  dateChargementPrevue: string
+  dateLivraisonPrevue: string
+  observation: string | null
+  livraisons: { stationId: string; produitId: string; quantite: number }[]
+  version?: number
+}
+
+export type StatutFactureFournisseur = 'SAISIE' | 'BON_A_PAYER' | 'EN_LITIGE' | 'ANNULEE'
+
+export interface FactureFournisseur {
+  id: string
+  fournisseurId: string
+  fournisseurNom: string
+  numero: string
+  dateFacture: string
+  statut: StatutFactureFournisseur
+  montant: number
+  montantAttendu: number
+  ecart: number
+  lignes: number
+  anomalies: number
+  motifDecision: string | null
+  decidePar: string | null
+  decideLe: string | null
+  observation: string | null
+  version: number
+}
+
+export interface LigneFactureControlee {
+  numeroBl: string
+  produitId: string
+  produitCode: string
+  quantite: number
+  prixUnitaire: number
+  montant: number
+  dateReception: string | null
+  stationCode: string | null
+  /** Base de comparaison : 15 °C ou ambiante */
+  base: string | null
+  quantiteBl: number | null
+  quantiteRecue: number | null
+  manquantFournisseur: number | null
+  prixConvenu: number | null
+  montantAttendu: number | null
+  anomalies: string[]
+}
+
+export interface FactureFournisseurDetail {
+  facture: FactureFournisseur
+  lignes: LigneFactureControlee[]
+}
+
+export interface SaisieFactureFournisseur {
+  fournisseurId: string
+  numero: string
+  dateFacture: string
+  observation: string | null
+  lignes: { numeroBl: string; produitId: string; quantite: number; prixUnitaire: number }[]
+  version?: number
 }

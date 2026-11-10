@@ -30,6 +30,14 @@ import type {
   SituationTresorerie,
   Versement,
   ComplementCiterne,
+  FactureFournisseur,
+  FactureFournisseurDetail,
+  FournisseurAppro,
+  PenaliteTransport,
+  Propositions,
+  Tournee,
+  Transporteur,
+  TransporteurDetail,
   SituationStock,
   StockJournee,
   Bareme,
@@ -106,6 +114,16 @@ export const cles = {
   syntheses: ['syntheses'] as const,
   syntheseVentes: (mois: string) => ['syntheses', 'ventes', mois] as const,
   syntheseStocks: (mois: string) => ['syntheses', 'stocks', mois] as const,
+  appro: ['appro'] as const,
+  fournisseursAppro: ['appro', 'fournisseurs'] as const,
+  transporteurs: ['appro', 'transporteurs'] as const,
+  transporteur: (id: string) => ['appro', 'transporteurs', id] as const,
+  penalites: (statut: string) => ['appro', 'penalites', statut] as const,
+  propositions: ['appro', 'propositions'] as const,
+  tournees: (enCours: boolean) => ['appro', 'tournees', enCours] as const,
+  tournee: (id: string) => ['appro', 'tournee', id] as const,
+  facturesFournisseur: ['appro', 'factures'] as const,
+  factureFournisseur: (id: string) => ['appro', 'facture', id] as const,
 }
 
 export const useRegions = () => useQuery({ queryKey: cles.regions, queryFn: () => api.get<Region[]>('/regions'), staleTime: 10 * 60_000 })
@@ -345,4 +363,44 @@ export const useRapprochementElectronique = (mois: string) =>
     queryKey: cles.rapprochementElectronique(mois),
     queryFn: () => api.get<RapprochementElectronique>(`/tresorerie/rapprochement/electronique?mois=${mois}`),
     enabled: moisValide(mois),
+  })
+
+// ---------------------------------------------------------------- Approvisionnement (M8)
+
+export const useFournisseursAppro = () =>
+  useQuery({ queryKey: cles.fournisseursAppro, queryFn: () => api.get<FournisseurAppro[]>('/appro/fournisseurs') })
+
+export const useTransporteurs = () =>
+  useQuery({ queryKey: cles.transporteurs, queryFn: () => api.get<Transporteur[]>('/appro/transporteurs') })
+
+export const useTransporteur = (id: string | null) =>
+  useQuery({
+    queryKey: cles.transporteur(id ?? ''),
+    queryFn: () => api.get<TransporteurDetail>(`/appro/transporteurs/${id}`),
+    enabled: !!id,
+  })
+
+export const usePenalites = (statut: string) =>
+  useQuery({
+    queryKey: cles.penalites(statut),
+    queryFn: () => api.get<PenaliteTransport[]>(`/appro/penalites${statut ? `?statut=${statut}` : ''}`),
+  })
+
+export const usePropositions = () =>
+  useQuery({ queryKey: cles.propositions, queryFn: () => api.get<Propositions>('/appro/propositions') })
+
+export const useTournees = (enCours: boolean) =>
+  useQuery({ queryKey: cles.tournees(enCours), queryFn: () => api.get<Tournee[]>(`/appro/tournees?enCours=${enCours}`) })
+
+export const useTournee = (id: string | null) =>
+  useQuery({ queryKey: cles.tournee(id ?? ''), queryFn: () => api.get<Tournee>(`/appro/tournees/${id}`), enabled: !!id })
+
+export const useFacturesFournisseur = () =>
+  useQuery({ queryKey: cles.facturesFournisseur, queryFn: () => api.get<FactureFournisseur[]>('/appro/factures') })
+
+export const useFactureFournisseur = (id: string | null) =>
+  useQuery({
+    queryKey: cles.factureFournisseur(id ?? ''),
+    queryFn: () => api.get<FactureFournisseurDetail>(`/appro/factures/${id}`),
+    enabled: !!id,
   })

@@ -93,6 +93,10 @@ public class Reception extends EntiteAuditee {
     @Column(nullable = false)
     private Imputation imputation = Imputation.TRANSPORTEUR;
 
+    /** Livraison de tournee citerne (approvisionnement) a laquelle la reception se rattache. */
+    @Column(name = "livraison_id")
+    private Long livraisonId;
+
     protected Reception() {
     }
 
@@ -258,5 +262,13 @@ public class Reception extends EntiteAuditee {
 
     public Imputation getImputation() {
         return imputation;
+    }
+
+    public Long getLivraisonId() {
+        return livraisonId;
+    }
+
+    public void rattacher(Long livraisonId) {
+        this.livraisonId = livraisonId;
     }
 }

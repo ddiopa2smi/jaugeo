@@ -8,6 +8,7 @@ import EventNoteIcon from '@mui/icons-material/EventNote'
 import HistoryIcon from '@mui/icons-material/History'
 import InventoryIcon from '@mui/icons-material/Inventory'
 import LocalGasStationIcon from '@mui/icons-material/LocalGasStation'
+import LocalShippingIcon from '@mui/icons-material/LocalShipping'
 import LogoutIcon from '@mui/icons-material/Logout'
 import MapIcon from '@mui/icons-material/Map'
 import MenuIcon from '@mui/icons-material/Menu'
@@ -67,11 +68,12 @@ const SECTIONS: { titre: string; entrees: EntreeMenu[] }[] = [
     entrees: [
       { chemin: '/journees', libelle: 'Journées', icone: <EventNoteIcon />, permission: 'REFERENTIEL_CONSULTER' },
       { chemin: '/stocks', libelle: 'Stocks', icone: <InventoryIcon />, permission: 'REFERENTIEL_CONSULTER' },
+      { chemin: '/approvisionnement', libelle: 'Approvisionnement', icone: <LocalShippingIcon />, permission: 'TABLEAU_BORD_RESEAU' },
       { chemin: '/boutique', libelle: 'Lubrifiants et boutique', icone: <StorefrontIcon />, permission: 'REFERENTIEL_CONSULTER' },
       { chemin: '/tresorerie', libelle: 'Trésorerie', icone: <AccountBalanceIcon />, permission: 'REFERENTIEL_CONSULTER' },
       { chemin: '/clients', libelle: 'Clients en compte', icone: <BadgeIcon />, permission: 'REFERENTIEL_CONSULTER' },
-  { chemin: '/creances', libelle: 'Créances et factures', icone: <ReceiptLongIcon />, permission: 'REFERENTIEL_CONSULTER' },
-  { chemin: '/cartes', libelle: 'Cartes carburant', icone: <CreditCardIcon />, permission: 'REFERENTIEL_CONSULTER' },
+      { chemin: '/creances', libelle: 'Créances et factures', icone: <ReceiptLongIcon />, permission: 'REFERENTIEL_CONSULTER' },
+      { chemin: '/cartes', libelle: 'Cartes carburant', icone: <CreditCardIcon />, permission: 'REFERENTIEL_CONSULTER' },
       { chemin: '/syntheses', libelle: 'Synthèses mensuelles', icone: <AssessmentIcon />, permission: 'REFERENTIEL_CONSULTER' },
     ],
   },

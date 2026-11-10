@@ -22,6 +22,13 @@ public final class Libelles {
         return new DecimalFormat("#,##0", s).format(montant) + " F";
     }
 
+    /** 12 500 L, 19 746,5 L */
+    public static String litres(BigDecimal volume) {
+        DecimalFormatSymbols s = DecimalFormatSymbols.getInstance(Locale.FRANCE);
+        s.setGroupingSeparator(' ');
+        return new DecimalFormat("#,##0.##", s).format(volume) + " L";
+    }
+
     public static String date(LocalDate d) {
         return DATE.format(d);
     }

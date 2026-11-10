@@ -13,6 +13,10 @@ public interface ReceptionDepot extends JpaRepository<Reception, Long> {
 
     List<Reception> findByJourneeIdOrderByIdAsc(Long journeeId);
 
+    List<Reception> findByLivraisonIdIn(java.util.Collection<Long> livraisonIds);
+
+    Optional<Reception> findByLivraisonId(Long livraisonId);
+
     /** Reception deja enregistree pour ce BL de ce fournisseur (casse ignoree). */
     @Query("""
             select r from Reception r

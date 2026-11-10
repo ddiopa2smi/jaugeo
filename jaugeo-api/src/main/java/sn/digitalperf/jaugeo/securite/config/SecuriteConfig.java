@@ -113,6 +113,10 @@ class SecuriteConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/syntheses/**").hasAuthority("REFERENTIEL_CONSULTER")
                         .requestMatchers(HttpMethod.PUT, "/api/v1/syntheses/commentaires").hasAuthority("CLOTURE_MENSUELLE")
                         .requestMatchers(HttpMethod.GET, "/api/v1/tableau-bord/**").hasAuthority("TABLEAU_BORD_RESEAU")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/appro/**").hasAuthority("TABLEAU_BORD_RESEAU")
+                        .requestMatchers("/api/v1/appro/factures", "/api/v1/appro/factures/**")
+                        .hasAnyAuthority("RECEPTION_VALIDER", "VERSEMENT_VALIDER")
+                        .requestMatchers("/api/v1/appro/**").hasAuthority("RECEPTION_VALIDER")
                         // Lubrifiants et boutique : entrees annoncees par la logistique, confirmees et vendues a la station
                         .requestMatchers(HttpMethod.POST, "/api/v1/stations/*/articles/entrees", "/api/v1/articles/entrees/*/annulation")
                         .hasAuthority("RECEPTION_VALIDER")
