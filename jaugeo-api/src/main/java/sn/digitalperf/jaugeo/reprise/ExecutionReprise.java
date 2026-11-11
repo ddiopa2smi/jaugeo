@@ -82,6 +82,9 @@ final class ExecutionReprise {
     private Session comptable;
     private String natureAutre;
     private final List<String> comptes = new ArrayList<>();
+    /** Banques connues de l'application, lues au premier versement. */
+    private Set<String> banquesActives;
+    private Map<String, JsonNode> banquesInactives;
 
     ExecutionReprise(ApiJaugeo api, Classeur classeur, RepriseClasseur.Options o, Rapport rapport, PrintStream journal) {
         this.api = api;
@@ -576,7 +579,37 @@ final class ExecutionReprise {
         }
     }
 
+    /**
+     * Le classeur nomme les banques par leur abreviation d'usage (BAT, CB...) : celles que l'application ne
+     * connait pas encore sont ajoutees telles quelles, et une banque desactivee est reactivee, pour que le
+     * versement soit accepte.
+     */
+    private void assurerBanque(String banque) {
+        if (banquesActives == null) {
+            banquesActives = new HashSet<>();
+            banquesInactives = new HashMap<>();
+            for (JsonNode b : admin.get("/api/v1/tresorerie/banques?toutes=true")) {
+                if (b.path("actif").asBoolean()) {
+                    banquesActives.add(texte(b, "code"));
+                } else {
+                    banquesInactives.put(texte(b, "code"), b);
+                }
+            }
+        }
+        if (banquesActives.contains(banque)) {
+            return;
+        }
+        JsonNode inactive = banquesInactives.remove(banque);
+        if (inactive == null) {
+            admin.post("/api/v1/tresorerie/banques", corps("code", banque, "nom", banque));
+        } else {
+            admin.put("/api/v1/tresorerie/banques/" + texte(inactive, "id"), corps("version", inactive.path("version").asInt(), "actif", true));
+        }
+        banquesActives.add(banque);
+    }
+
     private void verser(Cible c, LocalDate date, String banque, String reference, BigDecimal montant, String observation) {
+        assurerBanque(banque);
         gerant.post("/api/v1/tresorerie/versements", corps("stationId", c.uuid(), "dateDepot", date.toString(), "banque", banque,
                 "referenceBv", reference, "montant", montant, "deposant", null, "observation", observation));
     }

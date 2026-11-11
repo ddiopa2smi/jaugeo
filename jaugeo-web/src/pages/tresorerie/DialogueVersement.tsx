@@ -4,13 +4,14 @@ import Dialog from '@mui/material/Dialog'
 import DialogActions from '@mui/material/DialogActions'
 import DialogContent from '@mui/material/DialogContent'
 import DialogTitle from '@mui/material/DialogTitle'
+import MenuItem from '@mui/material/MenuItem'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { useMutation } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 import { api } from '../../api/client'
-import { useRafraichirTresorerie } from '../../api/requetes'
+import { useBanques, useRafraichirTresorerie } from '../../api/requetes'
 import type { SaisieVersement, Versement } from '../../api/types'
 import { AlerteErreur } from '../../shared/composants'
 import { formaterPrix, versNombre, videVersNull } from '../../shared/libelles'
@@ -51,6 +52,13 @@ export function DialogueVersement({
   // Versement déjà enregistré dont la pièce a été refusée : on ne renvoie que la pièce
   const enregistre = useRef<Versement | null>(null)
   const m = versNombre(montant)
+  // Banques actives ; en correction, la banque du versement reste proposée même si elle a été désactivée depuis
+  const banques = useBanques()
+  const actives = banques.data ?? []
+  const options =
+    versement && banques.data && !actives.some((b) => b.code === versement.banque)
+      ? [...actives, { code: versement.banque, nom: versement.banque }]
+      : actives
 
   const enregistrement = useMutation({
     mutationFn: async () => {
@@ -58,7 +66,7 @@ export function DialogueVersement({
         version: versement?.version,
         stationId,
         dateDepot,
-        banque: banque.trim(),
+        banque,
         referenceBv: referenceBv.trim(),
         montant: m!,
         deposant: videVersNull(deposant),
@@ -99,7 +107,21 @@ export function DialogueVersement({
             required
             slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: aujourdhui() } }}
           />
-          <TextField label="Banque" value={banque} onChange={(e) => setBanque(e.target.value)} required slotProps={{ htmlInput: { maxLength: 60 } }} />
+          <TextField
+            select
+            label="Banque"
+            value={options.length > 0 ? banque : ''}
+            onChange={(e) => setBanque(e.target.value)}
+            required
+            disabled={banques.isLoading}
+            helperText={banques.data && options.length === 0 ? 'Aucune banque active : à activer par l’administrateur.' : undefined}
+          >
+            {options.map((b) => (
+              <MenuItem key={b.code} value={b.code}>
+                {b.nom === b.code ? b.code : `${b.nom} (${b.code})`}
+              </MenuItem>
+            ))}
+          </TextField>
           <TextField
             label="N° du bordereau (BV)"
             value={referenceBv}
@@ -132,7 +154,7 @@ export function DialogueVersement({
             {fichier ? fichier.name : (versement?.piece?.nomFichier ?? 'Nécessaire pour la vérification')}
           </Typography>
         </Stack>
-        <AlerteErreur erreur={enregistrement.error} />
+        <AlerteErreur erreur={banques.error ?? enregistrement.error} />
       </DialogContent>
       <DialogActions>
         <Button onClick={onFermer}>Annuler</Button>
@@ -140,7 +162,7 @@ export function DialogueVersement({
           variant="contained"
           onClick={() => enregistrement.mutate()}
           disabled={
-            enregistrement.isPending || !dateDepot || !banque.trim() || !referenceBv.trim() || m === null || m <= 0 || !Number.isInteger(m)
+            enregistrement.isPending || !dateDepot || !banque ||!referenceBv.trim() || m === null || m <= 0 || !Number.isInteger(m)
           }
         >
           Enregistrer

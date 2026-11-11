@@ -47,6 +47,8 @@ import sn.digitalperf.jaugeo.tresorerie.application.VuesTresorerie.SituationStat
 import sn.digitalperf.jaugeo.tresorerie.application.VuesTresorerie.VersementVue;
 import sn.digitalperf.jaugeo.tresorerie.domaine.ArreteCaisse;
 import sn.digitalperf.jaugeo.tresorerie.domaine.ArreteCaisseDepot;
+import sn.digitalperf.jaugeo.tresorerie.domaine.Banque;
+import sn.digitalperf.jaugeo.tresorerie.domaine.BanqueDepot;
 import sn.digitalperf.jaugeo.tresorerie.domaine.CalculCaisse;
 import sn.digitalperf.jaugeo.tresorerie.domaine.ManquantGerant;
 import sn.digitalperf.jaugeo.tresorerie.domaine.ManquantGerantDepot;
@@ -96,6 +98,7 @@ public class TresorerieService implements SyntheseCaisse {
     private final BigDecimal plafondReseau;
     /** Mois clotures : ni versement ni arrete de caisse date dans un mois clos. */
     private final VerrouPeriode verrou;
+    private final BanqueDepot banques;
 
     public TresorerieService(RecetteJourneeDepot recettes, VersementDepot versements, PieceVersementDepot pieces,
                              ArreteCaisseDepot arretes, ManquantGerantDepot manquants, PlafondEspecesDepot plafonds,
@@ -106,7 +109,8 @@ public class TresorerieService implements SyntheseCaisse {
                              PerimetreCourant perimetre, Clock horloge,
                              @Value("${jaugeo.tresorerie.delai-versement-jours:3}") int delaiVersementJours,
                              @Value("${jaugeo.tresorerie.plafond-especes:#{null}}") BigDecimal plafondReseau,
-                             VerrouPeriode verrou) {
+                             VerrouPeriode verrou, BanqueDepot banques) {
+        this.banques = banques;
         this.plafondReseau = plafondReseau;
         this.verrou = verrou;
         this.recettes = recettes;
@@ -327,8 +331,15 @@ public class TresorerieService implements SyntheseCaisse {
     }
 
     private void renseigner(Versement v, Versement.Donnees d) {
+        String banqueAvant = v.getBanque();
         v.renseigner(d, aujourdhui());
         exigerApresDernierArrete(v.getStationId(), v.getDateDepot());
+        // La banque se choisit parmi les banques actives ; un versement garde sa banque si elle a ete desactivee depuis
+        Banque banque = banques.findByCode(v.getBanque()).orElseThrow(() -> ErreurMetier.regle("BANQUE_INCONNUE",
+                "Choisissez la banque dans la liste proposée."));
+        if (!banque.isActif() && !banque.getCode().equals(banqueAvant)) {
+            throw ErreurMetier.regle("BANQUE_INACTIVE", "La banque " + banque.getNom() + " n'est pas une banque de la compagnie.");
+        }
         versements.parBordereau(v.getBanque(), v.getReferenceBv()).filter(x -> !x.getId().equals(v.getId())).ifPresent(x -> {
             String ou = referentiel.station(x.getStationId()).map(StationRef::code).orElse("?");
             throw ErreurMetier.conflit("BV_DEJA_SAISI", "Le bordereau " + x.getReferenceBv() + " de la banque " + x.getBanque()

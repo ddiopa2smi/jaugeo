@@ -776,7 +776,17 @@ export interface Versement {
   dateReleve?: string | null
 }
 
-export type NatureReleve = 'BANQUE' | 'WAVE' | 'ORANGE_MONEY' | 'CARTE'
+/** Banque où la recette peut être déposée ; seules les banques actives sont proposées à la saisie d'un versement. */
+export interface Banque {
+  id: string
+  /** Sigle porté par les versements (CBAO, BIS, LBA…) */
+  code: string
+  nom: string
+  actif: boolean
+  version: number
+}
+
+export type NatureReleve ='BANQUE' | 'WAVE' | 'ORANGE_MONEY' | 'CARTE'
 
 export interface FormatReleve {
   id: string
