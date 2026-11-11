@@ -165,7 +165,7 @@ export function FormulaireUtilisateur({
                       size="small"
                       options={listeStations}
                       loading={stations.isLoading}
-                      getOptionLabel={(s) => `${s.code} — ${s.nom}`}
+                      getOptionLabel={(s) => s.nom}
                       isOptionEqualToValue={(a, b) => a.numero === b.numero}
                       value={listeStations.filter((s) => field.value.includes(s.numero))}
                       onChange={(_, choix) => field.onChange(choix.map((s) => s.numero))}
