@@ -46,6 +46,7 @@ import { notifier } from '../../shared/notifications'
 import { BoutonPiece, VoirPiece } from '../../shared/PieceJointe'
 import { moisCourant } from '../../shared/stock'
 import { aujourdhui, formaterEcart, MODES_REGLEMENT, STATUTS_MANQUANT, STATUTS_VERSEMENT, TYPES_ARRETE } from '../../shared/tresorerie'
+import { DialogueBanques } from './DialogueBanques'
 import { DialogueManquant } from './DialogueManquant'
 import { DialogueVersement } from './DialogueVersement'
 import { OngletRapprochement } from './OngletRapprochement'
@@ -802,7 +803,9 @@ export function PageTresorerie() {
   const verifie = usePermission('VERSEMENT_VALIDER')
   const decide = usePermission('DEPENSE_VALIDER')
   const controle = usePermission('CAISSE_CONTROLER')
-  const reseau = useSession((e) => e.utilisateur?.perimetre === 'RESEAU')
+  const gereBanques = usePermission('REFERENTIEL_GERER')
+  const [banques, setBanques] = useState(false)
+  const reseau =useSession((e) => e.utilisateur?.perimetre === 'RESEAU')
   const onglets = [
     { valeur: 'caisse', libelle: 'Caisse du gérant' },
     ...(verifie ? [{ valeur: 'verification', libelle: 'Versements à vérifier' }] : []),
@@ -818,7 +821,15 @@ export function PageTresorerie() {
       <EnTetePage
         titre="Trésorerie"
         sousTitre="Montant à verser jour par jour, versements bancaires, solde non versé du gérant, arrêtés de caisse et manquants."
+        actions={
+          gereBanques ? (
+            <Button variant="outlined" startIcon={<AccountBalanceIcon />} onClick={() => setBanques(true)}>
+              Banques
+            </Button>
+          ) : undefined
+        }
       />
+      {banques && <DialogueBanques onFermer={() => setBanques(false)} />}
       <Tabs
         value={onglet}
         onChange={(_e, v) => {

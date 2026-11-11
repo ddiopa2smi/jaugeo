@@ -25,6 +25,7 @@ import type {
   DepenseAValider,
   DepensesJournee,
   EncaissementsJournee,
+  Banque,
   FormatReleve,
   Rapprochement,
   RapprochementElectronique,
@@ -106,6 +107,7 @@ export const cles = {
   livreCaisse: (stationId: string, mois: string) => ['tresorerie', 'caisse', stationId, mois] as const,
   versements: (stationId: string, mois: string) => ['tresorerie', 'versements', stationId, mois] as const,
   formatsReleve: ['tresorerie', 'formats-releve'] as const,
+  banques: (toutes: boolean) => ['tresorerie', 'banques', toutes] as const,
   rapprochement: (mois: string) => ['tresorerie', 'rapprochement', mois] as const,
   rapprochementElectronique: (mois: string) => ['tresorerie', 'rapprochement-electronique', mois] as const,
   arretes: (stationId: string) => ['tresorerie', 'arretes', stationId] as const,
@@ -402,6 +404,10 @@ export const useVentesArticles = (id: string) =>
 
 export const useEncaissements = (id: string) =>
   useQuery({ queryKey: cles.encaissements(id), queryFn: () => api.get<EncaissementsJournee>(`/journees/${id}/encaissements`) })
+
+/** Banques actives (saisie d'un versement) ou toutes les banques (choix des banques de la compagnie). */
+export const useBanques = (toutes = false) =>
+  useQuery({ queryKey: cles.banques(toutes), queryFn: () => api.get<Banque[]>(`/tresorerie/banques${toutes ? '?toutes=true' : ''}`) })
 
 export const useFormatsReleve = () =>
   useQuery({ queryKey: cles.formatsReleve, queryFn: () => api.get<FormatReleve[]>('/tresorerie/formats-releve') })

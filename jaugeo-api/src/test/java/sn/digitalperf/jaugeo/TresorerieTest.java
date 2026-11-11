@@ -194,6 +194,25 @@ class TresorerieTest {
         mvc.perform(avec(post("/api/v1/tresorerie/versements"), superviseur).content(versement(pot, "2026-01-02", "SGBS", "A-2", 1000)))
                 .andExpect(status().isForbidden());
 
+        // La banque se choisit dans la table des banques : 29 banques du Senegal, seules les actives sont proposees
+        String admin = OutilsApi.jetonAdmin(mvc, jdbc);
+        String banques = obtenir(gerant, "/api/v1/tresorerie/banques?toutes=true");
+        assertThat(JsonPath.<List<String>>read(banques, "$[*].code")).hasSizeGreaterThanOrEqualTo(29).contains("CBAO", "BIS", "LBA", "LBO");
+        mvc.perform(avec(post("/api/v1/tresorerie/versements"), gerant).content(versement(pot, "2026-01-02", "SGBS", "A-3", 1000)))
+                .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.code").value("BANQUE_INCONNUE"));
+        String lbo = JsonPath.<List<String>>read(banques, "$[?(@.code=='LBO')].id").get(0);
+        mvc.perform(avec(put("/api/v1/tresorerie/banques/" + lbo), gerant).content("{\"actif\":false}")).andExpect(status().isForbidden());
+        mvc.perform(avec(put("/api/v1/tresorerie/banques/" + lbo), admin).content("{\"actif\":false}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.actif").value(false));
+        assertThat(JsonPath.<List<String>>read(obtenir(gerant, "/api/v1/tresorerie/banques"), "$[*].code")).contains("CBAO").doesNotContain("LBO");
+        mvc.perform(avec(post("/api/v1/tresorerie/versements"), gerant).content(versement(pot, "2026-01-02", "LBO", "A-4", 1000)))
+                .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.code").value("BANQUE_INACTIVE"));
+        mvc.perform(avec(put("/api/v1/tresorerie/banques/" + lbo), admin).content("{\"actif\":true}")).andExpect(status().isOk());
+        mvc.perform(avec(post("/api/v1/tresorerie/banques"), admin).content("{\"code\":\"bqt\",\"nom\":\"Banque de test\"}"))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.code").value("BQT")).andExpect(jsonPath("$.actif").value(true));
+        mvc.perform(avec(post("/api/v1/tresorerie/banques"), admin).content("{\"code\":\"BQT\",\"nom\":\"Doublon\"}"))
+                .andExpect(status().isConflict());
+
         // Verification comptable : bordereau joint exige, l'auteur ne verifie pas lui-meme
         String verification = "/api/v1/tresorerie/versements/" + vid + "/verification";
         mvc.perform(avec(post(verification), comptable).content("{\"version\":" + JsonPath.read(v, "$.version") + ",\"valide\":true}"))

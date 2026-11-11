@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { LigneCaisse, LivreCaisse, Permission, Station, Versement } from '../../api/types'
+import type { Banque, LigneCaisse,LivreCaisse, Permission, Station, Versement } from '../../api/types'
 import { Fournisseurs } from '../../app/Fournisseurs'
 import { RestaurationSession } from '../../app/Gardes'
 import { creerQueryClient } from '../../app/queryClient'
@@ -109,6 +109,12 @@ const versement = (surcharge: Partial<Versement> = {}): Versement => ({
   ...surcharge,
 })
 
+const BANQUES: Banque[] = [
+  { id: 'b-bis', code: 'BIS', nom: 'Banque Islamique du Sénégal', actif: true, version: 0 },
+  { id: 'b-cbao', code: 'CBAO', nom: 'CBAO Groupe Attijariwafa Bank', actif: true, version: 0 },
+  { id: 'b-lbo', code: 'LBO', nom: 'La Banque Outarde', actif: false, version: 0 },
+]
+
 function afficher(chemin: string) {
   const routeur = createMemoryRouter(routes, { initialEntries: [chemin] })
   render(
@@ -133,6 +139,7 @@ describe('trésorerie', () => {
       if (chemin === '/stations') return { status: 200, corps: [STATION] }
       if (chemin === '/stations/s-pot/caisse?mois=2026-01') return { status: 200, corps: LIVRE }
       if (chemin === '/tresorerie/versements?station=s-pot&mois=2026-01') return { status: 200, corps: versements }
+      if (chemin === '/tresorerie/banques') return { status: 200, corps: BANQUES.filter((b) => b.actif) }
       if (chemin === '/tresorerie/versements' && methode === 'POST') {
         creations.push(corps)
         versements.push(versement(corps as Partial<Versement>))
@@ -159,7 +166,14 @@ describe('trésorerie', () => {
     const dialogue = await screen.findByRole('dialog')
     // Le montant proposé est le solde non versé
     expect(within(dialogue).getByLabelText(/Montant/)).toHaveValue('539760')
-    await u.type(within(dialogue).getByLabelText(/Banque/), 'cbao')
+    // La banque se choisit parmi les banques actives de la compagnie
+    await u.click(within(dialogue).getByLabelText(/Banque/))
+    const choix = within(await screen.findByRole('listbox'))
+    expect(choix.getAllByRole('option').map((o) => o.textContent)).toEqual([
+      'Banque Islamique du Sénégal (BIS)',
+      'CBAO Groupe Attijariwafa Bank (CBAO)',
+    ])
+    await u.click(choix.getByRole('option', { name: /CBAO/ }))
     await u.type(within(dialogue).getByLabelText(/bordereau \(BV\)/), '774378')
     const photo = new File([new Uint8Array([0xff, 0xd8, 0xff, 0xe0])], 'bv.jpg', { type: 'image/jpeg' })
     await u.upload(within(dialogue).getByLabelText('Photo du bordereau'), photo)
@@ -168,7 +182,7 @@ describe('trésorerie', () => {
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(creations).toEqual([
-      expect.objectContaining({ stationId: 's-pot', banque: 'cbao', referenceBv: '774378', montant: 539760, deposant: null }),
+      expect.objectContaining({ stationId: 's-pot', banque: 'CBAO',referenceBv: '774378', montant: 539760, deposant: null }),
     ])
     expect(pieces).toHaveLength(1)
     expect(pieces[0]!.chemin).toBe('/tresorerie/versements/v1/piece?version=0')
@@ -216,5 +230,44 @@ describe('trésorerie', () => {
       { chemin: '/tresorerie/versements/v1/verification', corps: { version: 0, valide: true, motif: null } },
     ])
     expect(await screen.findByText('Aucun versement en attente de vérification.')).toBeInTheDocument()
+  })
+
+  it('l’administrateur choisit les banques de la compagnie et en ajoute une', async () => {
+    let banques = [...BANQUES]
+    const envois: { methode: string; chemin: string; corps: unknown }[] = []
+    installerFauxServeur(({ methode, chemin, corps }) => {
+      if (chemin === '/auth/rafraichir') return { status: 200, corps: sessionTest('j', utilisateurTest()) }
+      if (chemin === '/stations') return { status: 200, corps: [STATION] }
+      if (chemin === '/tresorerie/banques?toutes=true') return { status: 200, corps: banques }
+      if (chemin === '/tresorerie/banques/b-lbo' && methode === 'PUT') {
+        envois.push({ methode, chemin, corps })
+        banques = banques.map((b) => (b.id === 'b-lbo' ? { ...b, actif: true, version: 1 } : b))
+        return { status: 200, corps: banques[2] }
+      }
+      if (chemin === '/tresorerie/banques' && methode === 'POST') {
+        envois.push({ methode, chemin, corps })
+        const b = { id: 'b-x', code: 'BQX', nom: 'Banque X', actif: true, version: 0 }
+        banques = [...banques, b]
+        return { status: 201, corps: b }
+      }
+      return undefined
+    })
+    afficher('/tresorerie')
+    const u = userEvent.setup()
+
+    await u.click(await screen.findByRole('button', { name: 'Banques' }))
+    const dialogue = await screen.findByRole('dialog')
+    expect(await within(dialogue).findByTestId('banques-actives')).toHaveTextContent('2 banque(s) active(s) sur 3')
+    await u.click(within(within(dialogue).getByTestId('banque-LBO')).getByRole('switch'))
+    await waitFor(() => expect(within(dialogue).getByTestId('banques-actives')).toHaveTextContent('3 banque(s) active(s) sur 3'))
+
+    await u.type(within(dialogue).getByLabelText('Sigle'), 'bqx')
+    await u.type(within(dialogue).getByLabelText('Nom de la banque'), 'Banque X')
+    await u.click(within(dialogue).getByRole('button', { name: 'Ajouter' }))
+    expect(await within(dialogue).findByTestId('banque-BQX')).toBeInTheDocument()
+    expect(envois).toEqual([
+      { methode: 'PUT', chemin: '/tresorerie/banques/b-lbo', corps: { version: 0, actif: true } },
+      { methode: 'POST', chemin: '/tresorerie/banques', corps: { code: 'bqx', nom: 'Banque X' } },
+    ])
   })
 })
