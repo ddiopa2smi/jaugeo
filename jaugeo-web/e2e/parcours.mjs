@@ -120,18 +120,16 @@ try {
   // 7. Comptes de test : toujours les mêmes trois identifiants. Créés à la première exécution,
   //    ensuite leur mot de passe est réinitialisé (nouveau mot de passe provisoire à changer).
   await page.getByRole('link', { name: 'Utilisateurs' }).click()
-  await page.getByRole('gridcell', { name: 'admin', exact: true }).waitFor()
+  await page.getByTestId('utilisateur-admin').waitFor()
   const dlg = page.getByRole('dialog')
-  const existe = async (identifiant) => (await page.getByRole('gridcell', { name: identifiant, exact: true }).count()) > 0
+  const existe = async (identifiant) => (await page.getByTestId(`utilisateur-${identifiant}`).count()) > 0
   const lireProvisoire = async () => {
     const m = (await page.getByTestId('mdp-provisoire').innerText()).trim()
     await page.getByRole('button', { name: "J'ai transmis le mot de passe" }).click()
     return m
   }
   const reinitialiser = async (identifiant) => {
-    await page.locator('.MuiDataGrid-row')
-      .filter({ has: page.getByRole('gridcell', { name: identifiant, exact: true }) })
-      .getByRole('button', { name: 'Réinitialiser le mot de passe' }).click()
+    await page.getByTestId(`utilisateur-${identifiant}`).getByRole('button', { name: /Réinitialiser le mot de passe/ }).click()
     await dlg.getByRole('button', { name: 'Réinitialiser', exact: true }).click()
     return lireProvisoire()
   }
@@ -144,7 +142,7 @@ try {
     await page.getByRole('option', { name: role }).click()
     await page.getByRole('button', { name: 'Créer le compte' }).click()
     const m = await lireProvisoire()
-    await page.getByRole('gridcell', { name: identifiant, exact: true }).waitFor()
+    await page.getByTestId(`utilisateur-${identifiant}`).waitFor()
     return m
   }
 
@@ -166,14 +164,14 @@ try {
     mdp = await reinitialiser(ident)
   } else {
     await dlg.getByLabel('Stations accessibles').click()
-    await page.getByRole('option', { name: /NIA/ }).click()
+    await page.getByRole('option', { name: /Niandane/ }).click()
     await page.getByRole('button', { name: 'Créer le compte' }).click()
     await page.getByTestId('mdp-provisoire').waitFor()
     await capture(page, '05-mot-de-passe-provisoire')
     mdp = await lireProvisoire()
   }
   verifier(`Mot de passe provisoire affiché (${mdp.length} caractères)`, mdp.length === 12)
-  await page.getByRole('gridcell', { name: ident, exact: true }).waitFor()
+  await page.getByTestId(`utilisateur-${ident}`).waitFor()
   verifier('Compte de test visible dans la liste', true)
   await capture(page, '06-utilisateurs')
 
