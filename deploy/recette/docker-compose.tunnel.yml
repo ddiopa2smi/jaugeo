@@ -1,0 +1,16 @@
+# Essai sur un poste : Jaugeo expose par un tunnel Cloudflare rapide, sans Caddy, sans domaine ni port ouvert.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.tunnel.yml up -d --build
+#   docker compose -f docker-compose.yml -f docker-compose.tunnel.yml logs tunnel | grep trycloudflare
+#
+# L'adresse https://<...>.trycloudflare.com change a chaque redemarrage du tunnel et cesse de fonctionner
+# quand le poste s'eteint : reserve aux essais, jamais a la production.
+services:
+  caddy:
+    profiles: ["https"]   # desactive : Cloudflare fournit le HTTPS
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    depends_on:
+      - web
+    command: tunnel --no-autoupdate --url http://web:80
