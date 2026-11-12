@@ -1,3 +1,7 @@
+import BalanceOutlinedIcon from '@mui/icons-material/BalanceOutlined'
+import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined'
+import LocalGasStationOutlinedIcon from '@mui/icons-material/LocalGasStationOutlined'
+import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined'
 import Box from '@mui/material/Box'
 import Chip from '@mui/material/Chip'
 import Paper from '@mui/material/Paper'
@@ -13,10 +17,13 @@ import { lazy, Suspense, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useTableauReseau } from '../../api/requetes'
 import type { NiveauEcart, StationReseau } from '../../api/types'
+import { CarteIndicateur } from '../../shared/CarteIndicateur'
 import { NomStation } from '../../shared/CarteStation'
 import { AlerteErreur, Chargement } from '../../shared/composants'
 import { formaterDate, formaterNombre, formaterPrix } from '../../shared/libelles'
 import { NIVEAUX_ECART } from '../../shared/stock'
+import { CadreTableau, EnTeteTri, PuceEtat } from '../../shared/tableaux'
+import { useTri } from '../../shared/tri'
 
 // Leaflet n'est téléchargé qu'à l'ouverture de la page
 const CarteReseau = lazy(async () => ({ default: (await import('./CarteReseau')).CarteReseau }))
@@ -25,24 +32,6 @@ const LIBELLES_NIVEAU: Record<NiveauEcart, string> = { NORMAL: 'Normal', ALERTE:
 const ORDRE: Record<NiveauEcart, number> = { ENQUETE: 0, ALERTE: 1, NORMAL: 2 }
 
 const aujourdhui = () => new Date().toISOString().slice(0, 10)
-
-function Indicateur({ libelle, valeur, detail }: { libelle: string; valeur: string; detail?: string }) {
-  return (
-    <Paper sx={{ p: 2 }}>
-      <Typography variant="body2" color="text.secondary">
-        {libelle}
-      </Typography>
-      <Typography variant="h5" component="p" sx={{ my: 0.5, fontVariantNumeric: 'tabular-nums' }}>
-        {valeur}
-      </Typography>
-      {detail && (
-        <Typography variant="caption" color="text.secondary">
-          {detail}
-        </Typography>
-      )}
-    </Paper>
-  )
-}
 
 function Cloture({ s }: { s: StationReseau }) {
   if (!s.derniereCloture) return <>—</>
@@ -64,6 +53,20 @@ export function PageReseau() {
   const tableau = useTableauReseau(date)
   const navigate = useNavigate()
   const t = tableau.data
+  // Tri initial : les stations à surveiller d'abord
+  const tri = useTri<StationReseau, 'station' | 'niveau' | 'cloture' | 'veille' | 'litres' | 'ventes' | 'ecart' | 'caisse'>(
+    {
+      station: (s) => s.nom,
+      niveau: (s) => `${ORDRE[s.niveau]} ${s.code}`,
+      cloture: (s) => s.derniereCloture,
+      veille: (s) => s.litresVeille,
+      litres: (s) => s.litresMoisTotal,
+      ventes: (s) => s.ventesMois,
+      ecart: (s) => s.ecartStockValeurMois,
+      caisse: (s) => s.soldeCaisse,
+    },
+    'niveau',
+  )
 
   return (
     <>
@@ -91,8 +94,8 @@ export function PageReseau() {
       <AlerteErreur erreur={tableau.error} />
       {t && (
         <>
-          <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(5, 1fr)' }, mb: 3 }}>
-            <Paper sx={{ p: 2 }} aria-label="Stations par niveau">
+          <Box sx={{ display: 'grid', gap: { xs: 1.5, md: 2 }, gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(5, 1fr)' }, mb: 3 }}>
+            <Paper variant="outlined" sx={{ p: 2, borderRadius: '12px' }} aria-label="Stations par niveau">
               <Typography variant="body2" color="text.secondary">
                 Stations
               </Typography>
@@ -109,13 +112,21 @@ export function PageReseau() {
                 ))}
               </Stack>
             </Paper>
-            <Indicateur libelle="Litres vendus la veille" valeur={`${formaterNombre(t.litresVeille)} L`} />
-            <Indicateur libelle="Litres vendus dans le mois" valeur={`${formaterNombre(t.litresMois)} L`} />
-            <Indicateur libelle="Ventes du mois" valeur={formaterPrix(t.ventesMois)} detail={`versé : ${formaterPrix(t.versementsMois)}`} />
-            <Indicateur
+            <CarteIndicateur icone={<LocalGasStationOutlinedIcon />} libelle="Litres vendus la veille" valeur={`${formaterNombre(t.litresVeille)} L`} />
+            <CarteIndicateur icone={<CalendarMonthOutlinedIcon />} libelle="Litres vendus dans le mois" valeur={`${formaterNombre(t.litresMois)} L`} />
+            <CarteIndicateur
+              icone={<PaymentsOutlinedIcon />}
+              libelle="Ventes du mois"
+              valeur={formaterPrix(t.ventesMois)}
+              ton="success"
+              sous={`versé : ${formaterPrix(t.versementsMois)}`}
+            />
+            <CarteIndicateur
+              icone={<BalanceOutlinedIcon />}
               libelle="Écarts de stock du mois"
               valeur={formaterPrix(t.ecartStockValeurMois)}
-              detail="valeur des écarts (négatif = manquant)"
+              ton={t.ecartStockValeurMois < 0 ? 'error' : 'primary'}
+              sous="valeur des écarts (négatif = manquant)"
             />
           </Box>
 
@@ -125,25 +136,39 @@ export function PageReseau() {
             </Suspense>
           </Paper>
 
-          <Paper sx={{ overflowX: 'auto' }}>
+          <CadreTableau>
             <Table size="small" aria-label="Stations du réseau">
               <TableHead>
                 <TableRow>
-                  <TableCell>Station</TableCell>
-                  <TableCell>Niveau</TableCell>
+                  <EnTeteTri tri={tri} cle="station">
+                    Station
+                  </EnTeteTri>
+                  <EnTeteTri tri={tri} cle="niveau">
+                    Niveau
+                  </EnTeteTri>
                   <TableCell>Motifs</TableCell>
-                  <TableCell>Dernière clôture</TableCell>
-                  <TableCell align="right">Litres veille</TableCell>
-                  <TableCell align="right">Litres du mois</TableCell>
-                  <TableCell align="right">Ventes du mois</TableCell>
-                  <TableCell align="right">Écart de stock</TableCell>
-                  <TableCell align="right">Caisse du gérant</TableCell>
+                  <EnTeteTri tri={tri} cle="cloture">
+                    Dernière clôture
+                  </EnTeteTri>
+                  <EnTeteTri tri={tri} cle="veille" align="right">
+                    Litres veille
+                  </EnTeteTri>
+                  <EnTeteTri tri={tri} cle="litres" align="right">
+                    Litres du mois
+                  </EnTeteTri>
+                  <EnTeteTri tri={tri} cle="ventes" align="right">
+                    Ventes du mois
+                  </EnTeteTri>
+                  <EnTeteTri tri={tri} cle="ecart" align="right">
+                    Écart de stock
+                  </EnTeteTri>
+                  <EnTeteTri tri={tri} cle="caisse" align="right">
+                    Caisse du gérant
+                  </EnTeteTri>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {[...t.stations]
-                  .sort((a, b) => ORDRE[a.niveau] - ORDRE[b.niveau] || a.code.localeCompare(b.code))
-                  .map((s) => (
+                {tri.trier(t.stations).map((s) => (
                     <TableRow
                       key={s.stationId}
                       hover
@@ -155,7 +180,7 @@ export function PageReseau() {
                         <NomStation nom={s.nom} teinte={NIVEAUX_ECART[s.niveau].couleur} />
                       </TableCell>
                       <TableCell>
-                        <Chip size="small" color={NIVEAUX_ECART[s.niveau].couleur} label={LIBELLES_NIVEAU[s.niveau]} />
+                        <PuceEtat ton={NIVEAUX_ECART[s.niveau].couleur} libelle={LIBELLES_NIVEAU[s.niveau]} />
                       </TableCell>
                       <TableCell sx={{ maxWidth: 320 }}>
                         {s.motifs.length === 0 ? (
@@ -184,7 +209,7 @@ export function PageReseau() {
                   ))}
               </TableBody>
             </Table>
-          </Paper>
+          </CadreTableau>
         </>
       )}
     </>

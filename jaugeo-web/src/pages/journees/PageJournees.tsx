@@ -7,6 +7,7 @@ import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
+import { alpha } from '@mui/material/styles'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { DataGrid, type GridColDef } from '@mui/x-data-grid'
 import { useState } from 'react'
@@ -152,12 +153,38 @@ export function PageJournees() {
             rows={liste.data.journees}
             columns={colonnes}
             getRowId={(j) => j.id}
-            onRowClick={({ row }) => navigate(`/journees/${row.id}`)}
+            onRowClick={({ row }) => {
+              // La journée cliquée est gardée dans l'adresse : elle reste marquée au retour
+              const p = new URLSearchParams(params)
+              p.set('journee', row.id)
+              if (stationId && !p.get('station')) p.set('station', stationId)
+              setParams(p, { replace: true })
+              navigate(`/journees/${row.id}`)
+            }}
+            getRowClassName={({ id }) => (id === params.get('journee') ? 'ligne-choisie' : '')}
             disableRowSelectionOnClick
             autoHeight
+            density="compact"
+            rowHeight={30}
+            columnHeaderHeight={34}
+            initialState={{ sorting: { sortModel: [{ field: 'date', sort: 'desc' }] } }}
             hideFooter={liste.data.journees.length <= 25}
             localeText={{ noRowsLabel: 'Aucune journée sur les deux derniers mois.' }}
-            sx={{ '& .MuiDataGrid-row': { cursor: 'pointer' } }}
+            sx={(t) => ({
+              fontSize: 13,
+              '& .MuiDataGrid-row': { cursor: 'pointer' },
+              '& .MuiDataGrid-cell, & .MuiDataGrid-columnHeader': { px: 0.75 },
+              '& .MuiDataGrid-columnHeaderTitle': { fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' },
+              '& .MuiChip-root': { height: 18, fontSize: 11 },
+              '& .MuiChip-label': { px: 0.75 },
+              // Survol bien visible ; la journée cliquée reste marquée (fond soutenu et liseré à gauche)
+              '& .MuiDataGrid-row:hover': { bgcolor: alpha(t.palette.primary.main, 0.12) },
+              '& .MuiDataGrid-row.ligne-choisie': {
+                bgcolor: alpha(t.palette.primary.main, 0.22),
+                boxShadow: `inset 3px 0 0 ${t.palette.primary.main}`,
+              },
+              '& .MuiDataGrid-row.ligne-choisie:hover': { bgcolor: alpha(t.palette.primary.main, 0.28) },
+            })}
           />
         </>
       )}

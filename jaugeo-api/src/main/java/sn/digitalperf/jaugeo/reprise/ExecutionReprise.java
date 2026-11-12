@@ -610,8 +610,24 @@ final class ExecutionReprise {
 
     private void verser(Cible c, LocalDate date, String banque, String reference, BigDecimal montant, String observation) {
         assurerBanque(banque);
-        gerant.post("/api/v1/tresorerie/versements", corps("stationId", c.uuid(), "dateDepot", date.toString(), "banque", banque,
-                "referenceBv", reference, "montant", montant, "deposant", null, "observation", observation));
+        // Le bordereau est exige a la creation : le classeur n'en fournit pas, une piece de reprise le dit
+        gerant.posterAvecFichier("/api/v1/tresorerie/versements", "versement", corps("stationId", c.uuid(), "dateDepot",
+                        date.toString(), "banque", banque, "referenceBv", reference, "montant", montant, "deposant", null,
+                        "observation", observation),
+                "bordereau-reprise.pdf", "application/pdf", pieceVersement(c, date, banque, reference, montant));
+    }
+
+    private byte[] pieceVersement(Cible c, LocalDate date, String banque, String reference, BigDecimal montant) {
+        ByteArrayOutputStream o = new ByteArrayOutputStream();
+        Document doc = new Document();
+        PdfWriter.getInstance(doc, o);
+        doc.open();
+        doc.add(new Paragraph("Pièce de reprise — Jaugeo"));
+        doc.add(new Paragraph("Versement de " + Rapport.nombre(montant) + " F (banque " + banque + ", bordereau " + reference
+                + ") inscrit au classeur « SUIVI DES STATIONS » pour la station " + c.code() + ", dépôt du " + date + "."));
+        doc.add(new Paragraph("Aucun bordereau d'origine n'accompagne le classeur."));
+        doc.close();
+        return o.toByteArray();
     }
 
     // ---------------------------------------------------------------- Rapprochement

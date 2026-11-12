@@ -23,6 +23,7 @@ import { ecartBudgetPct, formaterEcartPct, MOIS_ANNEE, repartir } from '../../sh
 import { AlerteErreur, Chargement } from '../../shared/composants'
 import { formaterNombre, formaterPrix, versNombre } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
+import { CadreTableau } from '../../shared/tableaux'
 
 const chiffres = { whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' } as const
 const RESEAU = 'RESEAU'
@@ -86,7 +87,7 @@ function Suivi({ stationId, annee }: { stationId: string | null; annee: number }
           Aucun budget saisi pour {annee}. Passez en saisie pour le renseigner, station par station.
         </Alert>
       )}
-      <Paper sx={{ overflowX: 'auto' }}>
+      <CadreTableau>
         <Table size="small" aria-label="Réel contre budget">
           <TableHead>
             <TableRow>
@@ -106,13 +107,13 @@ function Suivi({ stationId, annee }: { stationId: string | null; annee: number }
             <LigneSuivi libelle="Cumul des mois écoulés" m={s.cumul} fort />
           </TableBody>
         </Table>
-      </Paper>
+      </CadreTableau>
       {s.produits.length > 0 && (
         <>
           <Typography variant="overline" color="text.secondary" component="div" sx={{ mt: 2 }}>
             Par produit, sur les mois écoulés
           </Typography>
-          <Paper sx={{ overflowX: 'auto' }}>
+          <CadreTableau>
             <Table size="small" aria-label="Réel contre budget par produit">
               <TableHead>
                 <TableRow>
@@ -145,7 +146,7 @@ function Suivi({ stationId, annee }: { stationId: string | null; annee: number }
                 ))}
               </TableBody>
             </Table>
-          </Paper>
+          </CadreTableau>
         </>
       )}
       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>

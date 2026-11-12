@@ -19,6 +19,8 @@ import { NomStation } from '../../shared/CarteStation'
 import { AlerteErreur, Chargement } from '../../shared/composants'
 import { formaterDate, formaterNombre, formaterPrix } from '../../shared/libelles'
 import { formaterPct } from '../../shared/stock'
+import { CadreTableau, EnTeteTri } from '../../shared/tableaux'
+import { useTri } from '../../shared/tri'
 
 const chiffres = { whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' } as const
 const RESEAU = 'RESEAU'
@@ -154,6 +156,16 @@ function Compte({ c }: { c: CompteExploitation }) {
 export function OngletCompte({ mois }: { mois: string }) {
   const requete = useCompteExploitation(mois)
   const [choix, setChoix] = useState(RESEAU)
+  const tri = useTri<CompteExploitation, 'station' | 'ca' | 'marge' | 'depenses' | 'resultat'>(
+    {
+      station: (s) => s.stationNom,
+      ca: (s) => s.chiffreAffaires + s.ventesArticles,
+      marge: (s) => s.margeBrute,
+      depenses: (s) => s.depenses,
+      resultat: (s) => s.resultat,
+    },
+    'station',
+  )
   const c = requete.data
   if (!c) return requete.isLoading ? <Chargement /> : <AlerteErreur erreur={requete.error} />
   if (c.stations.length === 0) return <Alert severity="info">Aucune station dans votre périmètre pour ce mois.</Alert>
@@ -182,19 +194,29 @@ export function OngletCompte({ mois }: { mois: string }) {
           <Compte c={compte} />
         </Box>
 
-        <Paper sx={{ overflowX: 'auto' }}>
+        <CadreTableau>
           <Table size="small" aria-label="Comparaison des stations">
             <TableHead>
               <TableRow>
-                <TableCell>Station</TableCell>
-                <TableCell align="right">Chiffre d'affaires</TableCell>
-                <TableCell align="right">Marge brute</TableCell>
-                <TableCell align="right">Dépenses</TableCell>
-                <TableCell align="right">Résultat</TableCell>
+                <EnTeteTri tri={tri} cle="station">
+                  Station
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="ca" align="right">
+                  Chiffre d'affaires
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="marge" align="right">
+                  Marge brute
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="depenses" align="right">
+                  Dépenses
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="resultat" align="right">
+                  Résultat
+                </EnTeteTri>
               </TableRow>
             </TableHead>
             <TableBody>
-              {c.stations.map((s) => (
+              {tri.trier(c.stations).map((s) => (
                 <TableRow
                   key={s.stationCode}
                   hover
@@ -245,7 +267,7 @@ export function OngletCompte({ mois }: { mois: string }) {
               )}
             </TableBody>
           </Table>
-        </Paper>
+        </CadreTableau>
       </Box>
       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
         Calculé sur les journées clôturées. Un mois clôturé est figé : ses chiffres ne changent plus, une correction passe par une

@@ -1,4 +1,8 @@
 import AddIcon from '@mui/icons-material/Add'
+import BlockOutlinedIcon from '@mui/icons-material/BlockOutlined'
+import HourglassBottomOutlinedIcon from '@mui/icons-material/HourglassBottomOutlined'
+import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined'
+import RequestQuoteOutlinedIcon from '@mui/icons-material/RequestQuoteOutlined'
 import DeleteIcon from '@mui/icons-material/Delete'
 import EditIcon from '@mui/icons-material/Edit'
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf'
@@ -42,11 +46,14 @@ import type {
   TypeEngin,
 } from '../../api/types'
 import { usePermission } from '../../auth/session'
+import { CarteIndicateur } from '../../shared/CarteIndicateur'
 import { MODES_REGLEMENT_CLIENT, MODES_RELANCE, MODES_SIEGE, NIVEAUX_RELANCE, RECOUVREMENTS, TYPES_ENGIN } from '../../shared/clients'
 import { AlerteErreur, Chargement, EnTetePage, PuceStatut } from '../../shared/composants'
 import { confirmerPuis } from '../../shared/confirmation'
 import { formaterDate, formaterNombre, formaterPrix, versNombre, videVersNull } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
+import { BarreFiltres, CadreTableau, ChampRecherche, EnTeteTri, FiltrePuces, PuceEtat } from '../../shared/tableaux'
+import { correspond, useTri } from '../../shared/tri'
 import { telecharger } from '../../shared/telechargement'
 import { aujourdhui } from '../../shared/tresorerie'
 import { DialogueCarte, DialogueEmissionCarte, TableCartes } from './Cartes'
@@ -933,8 +940,21 @@ export function PageClients() {
   const [edition, setEdition] = useState<Client | 'nouveau' | null>(null)
   const [filtre, setFiltre] = useState('')
   const choisi = params.get('client')
-  const liste = (clients.data ?? []).filter((c) => `${c.code} ${c.nom}`.toLowerCase().includes(filtre.trim().toLowerCase()))
-  const total = (clients.data ?? []).reduce((s, c) => s + c.encours, 0)
+  const [etat, setEtat] = useState<'TOUS' | 'ECHU' | 'PLAFOND'>('TOUS')
+  const tri = useTri<Client, 'nom' | 'recouvrement' | 'encours'>(
+    { nom: (c) => c.nom, recouvrement: (c) => (c.recouvrement === 'DIRECTION' ? 'Direction' : 'Gérant'), encours: (c) => c.encours },
+    'nom',
+  )
+  const tous = clients.data ?? []
+  const enRetard = tous.filter((c) => c.echu > 0)
+  const auPlafond = tous.filter((c) => c.plafond !== null && c.disponible === 0)
+  const liste = tri.trier(
+    tous.filter(
+      (c) => (etat === 'TOUS' || (etat === 'ECHU' ? c.echu > 0 : c.plafond !== null && c.disponible === 0)) && correspond(filtre, c.code, c.nom, c.telephone),
+    ),
+  )
+  const total = tous.reduce((s, c) => s + c.encours, 0)
+  const echu = tous.reduce((s, c) => s + c.echu, 0)
 
   return (
     <>
@@ -951,18 +971,61 @@ export function PageClients() {
       />
       <AlerteErreur erreur={clients.error} />
       {clients.isLoading && <Chargement />}
-      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 2fr) minmax(0, 3fr)' } }}>
-        <Paper variant="outlined">
-          <Box sx={{ p: 1.5 }}>
-            <TextField size="small" fullWidth label="Rechercher" value={filtre} onChange={(e) => setFiltre(e.target.value)} />
-          </Box>
-          <Box sx={{ overflowX: 'auto' }}>
+      {clients.data && (
+        <Box sx={{ display: 'grid', gap: { xs: 1.5, md: 2 }, gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, mb: 2.5 }}>
+          <CarteIndicateur
+            icone={<PeopleAltOutlinedIcon />}
+            libelle="Clients en compte"
+            valeur={tous.filter((c) => c.actif).length}
+            sous={`${tous.length - tous.filter((c) => c.actif).length} inactif(s)`}
+          />
+          <CarteIndicateur icone={<RequestQuoteOutlinedIcon />} libelle="Encours total" valeur={formaterPrix(total)} accent sous="bons non réglés du réseau" />
+          <CarteIndicateur
+            icone={<HourglassBottomOutlinedIcon />}
+            libelle="Échu non réglé"
+            valeur={formaterPrix(echu)}
+            ton={echu > 0 ? 'error' : 'success'}
+            sous={echu > 0 ? `${enRetard.length} client(s) en retard` : 'aucune échéance dépassée'}
+          />
+          <CarteIndicateur
+            icone={<BlockOutlinedIcon />}
+            libelle="Au plafond de crédit"
+            valeur={auPlafond.length}
+            ton={auPlafond.length > 0 ? 'warning' : 'success'}
+            sous="nouveaux bons mis en attente"
+          />
+        </Box>
+      )}
+      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 2fr) minmax(0, 3fr)' }, alignItems: 'start' }}>
+        <Box sx={{ minWidth: 0 }}>
+          <BarreFiltres>
+            <ChampRecherche valeur={filtre} onChange={setFiltre} libelle="Rechercher un client" />
+            {(enRetard.length > 0 || auPlafond.length > 0) && (
+              <FiltrePuces
+                libelle="Filtrer les clients"
+                valeur={etat}
+                onChange={setEtat}
+                options={[
+                  { valeur: 'TOUS', libelle: 'Tous', nombre: tous.length },
+                  { valeur: 'ECHU', libelle: 'Échu', nombre: enRetard.length },
+                  { valeur: 'PLAFOND', libelle: 'Au plafond', nombre: auPlafond.length },
+                ]}
+              />
+            )}
+          </BarreFiltres>
+          <CadreTableau>
             <Table size="small" aria-label="Clients">
               <TableHead>
                 <TableRow>
-                  <TableCell>Client</TableCell>
-                  <TableCell>Recouvrement</TableCell>
-                  <TableCell align="right">Encours</TableCell>
+                  <EnTeteTri tri={tri} cle="nom">
+                    Client
+                  </EnTeteTri>
+                  <EnTeteTri tri={tri} cle="recouvrement">
+                    Recouvrement
+                  </EnTeteTri>
+                  <EnTeteTri tri={tri} cle="encours" align="right">
+                    Encours
+                  </EnTeteTri>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -983,7 +1046,7 @@ export function PageClients() {
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Chip size="small" variant="outlined" label={c.recouvrement === 'DIRECTION' ? 'Direction' : 'Gérant'} />
+                      <PuceEtat ton={c.recouvrement === 'DIRECTION' ? 'info' : 'default'} libelle={c.recouvrement === 'DIRECTION' ? 'Direction' : 'Gérant'} />
                     </TableCell>
                     <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                       {formaterPrix(c.encours)}
@@ -1010,8 +1073,8 @@ export function PageClients() {
                 )}
               </TableBody>
             </Table>
-          </Box>
-        </Paper>
+          </CadreTableau>
+        </Box>
         {choisi ? (
           <Fiche key={choisi} id={choisi} onModifier={setEdition} />
         ) : (

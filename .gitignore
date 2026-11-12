@@ -4,6 +4,11 @@
 ~$*
 # Rapports de reprise du classeur : donnees financieres des stations
 rapport-reprise*.md
+# Livrables et exports a la racine (PDF d'analyse, video, pages HTML, bundles git) : hors depot de code
+/*.pdf
+/*.mp4
+/*.html
+/*.bundle
 
 # Environnements locaux
 .env

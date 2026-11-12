@@ -182,30 +182,37 @@ class TresorerieTest {
 
         // Versement du lendemain ; bordereau unique par banque, jamais dans le futur
         long verse = montant.longValue() - 20_000;
-        String v = lire(mvc.perform(avec(post("/api/v1/tresorerie/versements"), gerant).content(versement(pot, "2026-01-02", "Cbao", "bv 774378", verse)))
+        String v = lire(mvc.perform(OutilsApi.versement(gerant, versement(pot, "2026-01-02", "Cbao", "bv 774378", verse)))
                 .andExpect(status().isCreated()));
         String vid = JsonPath.read(v, "$.id");
         assertThat(JsonPath.<String>read(v, "$.referenceBv")).isEqualTo("BV 774378");
-        mvc.perform(avec(post("/api/v1/tresorerie/versements"), gerant).content(versement(pot, "2026-01-03", "CBAO", "BV  774378", 1000)))
+        // La photo du bordereau est enregistree avec le versement ; sans elle, pas de versement
+        assertThat(JsonPath.<String>read(v, "$.piece.nomFichier")).isEqualTo("bv.png");
+        mvc.perform(OutilsApi.versementSansPhoto(gerant, versement(pot, "2026-01-02", "SGBS", "A-0", 1000)))
+                .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.code").value("PIECE_OBLIGATOIRE"));
+        mvc.perform(avec(post("/api/v1/tresorerie/versements"), gerant).content(versement(pot, "2026-01-02", "SGBS", "A-0", 1000)))
+                .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.code").value("PIECE_OBLIGATOIRE"));
+        assertThat(JsonPath.<List<String>>read(obtenir(gerant, "/api/v1/tresorerie/versements?station=" + pot + "&mois=2026-01"),
+                "$[*].referenceBv")).doesNotContain("A-0");
+        mvc.perform(OutilsApi.versement(gerant, versement(pot, "2026-01-03", "CBAO", "BV  774378", 1000)))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("BV_DEJA_SAISI"));
-        mvc.perform(avec(post("/api/v1/tresorerie/versements"), gerant)
-                        .content(versement(pot, LocalDate.now().plusDays(2).toString(), "SGBS", "A-1", 1000)))
+        mvc.perform(OutilsApi.versement(gerant, versement(pot, LocalDate.now().plusDays(2).toString(), "SGBS", "A-1", 1000)))
                 .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.code").value("DATE_DEPOT_INVALIDE"));
-        mvc.perform(avec(post("/api/v1/tresorerie/versements"), superviseur).content(versement(pot, "2026-01-02", "SGBS", "A-2", 1000)))
+        mvc.perform(OutilsApi.versement(superviseur, versement(pot, "2026-01-02", "SGBS", "A-2", 1000)))
                 .andExpect(status().isForbidden());
 
         // La banque se choisit dans la table des banques : 29 banques du Senegal, seules les actives sont proposees
         String admin = OutilsApi.jetonAdmin(mvc, jdbc);
         String banques = obtenir(gerant, "/api/v1/tresorerie/banques?toutes=true");
         assertThat(JsonPath.<List<String>>read(banques, "$[*].code")).hasSizeGreaterThanOrEqualTo(29).contains("CBAO", "BIS", "LBA", "LBO");
-        mvc.perform(avec(post("/api/v1/tresorerie/versements"), gerant).content(versement(pot, "2026-01-02", "SGBS", "A-3", 1000)))
+        mvc.perform(OutilsApi.versement(gerant, versement(pot, "2026-01-02", "SGBS", "A-3", 1000)))
                 .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.code").value("BANQUE_INCONNUE"));
         String lbo = JsonPath.<List<String>>read(banques, "$[?(@.code=='LBO')].id").get(0);
         mvc.perform(avec(put("/api/v1/tresorerie/banques/" + lbo), gerant).content("{\"actif\":false}")).andExpect(status().isForbidden());
         mvc.perform(avec(put("/api/v1/tresorerie/banques/" + lbo), admin).content("{\"actif\":false}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.actif").value(false));
         assertThat(JsonPath.<List<String>>read(obtenir(gerant, "/api/v1/tresorerie/banques"), "$[*].code")).contains("CBAO").doesNotContain("LBO");
-        mvc.perform(avec(post("/api/v1/tresorerie/versements"), gerant).content(versement(pot, "2026-01-02", "LBO", "A-4", 1000)))
+        mvc.perform(OutilsApi.versement(gerant, versement(pot, "2026-01-02", "LBO", "A-4", 1000)))
                 .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.code").value("BANQUE_INACTIVE"));
         mvc.perform(avec(put("/api/v1/tresorerie/banques/" + lbo), admin).content("{\"actif\":true}")).andExpect(status().isOk());
         mvc.perform(avec(post("/api/v1/tresorerie/banques"), admin).content("{\"code\":\"bqt\",\"nom\":\"Banque de test\"}"))
@@ -213,13 +220,11 @@ class TresorerieTest {
         mvc.perform(avec(post("/api/v1/tresorerie/banques"), admin).content("{\"code\":\"BQT\",\"nom\":\"Doublon\"}"))
                 .andExpect(status().isConflict());
 
-        // Verification comptable : bordereau joint exige, l'auteur ne verifie pas lui-meme
+        // Verification comptable : l'auteur ne verifie pas lui-meme ; la photo peut etre remplacee avant
         String verification = "/api/v1/tresorerie/versements/" + vid + "/verification";
-        mvc.perform(avec(post(verification), comptable).content("{\"version\":" + JsonPath.read(v, "$.version") + ",\"valide\":true}"))
-                .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.code").value("PIECE_MANQUANTE"));
-        v = lire(joindre(gerant, "/api/v1/tresorerie/versements/" + vid + "/piece", JsonPath.read(v, "$.version"), "bv.png", PNG)
+        v = lire(joindre(gerant, "/api/v1/tresorerie/versements/" + vid + "/piece", JsonPath.read(v, "$.version"), "bv-net.png", PNG)
                 .andExpect(status().isOk()));
-        assertThat(JsonPath.<String>read(v, "$.piece.nomFichier")).isEqualTo("bv.png");
+        assertThat(JsonPath.<String>read(v, "$.piece.nomFichier")).isEqualTo("bv-net.png");
         assertThat(JsonPath.<List<String>>read(obtenir(comptable, "/api/v1/tresorerie/versements"), "$[*].id")).contains(vid);
         mvc.perform(avec(post(verification), gerant).content("{\"version\":" + JsonPath.read(v, "$.version") + ",\"valide\":true}"))
                 .andExpect(status().isForbidden());
@@ -257,7 +262,7 @@ class TresorerieTest {
         mvc.perform(avec(post("/api/v1/journees/" + id + "/renvoi"), superviseur)
                         .content("{\"version\":" + JsonPath.read(c, "$.version") + ",\"motif\":\"Contrôle\"}"))
                 .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.code").value("ARRETE_CAISSE_POSTERIEUR"));
-        mvc.perform(avec(post("/api/v1/tresorerie/versements"), gerant).content(versement(pot, "2026-01-01", "BICIS", "B-1", 1000)))
+        mvc.perform(OutilsApi.versement(gerant, versement(pot, "2026-01-01", "BICIS", "B-1", 1000)))
                 .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.code").value("CAISSE_ARRETEE"));
         livre = obtenir(gerant, "/api/v1/stations/" + pot + "/caisse?mois=2026-01");
         assertThat(nombre(livre, "$.lignes[0].ecart")).isEqualByComparingTo("-1500");

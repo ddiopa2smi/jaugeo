@@ -1,5 +1,5 @@
 import Alert from '@mui/material/Alert'
-import Chip from '@mui/material/Chip'
+import Box from '@mui/material/Box'
 import Stack from '@mui/material/Stack'
 import Table from '@mui/material/Table'
 import TableBody from '@mui/material/TableBody'
@@ -13,14 +13,21 @@ import type { Evenement, PeriodePrix } from '../../api/types'
 import { AlerteErreur, Chargement } from '../../shared/composants'
 import { echeances } from '../../shared/echeances'
 import { formaterDate, formaterDateHeureCourte, formaterNombre, formaterPrix, TYPES_EVENEMENT } from '../../shared/libelles'
+import { EnTeteTri, PuceEtat } from '../../shared/tableaux'
 import { useMaintenant } from '../../shared/temps'
+import { useTri } from '../../shared/tri'
 
 export function PrixDeLaStation({ stationId }: { stationId: string }) {
   const prix = usePrixStation(stationId)
   const maintenant = new Date(useMaintenant()).toISOString()
+  const tri = useTri<PeriodePrix, 'produit' | 'prix' | 'debut' | 'fin' | 'motif'>(
+    { produit: (p) => p.produitLibelle, prix: (p) => p.prixUnitaire, debut: (p) => p.debut, fin: (p) => p.fin, motif: (p) => p.motif },
+    'debut',
+    'desc',
+  )
   if (prix.isLoading) return <Chargement />
   if (prix.error) return <AlerteErreur erreur={prix.error} />
-  const periodes = [...(prix.data ?? [])].sort((a, b) => b.debut.localeCompare(a.debut))
+  const periodes = tri.trier(prix.data ?? [])
   if (periodes.length === 0) return <Typography color="text.secondary">Aucun prix défini pour cette station.</Typography>
   const etat = (p: PeriodePrix) =>
     p.debut > maintenant ? 'avenir' : p.fin === null || p.fin > maintenant ? 'courant' : 'passe'
@@ -29,11 +36,21 @@ export function PrixDeLaStation({ stationId }: { stationId: string }) {
       <Table size="small" aria-label="Historique des prix">
         <TableHead>
           <TableRow>
-            <TableCell>Produit</TableCell>
-            <TableCell align="right">Prix</TableCell>
-            <TableCell>Du</TableCell>
-            <TableCell>Au</TableCell>
-            <TableCell>Motif</TableCell>
+            <EnTeteTri tri={tri} cle="produit">
+              Produit
+            </EnTeteTri>
+            <EnTeteTri tri={tri} cle="prix" align="right">
+              Prix
+            </EnTeteTri>
+            <EnTeteTri tri={tri} cle="debut">
+              Du
+            </EnTeteTri>
+            <EnTeteTri tri={tri} cle="fin">
+              Au
+            </EnTeteTri>
+            <EnTeteTri tri={tri} cle="motif">
+              Motif
+            </EnTeteTri>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -47,8 +64,12 @@ export function PrixDeLaStation({ stationId }: { stationId: string }) {
                 </TableCell>
                 <TableCell sx={{ whiteSpace: 'nowrap' }}>{formaterDateHeureCourte(p.debut)}</TableCell>
                 <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                  {e === 'courant' && p.fin === null ? <Chip size="small" color="success" variant="outlined" label="En vigueur" /> : null}
-                  {e === 'avenir' && <Chip size="small" color="info" label="Programmé" sx={{ mr: 1 }} />}
+                  {e === 'courant' && p.fin === null ? <PuceEtat ton="success" libelle="En vigueur" /> : null}
+                  {e === 'avenir' && (
+                    <Box component="span" sx={{ mr: 1 }}>
+                      <PuceEtat ton="info" libelle="Programmé" />
+                    </Box>
+                  )}
                   {p.fin !== null && formaterDateHeureCourte(p.fin)}
                 </TableCell>
                 <TableCell>
@@ -79,6 +100,17 @@ function details(e: Evenement): string {
 
 export function HistoriqueEquipements({ evenements }: { evenements: Evenement[] }) {
   const alertes = echeances(evenements, useMaintenant())
+  const tri = useTri<Evenement, 'date' | 'equipement' | 'type' | 'verification' | 'auteur'>(
+    {
+      date: (e) => e.date,
+      equipement: (e) => e.equipement,
+      type: (e) => TYPES_EVENEMENT[e.type],
+      verification: (e) => e.prochaineVerification,
+      auteur: (e) => e.creePar,
+    },
+    'date',
+    'desc',
+  )
   return (
     <>
       {alertes.length > 0 && (
@@ -98,16 +130,26 @@ export function HistoriqueEquipements({ evenements }: { evenements: Evenement[] 
           <Table size="small" aria-label="Historique des équipements">
             <TableHead>
               <TableRow>
-                <TableCell>Date</TableCell>
-                <TableCell>Équipement</TableCell>
-                <TableCell>Événement</TableCell>
+                <EnTeteTri tri={tri} cle="date">
+                  Date
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="equipement">
+                  Équipement
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="type">
+                  Événement
+                </EnTeteTri>
                 <TableCell>Détails</TableCell>
-                <TableCell>Prochaine vérif.</TableCell>
-                <TableCell>Saisi par</TableCell>
+                <EnTeteTri tri={tri} cle="verification">
+                  Prochaine vérif.
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="auteur">
+                  Saisi par
+                </EnTeteTri>
               </TableRow>
             </TableHead>
             <TableBody>
-              {evenements.map((e) => (
+              {tri.trier(evenements).map((e) => (
                 <TableRow key={e.id} hover>
                   <TableCell sx={{ whiteSpace: 'nowrap' }}>{formaterDateHeureCourte(e.date)}</TableCell>
                   <TableCell>{e.equipement}</TableCell>

@@ -123,15 +123,17 @@ public final class ApiJaugeo {
         /** Envoi d'un fichier (champ « fichier ») en multipart/form-data. */
         public JsonNode fichier(String chemin, String nom, String type, byte[] contenu) {
             String limite = "jaugeo-" + UUID.randomUUID();
-            ByteArrayOutputStream o = new ByteArrayOutputStream();
-            String entete = "--" + limite + "\r\nContent-Disposition: form-data; name=\"fichier\"; filename=\"" + nom
-                    + "\"\r\nContent-Type: " + type + "\r\n\r\n";
-            o.writeBytes(entete.getBytes(StandardCharsets.UTF_8));
-            o.writeBytes(contenu);
-            o.writeBytes(("\r\n--" + limite + "--\r\n").getBytes(StandardCharsets.UTF_8));
-            byte[] corps = o.toByteArray();
+            byte[] corps = multipart(limite, null, null, nom, type, contenu);
             return lire(appeler(chemin, b -> b.header("Content-Type", "multipart/form-data; boundary=" + limite)
                     .PUT(HttpRequest.BodyPublishers.ofByteArray(corps))));
+        }
+
+        /** Creation multipart en POST : une partie JSON nommee et le fichier joint (champ « fichier »). */
+        public JsonNode posterAvecFichier(String chemin, String partie, Object donnees, String nom, String type, byte[] contenu) {
+            String limite = "jaugeo-" + UUID.randomUUID();
+            byte[] corps = multipart(limite, partie, donnees, nom, type, contenu);
+            return lire(appeler(chemin, b -> b.header("Content-Type", "multipart/form-data; boundary=" + limite)
+                    .POST(HttpRequest.BodyPublishers.ofByteArray(corps))));
         }
 
         private HttpResponse<String> appeler(String chemin, java.util.function.UnaryOperator<HttpRequest.Builder> methode) {
@@ -147,6 +149,22 @@ public final class ApiJaugeo {
     private HttpRequest.Builder requete(String chemin) {
         return HttpRequest.newBuilder(URI.create(base + chemin)).timeout(Duration.ofSeconds(60))
                 .header("Accept", "application/json");
+    }
+
+    private static byte[] multipart(String limite, String partie, Object donnees, String nom, String type, byte[] contenu) {
+        ByteArrayOutputStream o = new ByteArrayOutputStream();
+        if (partie != null) {
+            o.writeBytes(("--" + limite + "\r\nContent-Disposition: form-data; name=\"" + partie
+                    + "\"\r\nContent-Type: application/json\r\n\r\n").getBytes(StandardCharsets.UTF_8));
+            o.writeBytes(JSON.writeValueAsString(donnees).getBytes(StandardCharsets.UTF_8));
+            o.writeBytes("\r\n".getBytes(StandardCharsets.UTF_8));
+        }
+        String entete = "--" + limite + "\r\nContent-Disposition: form-data; name=\"fichier\"; filename=\"" + nom
+                + "\"\r\nContent-Type: " + type + "\r\n\r\n";
+        o.writeBytes(entete.getBytes(StandardCharsets.UTF_8));
+        o.writeBytes(contenu);
+        o.writeBytes(("\r\n--" + limite + "--\r\n").getBytes(StandardCharsets.UTF_8));
+        return o.toByteArray();
     }
 
     private static HttpRequest.BodyPublisher json(Object corps) {

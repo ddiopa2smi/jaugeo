@@ -11,7 +11,6 @@ import DialogTitle from '@mui/material/DialogTitle'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import IconButton from '@mui/material/IconButton'
 import MenuItem from '@mui/material/MenuItem'
-import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import Switch from '@mui/material/Switch'
 import Table from '@mui/material/Table'
@@ -40,6 +39,8 @@ import { AlerteErreur, Chargement } from '../../shared/composants'
 import { formaterDate, formaterDateHeure, formaterNombre, versNombre, videVersNull } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
 import { formaterPct } from '../../shared/stock'
+import { BarreFiltres, CadreTableau, ChampRecherche, EnTeteTri, FiltrePuces, PuceEtat } from '../../shared/tableaux'
+import { correspond, useTri } from '../../shared/tri'
 
 const STATUTS_TOURNEE: Record<StatutTournee, { libelle: string; couleur: 'default' | 'info' | 'primary' | 'success' | 'error' }> = {
   COMMANDEE: { libelle: 'Commandée', couleur: 'default' },
@@ -451,7 +452,7 @@ function DetailTournee({ id, onFermer }: { id: string; onFermer: () => void }) {
             </Typography>
             {t.motifAnnulation && <Alert severity="error" sx={{ mb: 2 }}>Annulée : {t.motifAnnulation}</Alert>}
             {t.observation && <Alert severity="info" sx={{ mb: 2 }}>{t.observation}</Alert>}
-            <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+            <CadreTableau>
               <Table size="small">
                 <TableHead>
                   <TableRow>
@@ -510,7 +511,7 @@ function DetailTournee({ id, onFermer }: { id: string; onFermer: () => void }) {
                   ))}
                 </TableBody>
               </Table>
-            </Paper>
+            </CadreTableau>
           </>
         )}
       </DialogContent>
@@ -550,6 +551,29 @@ export function Tournees() {
   const peutGerer = usePermission('RECEPTION_VALIDER')
   const [ouverte, setOuverte] = useState<string | null>(null)
   const [nouvelle, setNouvelle] = useState(false)
+  const [recherche, setRecherche] = useState('')
+  const [statut, setStatut] = useState<StatutTournee | 'TOUS'>('TOUS')
+  const tri = useTri<Tournee, 'numero' | 'statut' | 'trajet' | 'livraison' | 'quantite' | 'depotees'>(
+    {
+      numero: (t) => t.numero,
+      statut: (t) => STATUTS_TOURNEE[t.statut].libelle,
+      trajet: (t) => `${t.fournisseurNom} ${t.transporteurNom}`,
+      livraison: (t) => t.dateLivraisonPrevue,
+      quantite: (t) => t.quantiteCommandee,
+      depotees: (t) => (t.livraisons === 0 ? null : t.receptionnees / t.livraisons),
+    },
+    'livraison',
+    'desc',
+  )
+  const tournees = liste.data ?? []
+  const statuts = (Object.keys(STATUTS_TOURNEE) as StatutTournee[]).filter((s) => tournees.some((t) => t.statut === s))
+  const visibles = tri.trier(
+    tournees.filter(
+      (t) =>
+        (statut === 'TOUS' || t.statut === statut) &&
+        correspond(recherche, t.numero, t.fournisseurNom, t.transporteurNom, t.immatriculation, ...t.lignes.map((l) => l.stationCode)),
+    ),
+  )
   return (
     <>
       <Stack direction="row" spacing={2} sx={{ mb: 2, alignItems: 'center', justifyContent: 'space-between' }}>
@@ -563,21 +587,50 @@ export function Tournees() {
       <AlerteErreur erreur={liste.error} />
       {liste.isLoading && <Chargement />}
       {liste.data?.length === 0 && <Alert severity="info">Aucune tournée{enCours ? ' en cours' : ''}.</Alert>}
-      {liste.data && liste.data.length > 0 && (
-        <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+      {tournees.length > 0 && (
+        <BarreFiltres resume={`${visibles.length} tournée(s) · ${formaterNombre(visibles.reduce((s, t) => s + t.quantiteCommandee, 0))} L`}>
+          <ChampRecherche valeur={recherche} onChange={setRecherche} libelle="Rechercher une tournée, une station" />
+          {statuts.length > 1 && (
+            <FiltrePuces
+              libelle="Filtrer par statut"
+              valeur={statut}
+              onChange={setStatut}
+              options={[
+                { valeur: 'TOUS' as const, libelle: 'Toutes', nombre: tournees.length },
+                ...statuts.map((s) => ({ valeur: s, libelle: STATUTS_TOURNEE[s].libelle, nombre: tournees.filter((t) => t.statut === s).length })),
+              ]}
+            />
+          )}
+        </BarreFiltres>
+      )}
+      {tournees.length > 0 && visibles.length === 0 && <Alert severity="info">Aucune tournée ne correspond à ces filtres.</Alert>}
+      {visibles.length > 0 && (
+        <CadreTableau>
           <Table size="small" aria-label="Tournées">
             <TableHead>
               <TableRow>
-                <TableCell>Tournée</TableCell>
-                <TableCell>Statut</TableCell>
-                <TableCell>Dépôt → transporteur</TableCell>
-                <TableCell>Livraison prévue</TableCell>
-                <TableCell align="right">Quantité</TableCell>
-                <TableCell align="right">Dépotées</TableCell>
+                <EnTeteTri tri={tri} cle="numero">
+                  Tournée
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="statut">
+                  Statut
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="trajet">
+                  Dépôt → transporteur
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="livraison">
+                  Livraison prévue
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="quantite" align="right">
+                  Quantité
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="depotees" align="right">
+                  Dépotées
+                </EnTeteTri>
               </TableRow>
             </TableHead>
             <TableBody>
-              {liste.data.map((t) => (
+              {visibles.map((t) => (
                 <TableRow key={t.id} hover sx={{ cursor: 'pointer' }} onClick={() => setOuverte(t.id)}>
                   <TableCell>
                     {t.numero}
@@ -586,7 +639,7 @@ export function Tournees() {
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Chip size="small" color={STATUTS_TOURNEE[t.statut].couleur} label={STATUTS_TOURNEE[t.statut].libelle} />
+                    <PuceEtat ton={STATUTS_TOURNEE[t.statut].couleur} libelle={STATUTS_TOURNEE[t.statut].libelle} />
                   </TableCell>
                   <TableCell>
                     {t.fournisseurNom} → {t.transporteurNom}
@@ -605,7 +658,7 @@ export function Tournees() {
               ))}
             </TableBody>
           </Table>
-        </Paper>
+        </CadreTableau>
       )}
       {ouverte && <DetailTournee id={ouverte} onFermer={() => setOuverte(null)} />}
       {nouvelle && <DialogueTournee onFermer={() => setNouvelle(false)} />}
@@ -619,6 +672,18 @@ export function Propositions({ versTournees }: { versTournees: () => void }) {
   const peutGerer = usePermission('RECEPTION_VALIDER')
   const [selection, setSelection] = useState<string[]>([])
   const [commande, setCommande] = useState<PropositionLigne[] | null>(null)
+  const tri = useTri<PropositionLigne, 'station' | 'stock' | 'ventes' | 'autonomie' | 'enCours' | 'arrivee' | 'commande'>(
+    {
+      station: (l) => `${l.stationCode} ${l.produitLibelle}`,
+      stock: (l) => l.stockAujourdhui,
+      ventes: (l) => l.ventesMoyennes,
+      autonomie: (l) => l.autonomieJours,
+      enCours: (l) => l.enCours,
+      arrivee: (l) => l.stockArrivee,
+      commande: (l) => (l.aCommander ? l.quantiteProposee : null),
+    },
+    'autonomie',
+  )
   const p = propositions.data
   if (propositions.isLoading) return <Chargement />
   if (!p) return <AlerteErreur erreur={propositions.error} />
@@ -639,22 +704,36 @@ export function Propositions({ versTournees }: { versTournees: () => void }) {
       )}
       {p.lignes.length === 0 && <Alert severity="info">Aucune cuve jaugée à une clôture.</Alert>}
       {p.lignes.length > 0 && (
-        <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+        <CadreTableau>
           <Table size="small" aria-label="Propositions de commande">
             <TableHead>
               <TableRow>
                 {peutGerer && <TableCell padding="checkbox" />}
-                <TableCell>Station · produit</TableCell>
-                <TableCell align="right">Stock estimé</TableCell>
-                <TableCell align="right">Ventes / j</TableCell>
-                <TableCell align="right">Autonomie</TableCell>
-                <TableCell align="right">En cours</TableCell>
-                <TableCell align="right">À l'arrivée</TableCell>
-                <TableCell align="right">À commander</TableCell>
+                <EnTeteTri tri={tri} cle="station">
+                  Station · produit
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="stock" align="right">
+                  Stock estimé
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="ventes" align="right">
+                  Ventes / j
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="autonomie" align="right">
+                  Autonomie
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="enCours" align="right">
+                  En cours
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="arrivee" align="right">
+                  À l'arrivée
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="commande" align="right">
+                  À commander
+                </EnTeteTri>
               </TableRow>
             </TableHead>
             <TableBody>
-              {p.lignes.map((l) => (
+              {tri.trier(p.lignes).map((l) => (
                 <TableRow key={cle(l)} data-testid={`proposition-${l.stationCode}-${l.produitCode}`}>
                   {peutGerer && (
                     <TableCell padding="checkbox">
@@ -697,7 +776,7 @@ export function Propositions({ versTournees }: { versTournees: () => void }) {
               ))}
             </TableBody>
           </Table>
-        </Paper>
+        </CadreTableau>
       )}
       {peutGerer && (
         <Button

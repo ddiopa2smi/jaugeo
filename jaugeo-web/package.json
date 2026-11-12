@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -b",
-    "e2e": "node e2e/parcours.mjs"
+    "e2e": "node e2e/parcours.mjs",
+    "manuel": "node outils/generer-manuel.mjs"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

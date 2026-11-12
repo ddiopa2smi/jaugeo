@@ -46,6 +46,12 @@ class ToleranceTransport {
         return l == null ? List.of() : l.attendues(stationId);
     }
 
+    /** Fournisseurs actifs proposes a la saisie d'une reception (vide sans module d'approvisionnement). */
+    List<String> fournisseurs() {
+        LivraisonsAttendues l = livraisons.getIfAvailable();
+        return l == null ? List.of() : l.fournisseurs();
+    }
+
     Optional<LivraisonAttendue> livraison(UUID uuid) {
         LivraisonsAttendues l = livraisons.getIfAvailable();
         return l == null ? Optional.empty() : l.livraison(uuid);

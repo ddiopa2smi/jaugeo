@@ -1,17 +1,18 @@
 import GavelIcon from '@mui/icons-material/Gavel'
+import HourglassBottomOutlinedIcon from '@mui/icons-material/HourglassBottomOutlined'
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
+import RequestQuoteOutlinedIcon from '@mui/icons-material/RequestQuoteOutlined'
+import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
-import Chip from '@mui/material/Chip'
 import Dialog from '@mui/material/Dialog'
 import DialogActions from '@mui/material/DialogActions'
 import DialogContent from '@mui/material/DialogContent'
 import DialogTitle from '@mui/material/DialogTitle'
 import IconButton from '@mui/material/IconButton'
 import MenuItem from '@mui/material/MenuItem'
-import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import Tab from '@mui/material/Tab'
 import Table from '@mui/material/Table'
@@ -29,6 +30,7 @@ import { api } from '../../api/client'
 import { cles, useBalanceAgee, useBonsEnAttente, useClients, useFacture, useFactures } from '../../api/requetes'
 import type { BonEnAttente, Facture, FactureDetail, LigneBalance, ModeRelance, Relance, ResultatFacturation } from '../../api/types'
 import { usePermission } from '../../auth/session'
+import { CarteIndicateur } from '../../shared/CarteIndicateur'
 import { MODES_RELANCE, NIVEAUX_RELANCE } from '../../shared/clients'
 import { AlerteErreur, Chargement, EnTetePage } from '../../shared/composants'
 import { formaterDate, formaterNombre, formaterPrix, videVersNull } from '../../shared/libelles'
@@ -36,6 +38,8 @@ import { notifier } from '../../shared/notifications'
 import { telecharger } from '../../shared/telechargement'
 import { aujourdhui } from '../../shared/tresorerie'
 import { DialogueDecisionBon } from './DecisionBon'
+import { BarreFiltres, CadreTableau, ChampRecherche, EnTeteTri, FiltrePuces, PuceEtat } from '../../shared/tableaux'
+import { correspond, useTri } from '../../shared/tri'
 
 const nombres = { whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' } as const
 
@@ -118,7 +122,23 @@ function OngletBalance() {
   const balance = useBalanceAgee(au)
   const peutGerer = usePermission('CLIENT_GERER')
   const [relance, setRelance] = useState<LigneBalance | null>(null)
+  const [recherche, setRecherche] = useState('')
+  const tri = useTri<LigneBalance, 'client' | 'nonFacture' | 'j30' | 'j60' | 'j90' | 'plus90' | 'total' | 'echu'>(
+    {
+      client: (l) => l.nom,
+      nonFacture: (l) => l.nonFacture,
+      j30: (l) => l.jours0a30,
+      j60: (l) => l.jours31a60,
+      j90: (l) => l.jours61a90,
+      plus90: (l) => l.plusDe90,
+      total: (l) => l.total,
+      echu: (l) => l.echu,
+    },
+    'total',
+    'desc',
+  )
   const b = balance.data
+  const lignes = tri.trier((b?.lignes ?? []).filter((l) => correspond(recherche, l.nom, l.code)))
   const total = (cle: keyof LigneBalance, v: number) => (
     <TableCell align="right" sx={{ ...nombres, fontWeight: 700 }} key={cle}>
       {formaterPrix(v)}
@@ -136,23 +156,64 @@ function OngletBalance() {
       <AlerteErreur erreur={balance.error} />
       {balance.isLoading && <Chargement />}
       {b && (
-        <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+        <Box sx={{ display: 'grid', gap: { xs: 1.5, md: 2 }, gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, mb: 2.5 }}>
+          <CarteIndicateur icone={<RequestQuoteOutlinedIcon />} libelle="Total dû" valeur={formaterPrix(b.total)} accent sous={`${b.lignes.length} client(s) débiteur(s)`} />
+          <CarteIndicateur
+            icone={<HourglassBottomOutlinedIcon />}
+            libelle="Échu"
+            valeur={formaterPrix(b.echu)}
+            ton={b.echu > 0 ? 'error' : 'success'}
+            sous="échéance passée et non réglée"
+          />
+          <CarteIndicateur
+            icone={<WarningAmberOutlinedIcon />}
+            libelle="Plus de 90 jours"
+            valeur={formaterPrix(b.plusDe90)}
+            ton={b.plusDe90 > 0 ? 'warning' : 'success'}
+            sous="créances les plus anciennes"
+          />
+          <CarteIndicateur icone={<ReceiptLongIcon />} libelle="Non facturé" valeur={formaterPrix(b.nonFacture)} sous="bons en attente de facturation" />
+        </Box>
+      )}
+      {b && b.lignes.length > 0 && (
+        <BarreFiltres resume={`${lignes.length} client(s) sur ${b.lignes.length}`}>
+          <ChampRecherche valeur={recherche} onChange={setRecherche} libelle="Rechercher un client" />
+        </BarreFiltres>
+      )}
+      {b && (
+        <CadreTableau>
           <Table size="small" aria-label="Balance âgée">
             <TableHead>
               <TableRow>
-                <TableCell>Client</TableCell>
-                <TableCell align="right">Non facturé</TableCell>
-                <TableCell align="right">0-30 j</TableCell>
-                <TableCell align="right">31-60 j</TableCell>
-                <TableCell align="right">61-90 j</TableCell>
-                <TableCell align="right">+ 90 j</TableCell>
-                <TableCell align="right">Total dû</TableCell>
-                <TableCell align="right">Échu</TableCell>
+                <EnTeteTri tri={tri} cle="client">
+                  Client
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="nonFacture" align="right">
+                  Non facturé
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="j30" align="right">
+                  0-30 j
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="j60" align="right">
+                  31-60 j
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="j90" align="right">
+                  61-90 j
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="plus90" align="right">
+                  + 90 j
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="total" align="right">
+                  Total dû
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="echu" align="right">
+                  Échu
+                </EnTeteTri>
                 <TableCell>Relances</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {b.lignes.map((l) => (
+              {lignes.map((l) => (
                 <TableRow key={l.clientId} data-testid={`balance-${l.code}`}>
                   <TableCell>
                     <RouterLink to={`/clients?client=${l.clientId}`}>{l.nom}</RouterLink>
@@ -216,7 +277,7 @@ function OngletBalance() {
               )}
             </TableBody>
           </Table>
-        </Paper>
+        </CadreTableau>
       )}
       {relance && <DialogueRelance ligne={relance} onFermer={() => setRelance(null)} />}
     </>
@@ -428,21 +489,47 @@ export function DialogueFacture({ id, onFermer }: { id: string; onFermer: () => 
 /** Tableau de factures (toutes, ou celles d'un client). */
 export function TableFactures({ factures, onChoisir, avecClient = true }: { factures: Facture[]; onChoisir: (id: string) => void; avecClient?: boolean }) {
   const jour = aujourdhui()
+  const tri = useTri<Facture, 'facture' | 'client' | 'periode' | 'echeance' | 'montant' | 'reste'>(
+    {
+      facture: (f) => f.dateFacture,
+      client: (f) => f.clientNom,
+      periode: (f) => f.periodeDebut,
+      echeance: (f) => f.dateEcheance,
+      montant: (f) => f.montant,
+      reste: (f) => (f.statut === 'EMISE' ? f.reste : null),
+    },
+    'facture',
+    'desc',
+  )
   return (
     <Box sx={{ overflowX: 'auto' }}>
       <Table size="small" aria-label="Factures">
         <TableHead>
           <TableRow>
-            <TableCell>Facture</TableCell>
-            {avecClient && <TableCell>Client</TableCell>}
-            <TableCell>Période</TableCell>
-            <TableCell>Échéance</TableCell>
-            <TableCell align="right">Montant</TableCell>
-            <TableCell align="right">Reste dû</TableCell>
+            <EnTeteTri tri={tri} cle="facture">
+              Facture
+            </EnTeteTri>
+            {avecClient && (
+              <EnTeteTri tri={tri} cle="client">
+                Client
+              </EnTeteTri>
+            )}
+            <EnTeteTri tri={tri} cle="periode">
+              Période
+            </EnTeteTri>
+            <EnTeteTri tri={tri} cle="echeance">
+              Échéance
+            </EnTeteTri>
+            <EnTeteTri tri={tri} cle="montant" align="right">
+              Montant
+            </EnTeteTri>
+            <EnTeteTri tri={tri} cle="reste" align="right">
+              Reste dû
+            </EnTeteTri>
           </TableRow>
         </TableHead>
         <TableBody>
-          {factures.map((f) => {
+          {tri.trier(factures).map((f) => {
             const echue = f.statut === 'EMISE' && f.reste > 0 && f.dateEcheance < jour
             return (
               <TableRow key={f.id} hover onClick={() => onChoisir(f.id)} sx={{ cursor: 'pointer', opacity: f.statut === 'ANNULEE' ? 0.6 : 1 }}>
@@ -458,8 +545,11 @@ export function TableFactures({ factures, onChoisir, avecClient = true }: { fact
                 </TableCell>
                 <TableCell sx={{ whiteSpace: 'nowrap' }}>
                   {formaterDate(f.dateEcheance)}
-                  {echue && <Chip size="small" color="error" label="Échue" sx={{ ml: 1 }} />}
-                  {f.statut === 'ANNULEE' && <Chip size="small" label="Annulée" sx={{ ml: 1 }} />}
+                  {(echue || f.statut === 'ANNULEE') && (
+                    <Box component="span" sx={{ ml: 1 }}>
+                      {echue ? <PuceEtat ton="error" libelle="Échue" /> : <PuceEtat ton="default" libelle="Annulée" />}
+                    </Box>
+                  )}
                 </TableCell>
                 <TableCell align="right" sx={nombres}>
                   {formaterPrix(f.montant)}
@@ -490,6 +580,17 @@ function OngletFactures() {
   const peutGerer = usePermission('CLIENT_GERER')
   const [facturation, setFacturation] = useState(false)
   const [choisie, setChoisie] = useState<string | null>(null)
+  const [recherche, setRecherche] = useState('')
+  const [etat, setEtat] = useState<'TOUTES' | 'A_REGLER' | 'ECHUES' | 'ANNULEES'>('TOUTES')
+  const jour = aujourdhui()
+  const toutes = factures.data ?? []
+  const aRegler = (f: Facture) => f.statut === 'EMISE' && f.reste > 0
+  const echue = (f: Facture) => aRegler(f) && f.dateEcheance < jour
+  const visibles = toutes.filter(
+    (f) =>
+      (etat === 'TOUTES' || (etat === 'A_REGLER' ? aRegler(f) : etat === 'ECHUES' ? echue(f) : f.statut === 'ANNULEE')) &&
+      correspond(recherche, f.numero, f.clientNom, f.clientCode),
+  )
   return (
     <>
       {peutGerer && (
@@ -499,9 +600,23 @@ function OngletFactures() {
       )}
       <AlerteErreur erreur={factures.error} />
       {factures.isLoading && <Chargement />}
-      <Paper variant="outlined">
-        <TableFactures factures={factures.data ?? []} onChoisir={setChoisie} />
-      </Paper>
+      <BarreFiltres resume={`${visibles.length} facture(s) · reste dû ${formaterPrix(visibles.filter(aRegler).reduce((t, f) => t + f.reste, 0))}`}>
+        <ChampRecherche valeur={recherche} onChange={setRecherche} libelle="Rechercher une facture, un client" />
+        <FiltrePuces
+          libelle="Filtrer les factures"
+          valeur={etat}
+          onChange={setEtat}
+          options={[
+            { valeur: 'TOUTES', libelle: 'Toutes', nombre: toutes.length },
+            { valeur: 'A_REGLER', libelle: 'À régler', nombre: toutes.filter(aRegler).length },
+            { valeur: 'ECHUES', libelle: 'Échues', nombre: toutes.filter(echue).length },
+            { valeur: 'ANNULEES', libelle: 'Annulées', nombre: toutes.filter((f) => f.statut === 'ANNULEE').length },
+          ]}
+        />
+      </BarreFiltres>
+      <CadreTableau>
+        <TableFactures factures={visibles} onChoisir={setChoisie} />
+      </CadreTableau>
       {facturation && <DialogueFacturation onFermer={() => setFacturation(false)} />}
       {choisie && <DialogueFacture id={choisie} onFermer={() => setChoisie(null)} />}
     </>
@@ -514,6 +629,10 @@ function OngletAttente() {
   const bons = useBonsEnAttente()
   const peutDeroger = usePermission('CREDIT_DEROGER')
   const [choisi, setChoisi] = useState<BonEnAttente | null>(null)
+  const tri = useTri<BonEnAttente, 'journee' | 'bon' | 'client' | 'montant' | 'motif'>(
+    { journee: (b) => b.date, bon: (b) => b.numero, client: (b) => b.clientNom, montant: (b) => b.montant, motif: (b) => b.motifBlocage },
+    'journee',
+  )
   return (
     <>
       <Alert severity="info" sx={{ mb: 2 }}>
@@ -522,20 +641,30 @@ function OngletAttente() {
       </Alert>
       <AlerteErreur erreur={bons.error} />
       {bons.isLoading && <Chargement />}
-      <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+      <CadreTableau>
         <Table size="small" aria-label="Bons en attente">
           <TableHead>
             <TableRow>
-              <TableCell>Journée</TableCell>
-              <TableCell>Bon</TableCell>
-              <TableCell>Client</TableCell>
-              <TableCell align="right">Montant</TableCell>
-              <TableCell>Motif</TableCell>
+              <EnTeteTri tri={tri} cle="journee">
+                Journée
+              </EnTeteTri>
+              <EnTeteTri tri={tri} cle="bon">
+                Bon
+              </EnTeteTri>
+              <EnTeteTri tri={tri} cle="client">
+                Client
+              </EnTeteTri>
+              <EnTeteTri tri={tri} cle="montant" align="right">
+                Montant
+              </EnTeteTri>
+              <EnTeteTri tri={tri} cle="motif">
+                Motif
+              </EnTeteTri>
               <TableCell />
             </TableRow>
           </TableHead>
           <TableBody>
-            {(bons.data ?? []).map((b) => (
+            {tri.trier(bons.data ?? []).map((b) => (
               <TableRow key={b.id} data-testid={`attente-${b.numero}`}>
                 <TableCell sx={{ whiteSpace: 'nowrap' }}>
                   <RouterLink to={`/journees/${b.journeeId}`}>
@@ -572,7 +701,7 @@ function OngletAttente() {
             )}
           </TableBody>
         </Table>
-      </Paper>
+      </CadreTableau>
       {choisi && <DialogueDecisionBon bon={choisi} journeeId={choisi.journeeId} onFermer={() => setChoisi(null)} />}
     </>
   )

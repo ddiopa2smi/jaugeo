@@ -216,5 +216,19 @@ describe('page Stocks', () => {
     expect(lignes[1]).toHaveTextContent('7,8 j')
     expect(within(lignes[1]!).queryByText('À réapprovisionner')).not.toBeInTheDocument()
     expect(screen.getByText(/sous 3 jours/)).toBeInTheDocument()
+
+    // Tri par colonne : un clic sur « Stock » range par stock croissant, un second l'inverse
+    const u = userEvent.setup()
+    await u.click(within(table).getByRole('button', { name: 'Stock' }))
+    let rangees = within(table).getAllByRole('row').slice(1)
+    expect(rangees[0]).toHaveTextContent('NIA · C2')
+    await u.click(within(table).getByRole('button', { name: 'Stock' }))
+    rangees = within(table).getAllByRole('row').slice(1)
+    expect(rangees[0]).toHaveTextContent('NIA · C1')
+
+    // Filtre en puces : seulement les cuves à réapprovisionner
+    await u.click(screen.getByRole('button', { name: 'À réapprovisionner · 1' }))
+    expect(within(table).getAllByRole('row').slice(1)).toHaveLength(1)
+    expect(screen.getByText('1 cuve(s) sur 2')).toBeInTheDocument()
   })
 })

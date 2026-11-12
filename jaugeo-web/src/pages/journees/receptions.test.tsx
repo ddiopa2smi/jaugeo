@@ -44,7 +44,7 @@ const reception = (surcharge: Partial<Reception> = {}): Reception => ({
   ...surcharge,
 })
 
-function monter() {
+function monter(fournisseurs?: string[]) {
   let version = 3
   let receptions: Reception[] = [reception()]
   const ecritures: { methode: string; chemin: string; corps: unknown }[] = []
@@ -60,6 +60,7 @@ function monter() {
     anomalies: 0,
     toleranceTransportPct: 0.3,
     livraisonsAttendues: [],
+    fournisseurs,
     cuves: [
       {
         cuveId: 'c1',
@@ -176,5 +177,31 @@ describe('réceptions de la journée', () => {
     })
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(await screen.findByText('Réception corrigée.')).toBeInTheDocument()
+  })
+
+  it('choisit le fournisseur dans la liste déclarée par la logistique', async () => {
+    monter(['Dépôt Senstock', 'SAR Mbao'])
+    const u = userEvent.setup()
+
+    // Une réception ancienne garde son fournisseur, même absent de la liste
+    await u.click(await screen.findByRole('button', { name: 'Corriger le BL BL-77' }))
+    let dialogue = await screen.findByRole('dialog', { name: 'Corriger la réception du BL BL-77' })
+    const champ = within(dialogue).getByRole('combobox', { name: /Fournisseur/ })
+    expect(champ).toHaveTextContent('Dépôt SAR')
+    await u.click(champ)
+    const options = (await screen.findAllByRole('option')).map((o) => o.textContent)
+    expect(options).toEqual(['Dépôt Senstock', 'SAR Mbao', 'Dépôt SAR (hors liste)'])
+    await u.keyboard('{Escape}')
+    await u.click(within(dialogue).getByRole('button', { name: 'Annuler' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+    // Nouvelle réception : pas de saisie libre, seulement les fournisseurs déclarés
+    await u.click(screen.getByRole('button', { name: /Ajouter une réception/ }))
+    dialogue = await screen.findByRole('dialog')
+    const nouveau = within(dialogue).getByRole('combobox', { name: /Fournisseur/ })
+    await u.click(nouveau)
+    expect((await screen.findAllByRole('option')).map((o) => o.textContent)).toEqual(['Dépôt Senstock', 'SAR Mbao'])
+    await u.click(screen.getByRole('option', { name: 'SAR Mbao' }))
+    expect(nouveau).toHaveTextContent('SAR Mbao')
   })
 })

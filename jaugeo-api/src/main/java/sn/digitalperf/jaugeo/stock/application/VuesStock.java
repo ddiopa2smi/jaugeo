@@ -57,7 +57,7 @@ public final class VuesStock {
     public record StockJournee(UUID journeeId, UUID stationId, String stationCode, LocalDate date, String statut,
                                Integer version, boolean modifiable, List<CuveStock> cuves,
                                List<ReceptionVue> receptions, int anomalies, BigDecimal toleranceTransportPct,
-                               List<LivraisonAttendueVue> livraisonsAttendues) {
+                               List<LivraisonAttendueVue> livraisonsAttendues, List<String> fournisseurs) {
     }
 
     // ---------------------------------------------------------------- Analyse mensuelle

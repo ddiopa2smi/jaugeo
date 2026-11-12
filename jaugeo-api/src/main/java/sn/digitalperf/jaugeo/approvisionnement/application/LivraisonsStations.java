@@ -51,6 +51,11 @@ class LivraisonsStations implements LivraisonsAttendues {
     }
 
     @Override
+    public List<String> fournisseurs() {
+        return fournisseurs.findAllByOrderByNomAsc().stream().filter(f -> f.isActif()).map(f -> f.getNom()).toList();
+    }
+
+    @Override
     public Optional<LivraisonAttendue> livraison(UUID uuid) {
         return livraisons.findByUuid(uuid).map(this::vue).filter(l -> !"ANNULEE".equals(l.tourneeStatut()));
     }

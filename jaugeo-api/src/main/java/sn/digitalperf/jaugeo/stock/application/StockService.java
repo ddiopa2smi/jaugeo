@@ -276,7 +276,7 @@ public class StockService implements StocksMensuels {
         }
         return new StockJournee(j.uuid(), s.uuid(), s.code(), j.date(), j.statut(), j.version(),
                 j.brouillon() && aPermission("JOURNEE_SAISIR"), cuves, recues, anomalies, cloture.toleranceTransportPct(),
-                attendues);
+                attendues, j.brouillon() ? tolerance.fournisseurs() : List.of());
     }
 
     private static JaugeageVue vue(Jaugeage m) {

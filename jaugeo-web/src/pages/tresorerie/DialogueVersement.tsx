@@ -49,9 +49,11 @@ export function DialogueVersement({
   const [deposant, setDeposant] = useState(versement?.deposant ?? '')
   const [observation, setObservation] = useState(versement?.observation ?? '')
   const [fichier, setFichier] = useState<File | null>(null)
-  // Versement déjà enregistré dont la pièce a été refusée : on ne renvoie que la pièce
+  // Correction déjà enregistrée dont la nouvelle pièce a été refusée : on ne renvoie que la pièce
   const enregistre = useRef<Versement | null>(null)
   const m = versNombre(montant)
+  // La photo du bordereau justifie le versement : exigée dès la création (une correction garde la pièce existante)
+  const pieceManquante = !fichier && !versement?.piece
   // Banques actives ; en correction, la banque du versement reste proposée même si elle a été désactivée depuis
   const banques = useBanques()
   const actives = banques.data ?? []
@@ -72,11 +74,14 @@ export function DialogueVersement({
         deposant: videVersNull(deposant),
         observation: videVersNull(observation),
       }
-      let v =
-        enregistre.current ??
-        (versement
-          ? await api.put<Versement>(`/tresorerie/versements/${versement.id}`, corps)
-          : await api.post<Versement>('/tresorerie/versements', corps))
+      if (!versement) {
+        // Création : le versement et la photo du bordereau partent ensemble, le serveur refuse l'un sans l'autre
+        const formulaire = new FormData()
+        formulaire.append('versement', new Blob([JSON.stringify(corps)], { type: 'application/json' }))
+        formulaire.append('fichier', fichier!)
+        return api.post<Versement>('/tresorerie/versements', formulaire)
+      }
+      let v = enregistre.current ?? (await api.put<Versement>(`/tresorerie/versements/${versement.id}`, corps))
       enregistre.current = v
       if (fichier) v = await api.fichier<Versement>(`/tresorerie/versements/${v.id}/piece?version=${v.version}`, fichier)
       return v
@@ -150,8 +155,10 @@ export function DialogueVersement({
         />
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mt: 2 }}>
           <BoutonPiece libelle="Photo du bordereau" onFichier={setFichier} piece={versement?.piece ?? null} />
-          <Typography variant="body2" color="text.secondary">
-            {fichier ? fichier.name : (versement?.piece?.nomFichier ?? 'Nécessaire pour la vérification')}
+          <Typography variant="body2" color={pieceManquante && !versement ? 'error' : 'text.secondary'}>
+            {fichier
+              ? fichier.name
+              : (versement?.piece?.nomFichier ?? (versement ? 'Nécessaire pour la vérification' : 'Obligatoire : joignez la photo du bordereau'))}
           </Typography>
         </Stack>
         <AlerteErreur erreur={banques.error ?? enregistrement.error} />
@@ -162,7 +169,14 @@ export function DialogueVersement({
           variant="contained"
           onClick={() => enregistrement.mutate()}
           disabled={
-            enregistrement.isPending || !dateDepot || !banque ||!referenceBv.trim() || m === null || m <= 0 || !Number.isInteger(m)
+            enregistrement.isPending ||
+            !dateDepot ||
+            !banque ||
+            !referenceBv.trim() ||
+            m === null ||
+            m <= 0 ||
+            !Number.isInteger(m) ||
+            (!versement && pieceManquante)
           }
         >
           Enregistrer

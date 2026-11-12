@@ -9,7 +9,6 @@ import DialogContent from '@mui/material/DialogContent'
 import DialogTitle from '@mui/material/DialogTitle'
 import IconButton from '@mui/material/IconButton'
 import MenuItem from '@mui/material/MenuItem'
-import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import Table from '@mui/material/Table'
 import TableBody from '@mui/material/TableBody'
@@ -22,11 +21,13 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api } from '../../api/client'
 import { cles, useFactureFournisseur, useFacturesFournisseur, useFournisseursAppro, useProduits } from '../../api/requetes'
-import type { FactureFournisseurDetail, SaisieFactureFournisseur, StatutFactureFournisseur } from '../../api/types'
+import type { FactureFournisseur, FactureFournisseurDetail, SaisieFactureFournisseur, StatutFactureFournisseur } from '../../api/types'
 import { usePermission } from '../../auth/session'
 import { AlerteErreur, Chargement } from '../../shared/composants'
 import { formaterDate, formaterDateHeure, formaterNombre, formaterPrix, versNombre, videVersNull } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
+import { BarreFiltres, CadreTableau, ChampRecherche, EnTeteTri, FiltrePuces, PuceEtat } from '../../shared/tableaux'
+import { correspond, useTri } from '../../shared/tri'
 
 const STATUTS_FACTURE: Record<StatutFactureFournisseur, { libelle: string; couleur: 'default' | 'success' | 'error' | 'warning' }> = {
   SAISIE: { libelle: 'À contrôler', couleur: 'warning' },
@@ -242,7 +243,7 @@ function DetailFacture({ id, onFermer }: { id: string; onFermer: () => void }) {
                 {f.motifDecision} — {f.decidePar}, {formaterDateHeure(f.decideLe)}
               </Alert>
             )}
-            <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+            <CadreTableau>
               <Table size="small" aria-label="Contrôle des lignes">
                 <TableHead>
                   <TableRow>
@@ -297,7 +298,7 @@ function DetailFacture({ id, onFermer }: { id: string; onFermer: () => void }) {
                   ))}
                 </TableBody>
               </Table>
-            </Paper>
+            </CadreTableau>
           </>
         )}
       </DialogContent>
@@ -334,6 +335,23 @@ export function FacturesFournisseur() {
   const peutFacturer = usePeutFacturer()
   const [ouverte, setOuverte] = useState<string | null>(null)
   const [nouvelle, setNouvelle] = useState(false)
+  const [recherche, setRecherche] = useState('')
+  const [statut, setStatut] = useState<StatutFactureFournisseur | 'TOUS'>('TOUS')
+  const tri = useTri<FactureFournisseur, 'facture' | 'fournisseur' | 'montant' | 'ecart' | 'controle' | 'statut'>(
+    {
+      facture: (f) => f.dateFacture,
+      fournisseur: (f) => f.fournisseurNom,
+      montant: (f) => f.montant,
+      ecart: (f) => f.ecart,
+      controle: (f) => f.anomalies,
+      statut: (f) => STATUTS_FACTURE[f.statut].libelle,
+    },
+    'facture',
+    'desc',
+  )
+  const factures = liste.data ?? []
+  const statuts = (Object.keys(STATUTS_FACTURE) as StatutFactureFournisseur[]).filter((s) => factures.some((f) => f.statut === s))
+  const visibles = tri.trier(factures.filter((f) => (statut === 'TOUS' || f.statut === statut) && correspond(recherche, f.numero, f.fournisseurNom)))
   return (
     <>
       <Stack direction="row" sx={{ mb: 2, justifyContent: 'space-between', alignItems: 'center' }}>
@@ -349,21 +367,50 @@ export function FacturesFournisseur() {
       <AlerteErreur erreur={liste.error} />
       {liste.isLoading && <Chargement />}
       {liste.data?.length === 0 && <Alert severity="info">Aucune facture fournisseur.</Alert>}
-      {liste.data && liste.data.length > 0 && (
-        <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+      {factures.length > 0 && (
+        <BarreFiltres resume={`${visibles.length} facture(s) · ${formaterPrix(visibles.reduce((t, f) => t + f.montant, 0))}`}>
+          <ChampRecherche valeur={recherche} onChange={setRecherche} libelle="Rechercher une facture, un fournisseur" />
+          {statuts.length > 1 && (
+            <FiltrePuces
+              libelle="Filtrer par statut"
+              valeur={statut}
+              onChange={setStatut}
+              options={[
+                { valeur: 'TOUS' as const, libelle: 'Toutes', nombre: factures.length },
+                ...statuts.map((s) => ({ valeur: s, libelle: STATUTS_FACTURE[s].libelle, nombre: factures.filter((f) => f.statut === s).length })),
+              ]}
+            />
+          )}
+        </BarreFiltres>
+      )}
+      {factures.length > 0 && visibles.length === 0 && <Alert severity="info">Aucune facture ne correspond à ces filtres.</Alert>}
+      {visibles.length > 0 && (
+        <CadreTableau>
           <Table size="small" aria-label="Factures fournisseur">
             <TableHead>
               <TableRow>
-                <TableCell>Facture</TableCell>
-                <TableCell>Fournisseur</TableCell>
-                <TableCell align="right">Facturé</TableCell>
-                <TableCell align="right">Écart</TableCell>
-                <TableCell>Contrôle</TableCell>
-                <TableCell>Statut</TableCell>
+                <EnTeteTri tri={tri} cle="facture">
+                  Facture
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="fournisseur">
+                  Fournisseur
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="montant" align="right">
+                  Facturé
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="ecart" align="right">
+                  Écart
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="controle">
+                  Contrôle
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="statut">
+                  Statut
+                </EnTeteTri>
               </TableRow>
             </TableHead>
             <TableBody>
-              {liste.data.map((f) => (
+              {visibles.map((f) => (
                 <TableRow key={f.id} hover sx={{ cursor: 'pointer' }} onClick={() => setOuverte(f.id)}>
                   <TableCell>
                     {f.numero}
@@ -377,20 +424,16 @@ export function FacturesFournisseur() {
                     {formaterPrix(f.ecart)}
                   </TableCell>
                   <TableCell>
-                    {f.anomalies === 0 ? (
-                      <Chip size="small" color="success" variant="outlined" label="Conforme" />
-                    ) : (
-                      <Chip size="small" color="error" variant="outlined" label={`${f.anomalies} anomalie(s)`} />
-                    )}
+                    {f.anomalies === 0 ? <PuceEtat ton="success" libelle="Conforme" /> : <PuceEtat ton="error" libelle={`${f.anomalies} anomalie(s)`} />}
                   </TableCell>
                   <TableCell>
-                    <Chip size="small" color={STATUTS_FACTURE[f.statut].couleur} label={STATUTS_FACTURE[f.statut].libelle} />
+                    <PuceEtat ton={STATUTS_FACTURE[f.statut].couleur} libelle={STATUTS_FACTURE[f.statut].libelle} />
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
-        </Paper>
+        </CadreTableau>
       )}
       {ouverte && <DetailFacture id={ouverte} onFermer={() => setOuverte(null)} />}
       {nouvelle && (

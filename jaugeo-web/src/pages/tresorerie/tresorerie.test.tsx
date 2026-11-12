@@ -132,8 +132,7 @@ describe('trésorerie', () => {
 
   it('le gérant suit sa caisse et enregistre un versement avec la photo du bordereau', async () => {
     const versements: Versement[] = []
-    const creations: unknown[] = []
-    const pieces: { chemin: string; fichier: File }[] = []
+    const creations: FormData[] = []
     installerFauxServeur(({ methode, chemin, corps }) => {
       if (chemin === '/auth/rafraichir') return { status: 200, corps: sessionTest('j', GERANT) }
       if (chemin === '/stations') return { status: 200, corps: [STATION] }
@@ -141,14 +140,10 @@ describe('trésorerie', () => {
       if (chemin === '/tresorerie/versements?station=s-pot&mois=2026-01') return { status: 200, corps: versements }
       if (chemin === '/tresorerie/banques') return { status: 200, corps: BANQUES.filter((b) => b.actif) }
       if (chemin === '/tresorerie/versements' && methode === 'POST') {
-        creations.push(corps)
-        versements.push(versement(corps as Partial<Versement>))
+        // Un seul envoi : les données du versement et la photo du bordereau
+        creations.push(corps as FormData)
+        versements.push(versement({ referenceBv: '774378', piece: { nomFichier: 'bv.jpg', typeMime: 'image/jpeg', taille: 2048 } }))
         return { status: 201, corps: versements[0] }
-      }
-      if (chemin.startsWith('/tresorerie/versements/v1/piece') && methode === 'PUT') {
-        pieces.push({ chemin, fichier: (corps as FormData).get('fichier') as File })
-        versements[0] = { ...versements[0]!, version: 1, piece: { nomFichier: 'bv.jpg', typeMime: 'image/jpeg', taille: 2048 } }
-        return { status: 200, corps: versements[0] }
       }
       return undefined
     })
@@ -175,18 +170,19 @@ describe('trésorerie', () => {
     ])
     await u.click(choix.getByRole('option', { name: /CBAO/ }))
     await u.type(within(dialogue).getByLabelText(/bordereau \(BV\)/), '774378')
+    // Sans la photo du bordereau, la création est impossible
+    expect(within(dialogue).getByRole('button', { name: 'Enregistrer' })).toBeDisabled()
     const photo = new File([new Uint8Array([0xff, 0xd8, 0xff, 0xe0])], 'bv.jpg', { type: 'image/jpeg' })
     await u.upload(within(dialogue).getByLabelText('Photo du bordereau'), photo)
     expect(within(dialogue).getByText('bv.jpg')).toBeInTheDocument()
     await u.click(within(dialogue).getByRole('button', { name: 'Enregistrer' }))
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(creations).toEqual([
-      expect.objectContaining({ stationId: 's-pot', banque: 'CBAO',referenceBv: '774378', montant: 539760, deposant: null }),
-    ])
-    expect(pieces).toHaveLength(1)
-    expect(pieces[0]!.chemin).toBe('/tresorerie/versements/v1/piece?version=0')
-    expect(pieces[0]!.fichier.name).toBe('bv.jpg')
+    expect(creations).toHaveLength(1)
+    expect(JSON.parse(await (creations[0]!.get('versement') as Blob).text())).toEqual(
+      expect.objectContaining({ stationId: 's-pot', banque: 'CBAO', referenceBv: '774378', montant: 539760, deposant: null }),
+    )
+    expect((creations[0]!.get('fichier') as File).name).toBe('bv.jpg')
     expect(await screen.findByTestId('versement-774378')).toHaveTextContent('À vérifier')
   })
 
@@ -230,6 +226,49 @@ describe('trésorerie', () => {
       { chemin: '/tresorerie/versements/v1/verification', corps: { version: 0, valide: true, motif: null } },
     ])
     expect(await screen.findByText('Aucun versement en attente de vérification.')).toBeInTheDocument()
+  })
+
+  it('les versements se filtrent par recherche et par statut, et se trient par colonne', async () => {
+    const liste = [
+      versement({ id: 'v1', referenceBv: '774378', montant: 539760, dateDepot: '2026-01-02', statut: 'VERIFIE', verifiePar: 'compta' }),
+      versement({ id: 'v2', referenceBv: '774379', montant: 100000, dateDepot: '2026-01-05', deposant: 'Keba Mbaye' }),
+      versement({ id: 'v3', referenceBv: '774380', montant: 250000, dateDepot: '2026-01-09', banque: 'BIS' }),
+    ]
+    installerFauxServeur(({ chemin }) => {
+      if (chemin === '/auth/rafraichir') return { status: 200, corps: sessionTest('j', GERANT) }
+      if (chemin === '/stations') return { status: 200, corps: [STATION] }
+      if (chemin === '/stations/s-pot/caisse?mois=2026-01') return { status: 200, corps: LIVRE }
+      if (chemin === '/tresorerie/versements?station=s-pot&mois=2026-01') return { status: 200, corps: liste }
+      return undefined
+    })
+    afficher('/tresorerie?station=s-pot&mois=2026-01')
+    const u = userEvent.setup()
+    const ordre = () => screen.getAllByTestId(/^versement-/).map((l) => l.getAttribute('data-testid'))
+
+    expect(await screen.findByTestId('resume-versements')).toHaveTextContent('3 versement(s) · 889 760 F')
+    expect(ordre()).toEqual(['versement-774378', 'versement-774379', 'versement-774380'])
+
+    // Tri par montant, puis sens inverse au second clic
+    await u.click(screen.getByRole('button', { name: 'Montant' }))
+    expect(ordre()).toEqual(['versement-774379', 'versement-774380', 'versement-774378'])
+    await u.click(screen.getByRole('button', { name: 'Montant' }))
+    expect(ordre()).toEqual(['versement-774378', 'versement-774380', 'versement-774379'])
+
+    // Filtre par statut, avec le nombre de versements de chaque statut
+    await u.click(within(screen.getByRole('group', { name: 'Filtrer par statut' })).getByText('À vérifier · 2'))
+    expect(ordre()).toEqual(['versement-774380', 'versement-774379'])
+    expect(screen.getByTestId('resume-versements')).toHaveTextContent('2 versement(s) · 350 000 F')
+
+    // Recherche sans accents ni majuscules, sur le déposant
+    await u.type(screen.getByLabelText('Rechercher un bordereau, un déposant'), 'KEBA')
+    expect(ordre()).toEqual(['versement-774379'])
+    await u.type(screen.getByLabelText('Rechercher un bordereau, un déposant'), ' zzz')
+    expect(screen.getByText('Aucun versement ne correspond à ces filtres.')).toBeInTheDocument()
+
+    // Le livre de caisse se filtre aussi : un seul jour encore en saisie
+    await u.click(within(screen.getByRole('group', { name: 'Filtrer les jours' })).getByText('En saisie · 1'))
+    expect(screen.queryByTestId('caisse-2026-01-01')).not.toBeInTheDocument()
+    expect(screen.getByTestId('caisse-2026-01-02')).toBeInTheDocument()
   })
 
   it('l’administrateur choisit les banques de la compagnie et en ajoute une', async () => {

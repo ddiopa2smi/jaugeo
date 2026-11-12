@@ -1,6 +1,9 @@
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh'
+import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty'
 import LinkIcon from '@mui/icons-material/Link'
 import LinkOffIcon from '@mui/icons-material/LinkOff'
+import PercentIcon from '@mui/icons-material/Percent'
+import PhoneIphoneIcon from '@mui/icons-material/PhoneIphone'
 import SettingsIcon from '@mui/icons-material/Settings'
 import UploadFileIcon from '@mui/icons-material/UploadFile'
 import Alert from '@mui/material/Alert'
@@ -13,7 +16,6 @@ import DialogContent from '@mui/material/DialogContent'
 import DialogTitle from '@mui/material/DialogTitle'
 import IconButton from '@mui/material/IconButton'
 import MenuItem from '@mui/material/MenuItem'
-import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import Table from '@mui/material/Table'
 import TableBody from '@mui/material/TableBody'
@@ -29,7 +31,10 @@ import { useSearchParams } from 'react-router'
 import { api } from '../../api/client'
 import { useFormatsReleve, useRafraichirTresorerie, useRapprochement, useRapprochementElectronique, useStations } from '../../api/requetes'
 import type { BilanImport, FormatReleve, NatureReleve, OperationReleve, VersementResume } from '../../api/types'
+import { CarteIndicateur } from '../../shared/CarteIndicateur'
 import { AlerteErreur, Chargement } from '../../shared/composants'
+import { BarreFiltres, CadreTableau, ChampRecherche, EnTeteTri, FiltrePuces } from '../../shared/tableaux'
+import { correspond, useTri } from '../../shared/tri'
 import { confirmerPuis } from '../../shared/confirmation'
 import { formaterDate, formaterPrix, versNombre } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
@@ -440,6 +445,17 @@ export function OngletRapprochement() {
   const d = r.data
   const peut = d?.peutLettrer ?? false
   const enAttente = d?.operations.filter((o) => !o.versement).length ?? 0
+  // Relevé bancaire : recherche, filtre sur l'état du lettrage, tri par colonne
+  const [recherche, setRecherche] = useState('')
+  const [etat, setEtat] = useState<'TOUS' | 'ATTENTE' | 'LETTRES'>('TOUS')
+  const tri = useTri<OperationReleve, 'date' | 'libelle' | 'montant'>({ date: (o) => o.date, libelle: (o) => o.libelle, montant: (o) => o.montant }, 'date')
+  const operations = tri.trier(
+    (d?.operations ?? []).filter(
+      (o) =>
+        (etat === 'TOUS' || (etat === 'ATTENTE') === !o.versement) &&
+        correspond(recherche, o.libelle, o.reference, o.format, o.versement?.referenceBv, o.versement?.stationCode),
+    ),
+  )
 
   return (
     <>
@@ -475,67 +491,95 @@ export function OngletRapprochement() {
       {r.isLoading && <Chargement />}
       {d && (
         <>
-          <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, mb: 2 }}>
-            <Paper variant="outlined" sx={{ p: 1.5 }}>
-              <Typography variant="caption" color="text.secondary" component="div">
-                Taux de rapprochement
-              </Typography>
-              <Typography sx={{ fontSize: 18, fontWeight: 600 }} data-testid="taux-rapprochement">
-                {d.taux === null ? '—' : `${d.taux.toLocaleString('fr-FR')} %`}
-              </Typography>
-            </Paper>
-            <Paper variant="outlined" sx={{ p: 1.5 }}>
-              <Typography variant="caption" color="text.secondary" component="div">
-                Versements rapprochés
-              </Typography>
-              <Typography sx={{ fontSize: 18, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                {d.versementsLettres} / {d.versements}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {formaterPrix(d.montantLettre)} sur {formaterPrix(d.montantVersements)}
-              </Typography>
-            </Paper>
-            <Paper variant="outlined" sx={{ p: 1.5 }}>
-              <Typography variant="caption" color="text.secondary" component="div">
-                Crédits du relevé à rapprocher
-              </Typography>
-              <Typography sx={{ fontSize: 18, fontWeight: 600, color: enAttente > 0 ? 'warning.main' : undefined }}>{enAttente}</Typography>
-            </Paper>
-            <Paper variant="outlined" sx={{ p: 1.5 }}>
-              <Typography variant="caption" color="text.secondary" component="div">
-                Écarts Wave, Orange Money, carte
-              </Typography>
-              <Typography sx={{ fontSize: 18, fontWeight: 600, color: (el.data?.ecarts ?? 0) > 0 ? 'error.main' : undefined }}>
-                {el.data?.ecarts ?? '—'}
-              </Typography>
-            </Paper>
+          <Box sx={{ display: 'grid', gap: { xs: 1.5, md: 2 }, gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, mb: 2.5 }}>
+            <CarteIndicateur
+              icone={<PercentIcon />}
+              libelle="Taux de rapprochement"
+              valeur={d.taux === null ? '—' : `${d.taux.toLocaleString('fr-FR')} %`}
+              testid="taux-rapprochement"
+              sous="du montant versé dans le mois"
+              accent
+              ton={d.taux !== null && d.taux >= 100 ? 'success' : 'primary'}
+            />
+            <CarteIndicateur
+              icone={<LinkIcon />}
+              libelle="Versements rapprochés"
+              valeur={`${d.versementsLettres} / ${d.versements}`}
+              sous={`${formaterPrix(d.montantLettre)} sur ${formaterPrix(d.montantVersements)}`}
+              ton="success"
+            />
+            <CarteIndicateur
+              icone={<HourglassEmptyIcon />}
+              libelle="Crédits du relevé à rapprocher"
+              valeur={enAttente}
+              sous={enAttente > 0 ? 'à lettrer à la main' : 'tout est lettré'}
+              ton={enAttente > 0 ? 'warning' : 'success'}
+            />
+            <CarteIndicateur
+              icone={<PhoneIphoneIcon />}
+              libelle="Écarts Wave, Orange Money, carte"
+              valeur={el.data?.ecarts ?? '—'}
+              sous="jours où relevé et déclaré diffèrent"
+              ton={(el.data?.ecarts ?? 0) > 0 ? 'error' : 'primary'}
+            />
           </Box>
 
-          <Typography variant="h6" component="h2" sx={{ mb: 1 }}>
-            Relevé bancaire
-          </Typography>
           {d.operations.length === 0 ? (
-            <Alert severity="info" sx={{ mb: 3 }}>
-              Aucun relevé bancaire importé pour ce mois.
-            </Alert>
+            <>
+              <Typography variant="h6" component="h2" sx={{ mb: 1 }}>
+                Relevé bancaire
+              </Typography>
+              <Alert severity="info" sx={{ mb: 3 }}>
+                Aucun relevé bancaire importé pour ce mois.
+              </Alert>
+            </>
           ) : (
-            <Paper variant="outlined" sx={{ overflowX: 'auto', mb: 3 }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Date</TableCell>
-                    <TableCell>Libellé</TableCell>
-                    <TableCell align="right">Crédit</TableCell>
-                    <TableCell>Versement</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {d.operations.map((o) => (
-                    <LigneOperation key={`${o.id}-${o.versement?.id ?? ''}`} o={o} peutLettrer={peut} />
-                  ))}
-                </TableBody>
-              </Table>
-            </Paper>
+            <>
+              <BarreFiltres resume={`${operations.length} crédit(s) · ${formaterPrix(operations.reduce((t, o) => t + o.montant, 0))}`}>
+                <Typography variant="h6" component="h2">
+                  Relevé bancaire
+                </Typography>
+                <ChampRecherche valeur={recherche} onChange={setRecherche} libelle="Rechercher un libellé, une référence" />
+                <FiltrePuces
+                  libelle="Filtrer les crédits"
+                  valeur={etat}
+                  onChange={setEtat}
+                  options={[
+                    { valeur: 'TOUS', libelle: 'Tous', nombre: d.operations.length },
+                    { valeur: 'ATTENTE', libelle: 'À rapprocher', nombre: enAttente },
+                    { valeur: 'LETTRES', libelle: 'Rapprochés', nombre: d.operations.length - enAttente },
+                  ]}
+                />
+              </BarreFiltres>
+              {operations.length === 0 && (
+                <Alert severity="info" sx={{ mb: 3 }}>
+                  Aucun crédit ne correspond à ces filtres.
+                </Alert>
+              )}
+              <CadreTableau sx={{ mb: 3, display: operations.length === 0 ? 'none' : undefined }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <EnTeteTri tri={tri} cle="date">
+                        Date
+                      </EnTeteTri>
+                      <EnTeteTri tri={tri} cle="libelle">
+                        Libellé
+                      </EnTeteTri>
+                      <EnTeteTri tri={tri} cle="montant" align="right">
+                        Crédit
+                      </EnTeteTri>
+                      <TableCell>Versement</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {operations.map((o) => (
+                      <LigneOperation key={`${o.id}-${o.versement?.id ?? ''}`} o={o} peutLettrer={peut} />
+                    ))}
+                  </TableBody>
+                </Table>
+              </CadreTableau>
+            </>
           )}
 
           {d.versementsNonLettres.length > 0 && (
@@ -543,7 +587,7 @@ export function OngletRapprochement() {
               <Typography variant="h6" component="h2" sx={{ mb: 1 }}>
                 Versements non retrouvés au relevé
               </Typography>
-              <Paper variant="outlined" sx={{ overflowX: 'auto', mb: 3 }}>
+              <CadreTableau sx={{ mb: 3 }}>
                 <Table size="small">
                   <TableHead>
                     <TableRow>
@@ -568,7 +612,7 @@ export function OngletRapprochement() {
                     ))}
                   </TableBody>
                 </Table>
-              </Paper>
+              </CadreTableau>
             </>
           )}
         </>
@@ -584,7 +628,7 @@ export function OngletRapprochement() {
               Aucun encaissement électronique déclaré ni relevé marchand importé ce mois.
             </Alert>
           ) : (
-            <Paper variant="outlined" sx={{ overflowX: 'auto', mb: 3 }}>
+            <CadreTableau sx={{ mb: 3 }}>
               <Table size="small">
                 <TableHead>
                   <TableRow>
@@ -624,7 +668,7 @@ export function OngletRapprochement() {
                   ))}
                 </TableBody>
               </Table>
-            </Paper>
+            </CadreTableau>
           )}
         </>
       )}

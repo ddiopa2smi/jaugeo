@@ -1,4 +1,7 @@
+import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined'
 import AddCardIcon from '@mui/icons-material/AddCard'
+import BlockOutlinedIcon from '@mui/icons-material/BlockOutlined'
+import CreditCardOutlinedIcon from '@mui/icons-material/CreditCardOutlined'
 import PrintIcon from '@mui/icons-material/Print'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
@@ -9,7 +12,6 @@ import DialogActions from '@mui/material/DialogActions'
 import DialogContent from '@mui/material/DialogContent'
 import DialogTitle from '@mui/material/DialogTitle'
 import MenuItem from '@mui/material/MenuItem'
-import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import Table from '@mui/material/Table'
 import TableBody from '@mui/material/TableBody'
@@ -24,12 +26,15 @@ import { api } from '../../api/client'
 import { cles, useCarte, useCartes } from '../../api/requetes'
 import type { CarteCarburant, CarteDetail, ModeRecharge, StatutCarte } from '../../api/types'
 import { usePermission } from '../../auth/session'
+import { CarteIndicateur } from '../../shared/CarteIndicateur'
 import { MODES_RECHARGE, STATUTS_CARTE } from '../../shared/clients'
 import { AlerteErreur, Chargement, EnTetePage } from '../../shared/composants'
 import { confirmerPuis } from '../../shared/confirmation'
 import { formaterDate, formaterNombre, formaterPrix, versNombre, videVersNull } from '../../shared/libelles'
 import { imprimerCarte } from '../../shared/impressionCarte'
 import { notifier } from '../../shared/notifications'
+import { BarreFiltres, CadreTableau, ChampRecherche, EnTeteTri, FiltrePuces, PuceEtat } from '../../shared/tableaux'
+import { correspond, useTri } from '../../shared/tri'
 import { aujourdhui } from '../../shared/tresorerie'
 
 const COULEUR_STATUT: Record<StatutCarte, 'success' | 'warning' | 'default'> = { ACTIVE: 'success', BLOQUEE: 'warning', ANNULEE: 'default' }
@@ -270,20 +275,34 @@ export function DialogueCarte({ id, onFermer }: { id: string; onFermer: () => vo
 
 /** Tableau des cartes (toutes ou celles d'un client). */
 export function TableCartes({ cartes, onChoisir }: { cartes: CarteCarburant[]; onChoisir: (id: string) => void }) {
+  const tri = useTri<CarteCarburant, 'numero' | 'porteur' | 'client' | 'etat' | 'solde'>(
+    { numero: (c) => c.numero, porteur: (c) => c.porteur, client: (c) => c.clientNom, etat: (c) => STATUTS_CARTE[c.statut], solde: (c) => c.solde },
+    'numero',
+  )
   return (
     <Box sx={{ overflowX: 'auto' }}>
       <Table size="small" aria-label="Cartes prépayées">
         <TableHead>
           <TableRow>
-            <TableCell>Numéro</TableCell>
-            <TableCell>Porteur</TableCell>
-            <TableCell>Client</TableCell>
-            <TableCell>État</TableCell>
-            <TableCell align="right">Solde</TableCell>
+            <EnTeteTri tri={tri} cle="numero">
+              Numéro
+            </EnTeteTri>
+            <EnTeteTri tri={tri} cle="porteur">
+              Porteur
+            </EnTeteTri>
+            <EnTeteTri tri={tri} cle="client">
+              Client
+            </EnTeteTri>
+            <EnTeteTri tri={tri} cle="etat">
+              État
+            </EnTeteTri>
+            <EnTeteTri tri={tri} cle="solde" align="right">
+              Solde
+            </EnTeteTri>
           </TableRow>
         </TableHead>
         <TableBody>
-          {cartes.map((c) => (
+          {tri.trier(cartes).map((c) => (
             <TableRow key={c.id} hover onClick={() => onChoisir(c.id)} sx={{ cursor: 'pointer' }} data-testid={`carte-${c.numero}`}>
               <TableCell sx={{ fontFamily: 'monospace' }}>{c.numero}</TableCell>
               <TableCell>
@@ -296,7 +315,7 @@ export function TableCartes({ cartes, onChoisir }: { cartes: CarteCarburant[]; o
               </TableCell>
               <TableCell>{c.clientNom}</TableCell>
               <TableCell>
-                <Chip size="small" color={COULEUR_STATUT[c.statut]} label={STATUTS_CARTE[c.statut]} />
+                <PuceEtat ton={COULEUR_STATUT[c.statut]} libelle={STATUTS_CARTE[c.statut]} />
               </TableCell>
               <TableCell align="right">{formaterPrix(c.solde)}</TableCell>
             </TableRow>
@@ -321,10 +340,15 @@ export function PageCartes() {
   const peutGerer = usePermission('CLIENT_GERER')
   const [choisie, setChoisie] = useState<string | null>(null)
   const [filtre, setFiltre] = useState('')
-  const liste = (cartes.data ?? []).filter((c) =>
-    `${c.numero} ${c.porteur} ${c.clientNom} ${c.immatriculation ?? ''}`.toLowerCase().includes(filtre.trim().toLowerCase()),
+  const [statut, setStatut] = useState<StatutCarte | 'TOUTES'>('TOUTES')
+  const toutes = cartes.data ?? []
+  const statuts = (Object.keys(STATUTS_CARTE) as StatutCarte[]).filter((s) => toutes.some((c) => c.statut === s))
+  const liste = toutes.filter(
+    (c) => (statut === 'TOUTES' || c.statut === statut) && correspond(filtre, c.numero, c.porteur, c.clientNom, c.clientCode, c.immatriculation),
   )
-  const total = (cartes.data ?? []).reduce((s, c) => s + c.solde, 0)
+  const total = toutes.reduce((s, c) => s + c.solde, 0)
+  const actives = toutes.filter((c) => c.statut === 'ACTIVE')
+  const bloquees = toutes.filter((c) => c.statut === 'BLOQUEE').length
   return (
     <>
       <EnTetePage titre="Cartes carburant prépayées" sousTitre={`Soldes prépayés en circulation : ${formaterPrix(total)}`} />
@@ -336,12 +360,48 @@ export function PageCartes() {
       )}
       <AlerteErreur erreur={cartes.error} />
       {cartes.isLoading && <Chargement />}
-      <Paper variant="outlined">
-        <Box sx={{ p: 1.5 }}>
-          <TextField size="small" fullWidth label="Rechercher (numéro, porteur, client, immatriculation)" value={filtre} onChange={(e) => setFiltre(e.target.value)} />
+      {cartes.data && (
+        <Box sx={{ display: 'grid', gap: { xs: 1.5, md: 2 }, gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(3, 1fr)' }, mb: 2.5 }}>
+          <CarteIndicateur
+            icone={<AccountBalanceWalletOutlinedIcon />}
+            libelle="Soldes en circulation"
+            valeur={formaterPrix(total)}
+            accent
+            sous="prépayés, non encore consommés"
+          />
+          <CarteIndicateur
+            icone={<CreditCardOutlinedIcon />}
+            libelle="Cartes actives"
+            valeur={actives.length}
+            ton="success"
+            sous={`sur ${toutes.length} carte(s) émise(s)`}
+          />
+          <CarteIndicateur
+            icone={<BlockOutlinedIcon />}
+            libelle="Cartes bloquées"
+            valeur={bloquees}
+            ton={bloquees > 0 ? 'warning' : 'primary'}
+            sous="pleins refusés tant qu’elles le restent"
+          />
         </Box>
+      )}
+      <BarreFiltres resume={`${liste.length} carte(s) · ${formaterPrix(liste.reduce((s, c) => s + c.solde, 0))}`}>
+        <ChampRecherche valeur={filtre} onChange={setFiltre} libelle="Rechercher un numéro, un porteur, un client" />
+        {statuts.length > 1 && (
+          <FiltrePuces
+            libelle="Filtrer par état"
+            valeur={statut}
+            onChange={setStatut}
+            options={[
+              { valeur: 'TOUTES' as const, libelle: 'Toutes', nombre: toutes.length },
+              ...statuts.map((s) => ({ valeur: s, libelle: STATUTS_CARTE[s], nombre: toutes.filter((c) => c.statut === s).length })),
+            ]}
+          />
+        )}
+      </BarreFiltres>
+      <CadreTableau>
         <TableCartes cartes={liste} onChoisir={setChoisie} />
-      </Paper>
+      </CadreTableau>
       {choisie && <DialogueCarte id={choisie} onFermer={() => setChoisie(null)} />}
     </>
   )

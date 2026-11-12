@@ -277,10 +277,12 @@ public class TresorerieService implements SyntheseCaisse {
     }
 
     @Transactional
-    public VersementVue creerVersement(UUID stationUuid, Versement.Donnees d) {
+    public VersementVue creerVersement(UUID stationUuid, Versement.Donnees d, PieceJointe piece) {
         StationRef s = stationAccessible(stationUuid);
         Versement v = new Versement(s.id());
         renseigner(v, d);
+        // Versement et photo du bordereau sont enregistres ensemble : jamais de versement sans justificatif
+        pieces.saveAndFlush(new PieceVersement(v.getId(), piece, perimetre.identifiant(), horloge.instant()));
         return vue(v, s);
     }
 
