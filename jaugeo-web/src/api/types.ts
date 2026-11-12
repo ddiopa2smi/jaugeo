@@ -526,6 +526,8 @@ export interface StockJournee {
   anomalies: number
   toleranceTransportPct: number
   livraisonsAttendues: LivraisonAttendue[]
+  /** Fournisseurs (dépôts) actifs déclarés par la logistique, proposés à la saisie d'une réception */
+  fournisseurs?: string[]
 }
 
 export interface SaisieReception {

@@ -278,6 +278,17 @@ $env:JAUGEO_ADMIN_MDP = "<mdp admin>"; cd jaugeo-web; npm run e2e  # 43 contrôl
 
 `npm run e2e` utilise trois comptes de test fixes (`e2e.gerant`, `e2e.dg`, `e2e.sup`) : créés à la première exécution, puis leur mot de passe est réinitialisé à chaque exécution. Il crée aussi un changement de prix aussitôt annulé. Il ouvre, jauge (stock de départ 5 000 L par cuve la première fois), clôture et valide aussi la journée suivante de Niandane, en partant du 01/01/2026 : à réserver aux bases de développement.
 
+## Manuel des fonctionnalités
+
+Le manuel décrit, en langage métier, tout ce que fait l'application : `docs/manuel/Jaugeo — Manuel des fonctionnalités.pdf`.
+Sa source est `docs/manuel/manuel.html` ; le PDF se régénère avec Edge, sans rien installer :
+
+```powershell
+cd jaugeo-web; npm run manuel
+```
+
+À chaque fonctionnalité livrée ou modifiée : corriger le chapitre concerné, ajouter une ligne en tête du « Journal des mises à jour », changer la version et la date (`data-version` et `data-date` de la balise `body`), régénérer le PDF et valider les deux fichiers avec le code.
+
 ## Conventions
 
 - Code, API et base de données en français : paquet `sn.digitalperf.jaugeo.<module>` et préfixe d'API `/api/v1`.

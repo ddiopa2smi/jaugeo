@@ -209,6 +209,8 @@ class ApprovisionnementM8Test {
         assertThat(JsonPath.<String>read(s2, "$.livraisonsAttendues[0].tourneeNumero")).isEqualTo(numero);
         assertThat(JsonPath.<String>read(s2, "$.livraisonsAttendues[0].transporteur")).isEqualTo("Transports M8");
         assertThat(nombre(s2, "$.livraisonsAttendues[0].tolerancePct")).isEqualByComparingTo("0.2");
+        // Le gerant, sans acces a l'approvisionnement, recoit les fournisseurs actifs pour choisir celui d'une reception
+        assertThat(JsonPath.<List<String>>read(s2, "$.fournisseurs")).contains("Dépôt M8");
         s2 = creer(gerant, "/api/v1/journees/" + JsonPath.read(s2, "$.journeeId") + "/receptions", """
                 {"version":%s,"cuveId":"%s","livraisonId":"%s","numeroBl":"BL-M8-001","fournisseur":"Dépôt M8",
                  "transporteur":"Transports M8","immatriculation":"DK-8888-M8","scelles":"SC 1-4","scellesIntacts":false,

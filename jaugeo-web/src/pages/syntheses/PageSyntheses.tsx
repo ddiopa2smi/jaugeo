@@ -10,7 +10,6 @@ import DialogActions from '@mui/material/DialogActions'
 import DialogContent from '@mui/material/DialogContent'
 import DialogTitle from '@mui/material/DialogTitle'
 import IconButton from '@mui/material/IconButton'
-import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import Tab from '@mui/material/Tab'
 import Table from '@mui/material/Table'
@@ -33,6 +32,7 @@ import { formaterNombre, formaterPrix, videVersNull } from '../../shared/libelle
 import { notifier } from '../../shared/notifications'
 import { formaterPct, moisCourant, NIVEAUX_ECART } from '../../shared/stock'
 import { formaterEcart } from '../../shared/tresorerie'
+import { CadreTableau } from '../../shared/tableaux'
 
 const f = (v: number) => formaterPrix(v)
 const cellule = { whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' } as const
@@ -172,7 +172,7 @@ function OngletVentes({ mois }: { mois: string }) {
         Q = I + J + K + L + M + O ; R = Q − H. Quand toutes les journées sont clôturées, R est la somme des écarts constatés aux
         arrêtés de caisse du mois.
       </Typography>
-      <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+      <CadreTableau>
         <Table size="small" aria-label="Analyse des ventes et recettes">
           <TableHead>
             <TableRow>
@@ -199,7 +199,7 @@ function OngletVentes({ mois }: { mois: string }) {
             {s.lignes.length > 1 && <LigneTableau s={s} l={s.cumul} total />}
           </TableBody>
         </Table>
-      </Paper>
+      </CadreTableau>
       {s.lignes.length > 0 && (
         <Typography variant="body2" sx={{ mt: 1 }}>
           Dont bons direction {f(s.cumul.bonsDirection)} · bons gérant {f(s.cumul.bonsGerant)} · créances recouvrées en espèces{' '}
@@ -218,7 +218,7 @@ function OngletStocks({ mois }: { mois: string }) {
   if (s.lignes.length === 0) return <Alert severity="info">Aucune journée clôturée ce mois-ci.</Alert>
   return (
     <>
-      <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+      <CadreTableau>
         <Table size="small" aria-label="Analyse des stocks">
           <TableHead>
             <TableRow>
@@ -281,11 +281,11 @@ function OngletStocks({ mois }: { mois: string }) {
             })}
           </TableBody>
         </Table>
-      </Paper>
+      </CadreTableau>
       <Typography variant="overline" color="text.secondary" component="div" sx={{ mt: 2 }}>
         Total du réseau par produit
       </Typography>
-      <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+      <CadreTableau>
         <Table size="small" aria-label="Total par produit">
           <TableHead>
             <TableRow>
@@ -320,7 +320,7 @@ function OngletStocks({ mois }: { mois: string }) {
             ))}
           </TableBody>
         </Table>
-      </Paper>
+      </CadreTableau>
     </>
   )
 }

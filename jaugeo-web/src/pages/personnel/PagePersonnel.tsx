@@ -1,8 +1,12 @@
 import AddIcon from '@mui/icons-material/Add'
+import BalanceOutlinedIcon from '@mui/icons-material/BalanceOutlined'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import EditIcon from '@mui/icons-material/Edit'
+import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined'
 import SaveIcon from '@mui/icons-material/Save'
+import TrendingDownIcon from '@mui/icons-material/TrendingDown'
+import TrendingUpIcon from '@mui/icons-material/TrendingUp'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
@@ -31,11 +35,14 @@ import { useState } from 'react'
 import { Link as LienRouteur, useSearchParams } from 'react-router'
 import { api } from '../../api/client'
 import { cles, useEcartsPersonnel, useEmploye, usePersonnelStation, usePlanning, useStations } from '../../api/requetes'
-import type { Employe, FonctionEmploye, PersonnelStation, PlanningSemaine, SaisieEmploye, Station, TypePoste } from '../../api/types'
+import type { EcartEmploye, Employe, FonctionEmploye, PersonnelStation, PlanningSemaine, SaisieEmploye, Station, TypePoste } from '../../api/types'
+import { CarteIndicateur } from '../../shared/CarteIndicateur'
 import { AlerteErreur, Chargement, EnTetePage, PuceStatut } from '../../shared/composants'
 import { formaterDate, formaterPrix, videVersNull } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
 import { ajouterJours, COULEUR_ECART, FONCTIONS, formaterEcart, LIBELLES_POSTE, lundi, POSTES } from '../../shared/personnel'
+import { BarreFiltres, CadreTableau, ChampRecherche, EnTeteTri, FiltrePuces } from '../../shared/tableaux'
+import { correspond, useTri } from '../../shared/tri'
 
 const CACHE_TELEPHONE = { display: { xs: 'none', sm: 'table-cell' } }
 const aujourdhui = () => new Date().toISOString().slice(0, 10)
@@ -205,7 +212,7 @@ function FicheEmploye({ id, moisInitial, onFermer }: { id: string; moisInitial: 
                 <Typography variant="body2" sx={{ mb: 1 }} data-testid="cumul-employe">
                   Manquants {formaterPrix(d.manquants)} · excédents {formaterPrix(d.excedents)}
                 </Typography>
-                <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+                <CadreTableau>
                   <Table size="small">
                     <TableHead>
                       <TableRow>
@@ -243,7 +250,7 @@ function FicheEmploye({ id, moisInitial, onFermer }: { id: string; moisInitial: 
                       ))}
                     </TableBody>
                   </Table>
-                </Paper>
+                </CadreTableau>
               </>
             )}
           </>
@@ -260,6 +267,25 @@ function OngletEmployes({ personnel, stations }: { personnel: PersonnelStation; 
   const queryClient = useQueryClient()
   const [edition, setEdition] = useState<Employe | 'nouveau' | null>(null)
   const [fiche, setFiche] = useState<string | null>(null)
+  const [recherche, setRecherche] = useState('')
+  const [etat, setEtat] = useState<'TOUS' | 'ACTIFS' | 'INACTIFS'>('TOUS')
+  const tri = useTri<Employe, 'nom' | 'fonction' | 'matricule' | 'telephone' | 'entree' | 'statut'>(
+    {
+      nom: (e) => e.nomComplet,
+      fonction: (e) => FONCTIONS[e.fonction],
+      matricule: (e) => e.matricule,
+      telephone: (e) => e.telephone,
+      entree: (e) => e.dateEntree,
+      statut: (e) => (e.actif ? 'Actif' : e.dateSortie ? 'Sorti' : 'Inactif'),
+    },
+    'nom',
+  )
+  const actifs = personnel.employes.filter((e) => e.actif).length
+  const visibles = tri.trier(
+    personnel.employes.filter(
+      (e) => (etat === 'TOUS' || e.actif === (etat === 'ACTIFS')) && correspond(recherche, e.nomComplet, e.matricule, e.telephone, FONCTIONS[e.fonction]),
+    ),
+  )
   const reglage = useMutation({
     mutationFn: (actif: boolean) => api.put<PersonnelStation>(`/personnel/stations/${personnel.stationId}/feuilles-caisse`, { actif }),
     onSuccess: (r) => {
@@ -298,21 +324,50 @@ function OngletEmployes({ personnel, stations }: { personnel: PersonnelStation; 
       {personnel.employes.length === 0 ? (
         <Alert severity="info">Aucun employé enregistré dans cette station.</Alert>
       ) : (
-        <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+        <>
+        <BarreFiltres resume={`${visibles.length} employé(s) sur ${personnel.employes.length}`}>
+          <ChampRecherche valeur={recherche} onChange={setRecherche} libelle="Rechercher un employé, un matricule" />
+          {actifs < personnel.employes.length && (
+            <FiltrePuces
+              libelle="Filtrer par statut"
+              valeur={etat}
+              onChange={setEtat}
+              options={[
+                { valeur: 'TOUS', libelle: 'Tous', nombre: personnel.employes.length },
+                { valeur: 'ACTIFS', libelle: 'Actifs', nombre: actifs },
+                { valeur: 'INACTIFS', libelle: 'Inactifs', nombre: personnel.employes.length - actifs },
+              ]}
+            />
+          )}
+        </BarreFiltres>
+        {visibles.length === 0 && <Alert severity="info">Aucun employé ne correspond à ces filtres.</Alert>}
+        <CadreTableau sx={{ display: visibles.length === 0 ? 'none' : undefined }}>
           <Table size="small" sx={{ '& td, & th': { px: { xs: 1, sm: 2 } } }}>
             <TableHead>
               <TableRow>
-                <TableCell>Employé</TableCell>
-                <TableCell>Fonction</TableCell>
-                <TableCell sx={CACHE_TELEPHONE}>Matricule</TableCell>
-                <TableCell sx={CACHE_TELEPHONE}>Téléphone</TableCell>
-                <TableCell sx={CACHE_TELEPHONE}>Entrée</TableCell>
-                <TableCell>Statut</TableCell>
+                <EnTeteTri tri={tri} cle="nom">
+                  Employé
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="fonction">
+                  Fonction
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="matricule" sx={CACHE_TELEPHONE}>
+                  Matricule
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="telephone" sx={CACHE_TELEPHONE}>
+                  Téléphone
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="entree" sx={CACHE_TELEPHONE}>
+                  Entrée
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="statut">
+                  Statut
+                </EnTeteTri>
                 <TableCell />
               </TableRow>
             </TableHead>
             <TableBody>
-              {personnel.employes.map((e) => (
+              {visibles.map((e) => (
                 <TableRow key={e.id} hover>
                   <TableCell>
                     <Button size="small" onClick={() => setFiche(e.id)} sx={{ textTransform: 'none', px: 0, minWidth: 0, textAlign: 'left' }}>
@@ -337,7 +392,8 @@ function OngletEmployes({ personnel, stations }: { personnel: PersonnelStation; 
               ))}
             </TableBody>
           </Table>
-        </Paper>
+        </CadreTableau>
+        </>
       )}
       {edition && (
         <DialogueEmploye
@@ -397,7 +453,7 @@ function GrillePlanning({ planning }: { planning: PlanningSemaine }) {
 
   return (
     <>
-      <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+      <CadreTableau>
         <Table size="small" sx={{ '& td, & th': { px: 1 } }}>
           <TableHead>
             <TableRow>
@@ -441,7 +497,7 @@ function GrillePlanning({ planning }: { planning: PlanningSemaine }) {
             ))}
           </TableBody>
         </Table>
-      </Paper>
+      </CadreTableau>
       <AlerteErreur erreur={enregistrement.error} />
       {planning.modifiable && (
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 2, alignItems: { sm: 'center' }, justifyContent: 'flex-end' }}>
@@ -529,6 +585,18 @@ function OngletPlanning({ stationId }: { stationId: string }) {
 function OngletEcarts({ stationId }: { stationId: string }) {
   const [mois, setMois] = useState(() => aujourdhui().slice(0, 7))
   const [fiche, setFiche] = useState<string | null>(null)
+  const tri = useTri<EcartEmploye, 'employe' | 'feuilles' | 'du' | 'remis' | 'manquants' | 'excedents' | 'net'>(
+    {
+      employe: (l) => l.employe,
+      feuilles: (l) => l.feuilles,
+      du: (l) => l.du,
+      remis: (l) => l.remis,
+      manquants: (l) => l.manquants,
+      excedents: (l) => l.excedents,
+      net: (l) => l.net,
+    },
+    'net',
+  )
   const requete = useEcartsPersonnel(stationId, mois)
   const e = requete.data
 
@@ -546,49 +614,57 @@ function OngletEcarts({ stationId }: { stationId: string }) {
       {requete.isLoading && <Chargement />}
       {e && (
         <>
-          <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(4, 1fr)' }, mb: 2 }}>
-            {(
-              [
-                ['Feuilles clôturées', String(e.feuilles), undefined],
-                ['Manquants', formaterPrix(e.manquants), e.manquants > 0 ? 'error.main' : undefined],
-                ['Excédents', formaterPrix(e.excedents), undefined],
-                ['Écart net', formaterEcart(e.net), COULEUR_ECART(e.net)],
-              ] as const
-            ).map(([l, v, couleur]) => (
-              <Paper key={l} variant="outlined" sx={{ px: 2, py: 1 }}>
-                <Typography variant="caption" color="text.secondary">
-                  {l}
-                </Typography>
-                <Typography variant="h6" sx={{ fontVariantNumeric: 'tabular-nums', color: couleur }}>
-                  {v}
-                </Typography>
-              </Paper>
-            ))}
+          <Box sx={{ display: 'grid', gap: { xs: 1.5, md: 2 }, gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, mb: 2.5 }}>
+            <CarteIndicateur icone={<ReceiptLongOutlinedIcon />} libelle="Feuilles clôturées" valeur={e.feuilles} sous="dans le mois" />
+            <CarteIndicateur
+              icone={<TrendingDownIcon />}
+              libelle="Manquants"
+              valeur={formaterPrix(e.manquants)}
+              ton={e.manquants > 0 ? 'error' : 'primary'}
+              sous="remis en moins du dû"
+            />
+            <CarteIndicateur icone={<TrendingUpIcon />} libelle="Excédents" valeur={formaterPrix(e.excedents)} ton="success" sous="remis en plus du dû" />
+            <CarteIndicateur
+              icone={<BalanceOutlinedIcon />}
+              libelle="Écart net"
+              valeur={formaterEcart(e.net)}
+              ton={e.net < 0 ? 'error' : 'success'}
+              accent={e.net !== 0}
+              sous="excédents moins manquants"
+            />
           </Box>
           {e.lignes.length === 0 ? (
             <Alert severity="info">Aucune feuille de caisse clôturée ce mois-ci.</Alert>
           ) : (
-            <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+            <CadreTableau>
               <Table size="small" sx={{ '& td, & th': { px: { xs: 1, sm: 2 } } }}>
                 <TableHead>
                   <TableRow>
-                    <TableCell>Employé</TableCell>
-                    <TableCell align="right">Feuilles</TableCell>
-                    <TableCell align="right" sx={CACHE_TELEPHONE}>
+                    <EnTeteTri tri={tri} cle="employe">
+                      Employé
+                    </EnTeteTri>
+                    <EnTeteTri tri={tri} cle="feuilles" align="right">
+                      Feuilles
+                    </EnTeteTri>
+                    <EnTeteTri tri={tri} cle="du" align="right" sx={CACHE_TELEPHONE}>
                       Dû
-                    </TableCell>
-                    <TableCell align="right" sx={CACHE_TELEPHONE}>
+                    </EnTeteTri>
+                    <EnTeteTri tri={tri} cle="remis" align="right" sx={CACHE_TELEPHONE}>
                       Remis
-                    </TableCell>
-                    <TableCell align="right">Manquants</TableCell>
-                    <TableCell align="right" sx={CACHE_TELEPHONE}>
+                    </EnTeteTri>
+                    <EnTeteTri tri={tri} cle="manquants" align="right">
+                      Manquants
+                    </EnTeteTri>
+                    <EnTeteTri tri={tri} cle="excedents" align="right" sx={CACHE_TELEPHONE}>
                       Excédents
-                    </TableCell>
-                    <TableCell align="right">Écart net</TableCell>
+                    </EnTeteTri>
+                    <EnTeteTri tri={tri} cle="net" align="right">
+                      Écart net
+                    </EnTeteTri>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {e.lignes.map((l) => (
+                  {tri.trier(e.lignes).map((l) => (
                     <TableRow key={l.employeId} hover data-testid={`ecart-${l.employe}`}>
                       <TableCell>
                         <Button size="small" onClick={() => setFiche(l.employeId)} sx={{ textTransform: 'none', px: 0, minWidth: 0, textAlign: 'left' }}>
@@ -615,7 +691,7 @@ function OngletEcarts({ stationId }: { stationId: string }) {
                   ))}
                 </TableBody>
               </Table>
-            </Paper>
+            </CadreTableau>
           )}
           <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 1 }}>
             Écart = caisse remise − ventes des pistolets tenus. C'est un suivi : le gérant reste redevable du montant à verser.

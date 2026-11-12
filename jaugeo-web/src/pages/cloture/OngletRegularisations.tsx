@@ -7,7 +7,6 @@ import DialogActions from '@mui/material/DialogActions'
 import DialogContent from '@mui/material/DialogContent'
 import DialogTitle from '@mui/material/DialogTitle'
 import MenuItem from '@mui/material/MenuItem'
-import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import Table from '@mui/material/Table'
 import TableBody from '@mui/material/TableBody'
@@ -29,6 +28,8 @@ import { AlerteErreur, Chargement } from '../../shared/composants'
 import { formaterDate, formaterPrix, versNombre, videVersNull } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
 import { moisCourant } from '../../shared/stock'
+import { BarreFiltres, CadreTableau, ChampRecherche, EnTeteTri } from '../../shared/tableaux'
+import { correspond, useTri } from '../../shared/tri'
 
 const chiffres = { whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' } as const
 
@@ -169,7 +170,22 @@ export function OngletRegularisations({ mois }: { mois: string }) {
   const annee = Number(mois.slice(0, 4))
   const requete = useRegularisations(annee)
   const [dialogue, setDialogue] = useState(false)
+  const [recherche, setRecherche] = useState('')
+  const tri = useTri<Regularisation, 'station' | 'concerne' | 'comptable' | 'poste' | 'montant' | 'motif' | 'saisie'>(
+    {
+      station: (r) => r.stationNom,
+      concerne: (r) => r.moisConcerne,
+      comptable: (r) => r.moisComptable,
+      poste: (r) => POSTES_REGULARISATION[r.poste],
+      montant: (r) => r.montant,
+      motif: (r) => r.motif,
+      saisie: (r) => r.le,
+    },
+    'saisie',
+    'desc',
+  )
   const liste = requete.data
+  const visibles = tri.trier((liste ?? []).filter((r) => correspond(recherche, r.stationNom, r.stationCode, r.motif, r.reference, r.par, POSTES_REGULARISATION[r.poste])))
   // Par défaut, on régularise le dernier mois terminé
   const moisInitial = mois < moisCourant() ? mois : moisPrecedent(moisCourant())
 
@@ -192,21 +208,40 @@ export function OngletRegularisations({ mois }: { mois: string }) {
       ) : liste.length === 0 ? (
         <Alert severity="info">Aucune régularisation en {annee}.</Alert>
       ) : (
-        <Paper sx={{ overflowX: 'auto' }}>
+        <>
+        <BarreFiltres resume={`${visibles.length} régularisation(s) · effet ${formaterPrix(visibles.reduce((t, r) => t + r.montant, 0))}`}>
+          <ChampRecherche valeur={recherche} onChange={setRecherche} libelle="Rechercher une station, un motif" />
+        </BarreFiltres>
+        {visibles.length === 0 && <Alert severity="info">Aucune régularisation ne correspond à la recherche.</Alert>}
+        <CadreTableau sx={{ display: visibles.length === 0 ? 'none' : undefined }}>
           <Table size="small" aria-label="Régularisations">
             <TableHead>
               <TableRow>
-                <TableCell>Station</TableCell>
-                <TableCell>Mois corrigé</TableCell>
-                <TableCell>Compté en</TableCell>
-                <TableCell>Poste</TableCell>
-                <TableCell align="right">Effet sur le résultat</TableCell>
-                <TableCell>Motif</TableCell>
-                <TableCell>Saisie</TableCell>
+                <EnTeteTri tri={tri} cle="station">
+                  Station
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="concerne">
+                  Mois corrigé
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="comptable">
+                  Compté en
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="poste">
+                  Poste
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="montant" align="right">
+                  Effet sur le résultat
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="motif">
+                  Motif
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="saisie">
+                  Saisie
+                </EnTeteTri>
               </TableRow>
             </TableHead>
             <TableBody>
-              {liste.map((r) => (
+              {visibles.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell>
                     <NomStation nom={r.stationNom} />
@@ -235,7 +270,8 @@ export function OngletRegularisations({ mois }: { mois: string }) {
               ))}
             </TableBody>
           </Table>
-        </Paper>
+        </CadreTableau>
+        </>
       )}
       {dialogue && <DialogueRegularisation moisInitial={moisInitial} onFermer={() => setDialogue(false)} />}
     </>

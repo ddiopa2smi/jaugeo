@@ -33,6 +33,8 @@ import { confirmerPuis } from '../../shared/confirmation'
 import { formaterDate, formaterNombre, formaterPrix, versNombre, videVersNull } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
 import { formaterPct } from '../../shared/stock'
+import { CadreTableau, ChampRecherche, EnTeteTri, PuceEtat } from '../../shared/tableaux'
+import { correspond, useTri } from '../../shared/tri'
 
 function useInvaliderAppro() {
   const queryClient = useQueryClient()
@@ -218,23 +220,49 @@ function DialogueReglementPenalite({ penalite, onFermer }: { penalite: PenaliteT
 function TablePenalites({ penalites, avecTransporteur }: { penalites: PenaliteTransport[]; avecTransporteur: boolean }) {
   const peutGerer = usePermission('RECEPTION_VALIDER')
   const [aRegler, setARegler] = useState<PenaliteTransport | null>(null)
+  const tri = useTri<PenaliteTransport, 'date' | 'transporteur' | 'livraison' | 'manquant' | 'montant' | 'statut'>(
+    {
+      date: (p) => p.date,
+      transporteur: (p) => p.transporteurNom,
+      livraison: (p) => `${p.stationCode} ${p.numeroBl ?? ''}`,
+      manquant: (p) => p.manquantLitres,
+      montant: (p) => p.montant,
+      statut: (p) => p.statut,
+    },
+    'date',
+    'desc',
+  )
   return (
     <>
-      <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+      <CadreTableau>
         <Table size="small" aria-label="Pénalités">
           <TableHead>
             <TableRow>
-              <TableCell>Date</TableCell>
-              {avecTransporteur && <TableCell>Transporteur</TableCell>}
-              <TableCell>Livraison</TableCell>
-              <TableCell align="right">Manquant</TableCell>
-              <TableCell align="right">Pénalité</TableCell>
-              <TableCell>Statut</TableCell>
+              <EnTeteTri tri={tri} cle="date">
+                Date
+              </EnTeteTri>
+              {avecTransporteur && (
+                <EnTeteTri tri={tri} cle="transporteur">
+                  Transporteur
+                </EnTeteTri>
+              )}
+              <EnTeteTri tri={tri} cle="livraison">
+                Livraison
+              </EnTeteTri>
+              <EnTeteTri tri={tri} cle="manquant" align="right">
+                Manquant
+              </EnTeteTri>
+              <EnTeteTri tri={tri} cle="montant" align="right">
+                Pénalité
+              </EnTeteTri>
+              <EnTeteTri tri={tri} cle="statut">
+                Statut
+              </EnTeteTri>
               <TableCell />
             </TableRow>
           </TableHead>
           <TableBody>
-            {penalites.map((p) => (
+            {tri.trier(penalites).map((p) => (
               <TableRow key={p.id}>
                 <TableCell>{formaterDate(p.date)}</TableCell>
                 {avecTransporteur && <TableCell>{p.transporteurNom}</TableCell>}
@@ -253,9 +281,9 @@ function TablePenalites({ penalites, avecTransporteur }: { penalites: PenaliteTr
                 <TableCell align="right">{formaterPrix(p.montant)}</TableCell>
                 <TableCell>
                   {p.statut === 'REGLE' ? (
-                    <Chip size="small" color="success" label={`Réglée le ${formaterDate(p.regleLe)} · ${p.referenceReglement}`} />
+                    <PuceEtat ton="success" libelle={`Réglée le ${formaterDate(p.regleLe)} · ${p.referenceReglement}`} />
                   ) : (
-                    <Chip size="small" color="warning" label="À régler" />
+                    <PuceEtat ton="warning" libelle="À régler" />
                   )}
                 </TableCell>
                 <TableCell>
@@ -269,7 +297,7 @@ function TablePenalites({ penalites, avecTransporteur }: { penalites: PenaliteTr
             ))}
           </TableBody>
         </Table>
-      </Paper>
+      </CadreTableau>
       {aRegler && <DialogueReglementPenalite penalite={aRegler} onFermer={() => setARegler(null)} />}
     </>
   )
@@ -368,7 +396,7 @@ function FicheTransporteur({ id, onFermer }: { id: string; onFermer: () => void 
                   Aucune.
                 </Typography>
               ) : (
-                <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+                <CadreTableau>
                   <Table size="small" aria-label="Livraisons notées">
                     <TableHead>
                       <TableRow>
@@ -396,7 +424,7 @@ function FicheTransporteur({ id, onFermer }: { id: string; onFermer: () => void 
                       ))}
                     </TableBody>
                   </Table>
-                </Paper>
+                </CadreTableau>
               )}
             </Box>
 
@@ -434,9 +462,24 @@ export function Transporteurs() {
   const penalites = usePenalites(statut)
   const [ouvert, setOuvert] = useState<string | null>(null)
   const [nouveau, setNouveau] = useState(false)
+  const [recherche, setRecherche] = useState('')
+  const tri = useTri<Transporteur, 'nom' | 'note' | 'tolerance' | 'penalite' | 'citernes' | 'aRegler'>(
+    {
+      nom: (t) => t.nom,
+      note: (t) => t.notation.note,
+      tolerance: (t) => t.toleranceAppliquee,
+      penalite: (t) => t.penalite,
+      citernes: (t) => t.citernes.filter((c) => c.actif).length,
+      aRegler: (t) => t.penalitesARegler,
+    },
+    'nom',
+  )
+  const transporteurs = liste.data ?? []
+  const visibles = tri.trier(transporteurs.filter((t) => correspond(recherche, t.nom, t.contratReference)))
   return (
     <>
-      <Stack direction="row" sx={{ mb: 2, justifyContent: 'flex-end' }}>
+      <Stack direction="row" sx={{ mb: 2, gap: 1.5, justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+        <ChampRecherche valeur={recherche} onChange={setRecherche} libelle="Rechercher un transporteur" />
         {peutGerer && (
           <Button variant="contained" startIcon={<AddIcon />} onClick={() => setNouveau(true)}>
             Nouveau transporteur
@@ -446,21 +489,38 @@ export function Transporteurs() {
       <AlerteErreur erreur={liste.error} />
       {liste.isLoading && <Chargement />}
       {liste.data?.length === 0 && <Alert severity="info">Aucun transporteur enregistré.</Alert>}
-      {liste.data && liste.data.length > 0 && (
-        <Paper variant="outlined" sx={{ overflowX: 'auto', mb: 3 }}>
+      {transporteurs.length > 0 && visibles.length === 0 && (
+        <Alert severity="info" sx={{ mb: 3 }}>
+          Aucun transporteur ne correspond à la recherche.
+        </Alert>
+      )}
+      {visibles.length > 0 && (
+        <CadreTableau sx={{ mb: 3 }}>
           <Table size="small" aria-label="Transporteurs">
             <TableHead>
               <TableRow>
-                <TableCell>Transporteur</TableCell>
-                <TableCell>Note</TableCell>
-                <TableCell align="right">Tolérance</TableCell>
-                <TableCell align="right">Pénalité</TableCell>
-                <TableCell align="right">Citernes</TableCell>
-                <TableCell align="right">À régler</TableCell>
+                <EnTeteTri tri={tri} cle="nom">
+                  Transporteur
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="note">
+                  Note
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="tolerance" align="right">
+                  Tolérance
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="penalite" align="right">
+                  Pénalité
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="citernes" align="right">
+                  Citernes
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="aRegler" align="right">
+                  À régler
+                </EnTeteTri>
               </TableRow>
             </TableHead>
             <TableBody>
-              {liste.data.map((t) => (
+              {visibles.map((t) => (
                 <TableRow key={t.id} hover sx={{ cursor: 'pointer' }} onClick={() => setOuvert(t.id)}>
                   <TableCell>
                     {t.nom} {!t.actif && <PuceStatut actif={false} />}
@@ -491,7 +551,7 @@ export function Transporteurs() {
               ))}
             </TableBody>
           </Table>
-        </Paper>
+        </CadreTableau>
       )}
 
       <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
@@ -676,9 +736,17 @@ export function Fournisseurs() {
   const [edition, setEdition] = useState<FournisseurAppro | 'nouveau' | null>(null)
   const [prixDe, setPrixDe] = useState<string | null>(null)
   const pourPrix = liste.data?.find((f) => f.id === prixDe)
+  const [recherche, setRecherche] = useState('')
+  const tri = useTri<FournisseurAppro, 'nom' | 'delai' | 'facturation'>(
+    { nom: (f) => f.nom, delai: (f) => f.delaiLivraison, facturation: (f) => (f.factureA15 ? 'À 15 °C' : 'Ambiante') },
+    'nom',
+  )
+  const fournisseurs = liste.data ?? []
+  const visibles = tri.trier(fournisseurs.filter((f) => correspond(recherche, f.nom, f.telephone)))
   return (
     <>
-      <Stack direction="row" sx={{ mb: 2, justifyContent: 'flex-end' }}>
+      <Stack direction="row" sx={{ mb: 2, gap: 1.5, justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+        <ChampRecherche valeur={recherche} onChange={setRecherche} libelle="Rechercher un dépôt" />
         {peutGerer && (
           <Button variant="contained" startIcon={<AddIcon />} onClick={() => setEdition('nouveau')}>
             Nouveau fournisseur
@@ -688,23 +756,30 @@ export function Fournisseurs() {
       <AlerteErreur erreur={liste.error} />
       {liste.isLoading && <Chargement />}
       {liste.data?.length === 0 && <Alert severity="info">Aucun fournisseur enregistré.</Alert>}
-      {liste.data && liste.data.length > 0 && (
-        <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+      {fournisseurs.length > 0 && visibles.length === 0 && <Alert severity="info">Aucun dépôt ne correspond à la recherche.</Alert>}
+      {visibles.length > 0 && (
+        <CadreTableau>
           <Table size="small" aria-label="Fournisseurs">
             <TableHead>
               <TableRow>
-                <TableCell>Dépôt</TableCell>
-                <TableCell align="right">Délai</TableCell>
-                <TableCell>Facturation</TableCell>
+                <EnTeteTri tri={tri} cle="nom">
+                  Dépôt
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="delai" align="right">
+                  Délai
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="facturation">
+                  Facturation
+                </EnTeteTri>
                 <TableCell>Prix d'achat en vigueur</TableCell>
                 <TableCell />
               </TableRow>
             </TableHead>
             <TableBody>
-              {liste.data.map((f) => (
+              {visibles.map((f) => (
                 <TableRow key={f.id} hover>
                   <TableCell>
-                    {f.nom} {f.principal && <Chip size="small" color="primary" label="Principal" />} {!f.actif && <PuceStatut actif={false} />}
+                    {f.nom} {f.principal && <PuceEtat ton="primary" libelle="Principal" />} {!f.actif && <PuceStatut actif={false} />}
                     {f.telephone && (
                       <Typography variant="caption" color="text.secondary" component="div">
                         {f.telephone}
@@ -730,7 +805,7 @@ export function Fournisseurs() {
               ))}
             </TableBody>
           </Table>
-        </Paper>
+        </CadreTableau>
       )}
       {edition && <DialogueFournisseur fournisseur={edition === 'nouveau' ? undefined : edition} onFermer={() => setEdition(null)} />}
       {pourPrix && <DialoguePrix fournisseur={pourPrix} onFermer={() => setPrixDe(null)} />}

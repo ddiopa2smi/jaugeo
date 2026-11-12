@@ -8,11 +8,9 @@ import DialogActions from '@mui/material/DialogActions'
 import DialogContent from '@mui/material/DialogContent'
 import DialogContentText from '@mui/material/DialogContentText'
 import DialogTitle from '@mui/material/DialogTitle'
-import Paper from '@mui/material/Paper'
 import Table from '@mui/material/Table'
 import TableBody from '@mui/material/TableBody'
 import TableCell from '@mui/material/TableCell'
-import TableContainer from '@mui/material/TableContainer'
 import TableHead from '@mui/material/TableHead'
 import TableRow from '@mui/material/TableRow'
 import Typography from '@mui/material/Typography'
@@ -26,7 +24,9 @@ import { usePermission } from '../../auth/session'
 import { AlerteErreur, Chargement, EnTetePage } from '../../shared/composants'
 import { formaterDateHeureCourte, formaterPrix } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
+import { BarreFiltres, CadreTableau, ChampRecherche, EnTeteTri, PuceEtat } from '../../shared/tableaux'
 import { useMaintenant } from '../../shared/temps'
+import { correspond, useTri } from '../../shared/tri'
 import { DialogueChangementPrix } from './DialogueChangementPrix'
 
 function CellulePrix({ ligne }: { ligne: LigneGrille | undefined }) {
@@ -54,14 +54,13 @@ function GrillePrix({ grille }: { grille: LigneGrille[] }) {
   const stations = [...new Map(grille.map((l) => [l.stationId, l])).values()]
   const manquants = grille.filter((l) => l.prix === null).length
   return (
-    <Paper sx={{ mb: 3 }}>
+    <CadreTableau sx={{ mb: 3 }}>
       {manquants > 0 && (
         <Alert severity="warning" sx={{ borderRadius: 0 }}>
           {manquants} prix manquant(s) : les ventes de ces produits ne pourront pas être valorisées.
         </Alert>
       )}
-      <TableContainer>
-        <Table size="small" aria-label="Prix en vigueur">
+      <Table size="small" aria-label="Prix en vigueur">
           <TableHead>
             <TableRow>
               <TableCell>Station</TableCell>
@@ -91,9 +90,8 @@ function GrillePrix({ grille }: { grille: LigneGrille[] }) {
               </TableRow>
             ))}
           </TableBody>
-        </Table>
-      </TableContainer>
-    </Paper>
+      </Table>
+    </CadreTableau>
   )
 }
 
@@ -112,9 +110,9 @@ function resumeLignes(c: ChangementPrix): string[] {
 
 function Statut({ c }: { c: ChangementPrix }) {
   const maintenant = useMaintenant()
-  if (c.annule) return <Chip size="small" variant="outlined" label="Annulé" />
-  if (Date.parse(c.debut) > maintenant) return <Chip size="small" color="info" label="Programmé" />
-  return <Chip size="small" color="success" variant="outlined" label="Appliqué" />
+  if (c.annule) return <PuceEtat ton="default" libelle="Annulé" />
+  if (Date.parse(c.debut) > maintenant) return <PuceEtat ton="info" libelle="Programmé" />
+  return <PuceEtat ton="success" libelle="Appliqué" />
 }
 
 function HistoriqueChangements({ peutModifier }: { peutModifier: boolean }) {
@@ -134,25 +132,43 @@ function HistoriqueChangements({ peutModifier }: { peutModifier: boolean }) {
     },
   })
 
+  const [recherche, setRecherche] = useState('')
+  const tri = useTri<ChangementPrix, 'debut' | 'motif' | 'auteur'>({ debut: (c) => c.debut, motif: (c) => c.motif, auteur: (c) => c.creePar }, 'debut', 'desc')
+
   if (changements.isLoading) return <Chargement />
   if (changements.error) return <AlerteErreur erreur={changements.error} />
+  const tous = changements.data ?? []
+  const visibles = tri.trier(tous.filter((c) => correspond(recherche, c.motif, c.reference, c.creePar, ...c.lignes.map((l) => l.produitLibelle))))
 
   return (
-    <Paper>
-      <TableContainer>
+    <>
+      {tous.length === 0 && <Alert severity="info">Aucun changement de prix enregistré.</Alert>}
+      {tous.length > 0 && (
+        <BarreFiltres resume={`${visibles.length} changement(s) sur ${tous.length}`}>
+          <ChampRecherche valeur={recherche} onChange={setRecherche} libelle="Rechercher un motif, un produit" />
+        </BarreFiltres>
+      )}
+      {tous.length > 0 && visibles.length === 0 && <Alert severity="info">Aucun changement ne correspond à la recherche.</Alert>}
+      <CadreTableau sx={{ display: visibles.length === 0 ? 'none' : undefined }}>
         <Table size="small" aria-label="Historique des changements de prix">
           <TableHead>
             <TableRow>
-              <TableCell>Date d'effet</TableCell>
-              <TableCell>Motif</TableCell>
+              <EnTeteTri tri={tri} cle="debut">
+                Date d'effet
+              </EnTeteTri>
+              <EnTeteTri tri={tri} cle="motif">
+                Motif
+              </EnTeteTri>
               <TableCell>Prix</TableCell>
-              <TableCell>Saisi par</TableCell>
+              <EnTeteTri tri={tri} cle="auteur">
+                Saisi par
+              </EnTeteTri>
               <TableCell>Statut</TableCell>
               {peutModifier && <TableCell />}
             </TableRow>
           </TableHead>
           <TableBody>
-            {(changements.data ?? []).map((c) => (
+            {visibles.map((c) => (
               <TableRow key={c.id} hover sx={{ opacity: c.annule ? 0.55 : 1 }}>
                 <TableCell sx={{ whiteSpace: 'nowrap' }}>{formaterDateHeureCourte(c.debut)}</TableCell>
                 <TableCell>
@@ -194,7 +210,7 @@ function HistoriqueChangements({ peutModifier }: { peutModifier: boolean }) {
             ))}
           </TableBody>
         </Table>
-      </TableContainer>
+      </CadreTableau>
       {aAnnuler && (
         <Dialog open onClose={() => setAAnnuler(null)}>
           <DialogTitle>Annuler ce changement de prix ?</DialogTitle>
@@ -212,7 +228,7 @@ function HistoriqueChangements({ peutModifier }: { peutModifier: boolean }) {
           </DialogActions>
         </Dialog>
       )}
-    </Paper>
+    </>
   )
 }
 

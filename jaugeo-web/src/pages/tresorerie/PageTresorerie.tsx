@@ -1,19 +1,23 @@
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance'
+import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined'
+import BalanceOutlinedIcon from '@mui/icons-material/BalanceOutlined'
 import DeleteIcon from '@mui/icons-material/Delete'
 import EditIcon from '@mui/icons-material/Edit'
+import HistoryToggleOffIcon from '@mui/icons-material/HistoryToggleOff'
 import LockClockIcon from '@mui/icons-material/LockClock'
+import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined'
+import ReportProblemOutlinedIcon from '@mui/icons-material/ReportProblemOutlined'
+import ScheduleOutlinedIcon from '@mui/icons-material/ScheduleOutlined'
 import SavingsIcon from '@mui/icons-material/Savings'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
-import Chip from '@mui/material/Chip'
 import Dialog from '@mui/material/Dialog'
 import DialogActions from '@mui/material/DialogActions'
 import DialogContent from '@mui/material/DialogContent'
 import DialogTitle from '@mui/material/DialogTitle'
 import IconButton from '@mui/material/IconButton'
 import MenuItem from '@mui/material/MenuItem'
-import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import Tab from '@mui/material/Tab'
 import Table from '@mui/material/Table'
@@ -37,9 +41,12 @@ import {
   useStations,
   useVersements,
 } from '../../api/requetes'
-import type { DepenseAValider, LivreCaisse, Manquant, TypeArrete, Versement } from '../../api/types'
+import type { DepenseAValider, LigneCaisse, LivreCaisse, Manquant, StatutVersement, TypeArrete, Versement } from '../../api/types'
 import { usePermission, useSession } from '../../auth/session'
+import { CarteIndicateur } from '../../shared/CarteIndicateur'
 import { AlerteErreur, Chargement, EnTetePage } from '../../shared/composants'
+import { BarreFiltres, CadreTableau, ChampRecherche, EnTeteTri, FiltrePuces, PuceEtat } from '../../shared/tableaux'
+import { correspond, useLigneChoisie, useTri } from '../../shared/tri'
 import { confirmerPuis } from '../../shared/confirmation'
 import { formaterDate, formaterPrix, versNombre, videVersNull } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
@@ -143,25 +150,115 @@ function TableVersements({ versements, avecStation }: { versements: Versement[];
     },
   })
 
+  // Filtres : recherche libre, statut, banque et (liste du siège) station ; tri par colonne
+  const [ligneChoisie, marquer] = useLigneChoisie()
+  const [recherche, setRecherche] = useState('')
+  const [statut, setStatut] = useState<StatutVersement | 'TOUS'>('TOUS')
+  const [banque, setBanque] = useState('')
+  const [station, setStation] = useState('')
+  const tri = useTri<Versement, 'date' | 'station' | 'bordereau' | 'montant' | 'statut'>(
+    {
+      date: (v) => v.dateDepot,
+      station: (v) => v.stationCode,
+      bordereau: (v) => `${v.banque} ${v.referenceBv}`,
+      montant: (v) => v.montant,
+      statut: (v) => STATUTS_VERSEMENT[v.statut].libelle,
+    },
+    'date',
+  )
+  const statuts = (Object.keys(STATUTS_VERSEMENT) as StatutVersement[]).filter((s) => versements.some((v) => v.statut === s))
+  const banques = [...new Set(versements.map((v) => v.banque))].sort()
+  const stations = [...new Set(versements.map((v) => v.stationCode))].sort()
+  const visibles = tri.trier(
+    versements.filter(
+      (v) =>
+        (statut === 'TOUS' || v.statut === statut) &&
+        (banque === '' || v.banque === banque) &&
+        (station === '' || v.stationCode === station) &&
+        correspond(recherche, v.referenceBv, v.banque, v.deposant, v.creePar, v.stationCode),
+    ),
+  )
+  const total = visibles.reduce((t, v) => t + v.montant, 0)
+
   return (
     <>
       <AlerteErreur erreur={suppression.error ?? jointure.error} />
-      <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+      <BarreFiltres
+        resume={
+          <span data-testid="resume-versements">
+            {visibles.length} versement(s) · {formaterPrix(total)}
+          </span>
+        }
+      >
+        <ChampRecherche valeur={recherche} onChange={setRecherche} libelle="Rechercher un bordereau, un déposant" />
+        {avecStation && stations.length > 1 && (
+          <TextField select label="Station" value={station} onChange={(e) => setStation(e.target.value)} sx={{ width: { xs: '100%', sm: 150 } }}>
+            <MenuItem value="">Toutes</MenuItem>
+            {stations.map((s) => (
+              <MenuItem key={s} value={s}>
+                {s}
+              </MenuItem>
+            ))}
+          </TextField>
+        )}
+        {banques.length > 1 && (
+          <TextField select label="Banque" value={banque} onChange={(e) => setBanque(e.target.value)} sx={{ width: { xs: '100%', sm: 150 } }}>
+            <MenuItem value="">Toutes</MenuItem>
+            {banques.map((b) => (
+              <MenuItem key={b} value={b}>
+                {b}
+              </MenuItem>
+            ))}
+          </TextField>
+        )}
+        {statuts.length > 1 && (
+          <FiltrePuces
+            libelle="Filtrer par statut"
+            valeur={statut}
+            onChange={setStatut}
+            options={[
+              { valeur: 'TOUS' as const, libelle: 'Tous', nombre: versements.length },
+              ...statuts.map((s) => ({ valeur: s, libelle: STATUTS_VERSEMENT[s].libelle, nombre: versements.filter((v) => v.statut === s).length })),
+            ]}
+          />
+        )}
+      </BarreFiltres>
+      {visibles.length === 0 && <Alert severity="info">Aucun versement ne correspond à ces filtres.</Alert>}
+      <CadreTableau compact sx={{ display: visibles.length === 0 ? 'none' : undefined }}>
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>Dépôt</TableCell>
-              {avecStation && <TableCell>Station</TableCell>}
-              <TableCell>Bordereau</TableCell>
-              <TableCell align="right">Montant</TableCell>
+              <EnTeteTri tri={tri} cle="date">
+                Dépôt
+              </EnTeteTri>
+              {avecStation && (
+                <EnTeteTri tri={tri} cle="station">
+                  Station
+                </EnTeteTri>
+              )}
+              <EnTeteTri tri={tri} cle="bordereau">
+                Bordereau
+              </EnTeteTri>
+              <EnTeteTri tri={tri} cle="montant" align="right">
+                Montant
+              </EnTeteTri>
               <TableCell>Pièce</TableCell>
-              <TableCell>Statut</TableCell>
+              <EnTeteTri tri={tri} cle="statut">
+                Statut
+              </EnTeteTri>
               <TableCell />
             </TableRow>
           </TableHead>
           <TableBody>
-            {versements.map((v) => (
-              <TableRow key={v.id} data-testid={`versement-${v.referenceBv}`}>
+            {visibles.map((v) => (
+              <TableRow
+                key={v.id}
+                hover
+                selected={ligneChoisie === v.id}
+                onClick={() => marquer(v.id)}
+                sx={{ cursor: 'pointer' }}
+                data-testid={`versement-${v.referenceBv}`}
+              >
                 <TableCell>{formaterDate(v.dateDepot)}</TableCell>
                 {avecStation && <TableCell>{v.stationCode}</TableCell>}
                 <TableCell>
@@ -170,7 +267,7 @@ function TableVersements({ versements, avecStation }: { versements: Versement[];
                     {[v.deposant, `saisi par ${v.creePar}`].filter(Boolean).join(' · ')}
                   </Typography>
                 </TableCell>
-                <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
                   {formaterPrix(v.montant)}
                 </TableCell>
                 <TableCell sx={{ whiteSpace: 'nowrap' }}>
@@ -180,7 +277,7 @@ function TableVersements({ versements, avecStation }: { versements: Versement[];
                   )}
                 </TableCell>
                 <TableCell>
-                  <Chip size="small" color={STATUTS_VERSEMENT[v.statut].couleur} label={STATUTS_VERSEMENT[v.statut].libelle} />
+                  <PuceEtat ton={STATUTS_VERSEMENT[v.statut].couleur} libelle={STATUTS_VERSEMENT[v.statut].libelle} />
                   {(v.verifiePar || v.motifRejet) && (
                     <Typography variant="caption" color="text.secondary" component="div">
                       {v.verifiePar}
@@ -222,7 +319,7 @@ function TableVersements({ versements, avecStation }: { versements: Versement[];
             ))}
           </TableBody>
         </Table>
-      </Paper>
+      </CadreTableau>
       {edition && (
         <DialogueVersement stationId={edition.stationId} stationCode={edition.stationCode} versement={edition} onFermer={() => setEdition(null)} />
       )}
@@ -377,35 +474,7 @@ function DialoguePlafond({ livre, onFermer }: { livre: LivreCaisse; onFermer: ()
   )
 }
 
-function Indicateur({
-  libelle,
-  valeur,
-  couleur,
-  testid,
-  sous,
-}: {
-  libelle: string
-  valeur: string
-  couleur?: string
-  testid?: string
-  sous?: string
-}) {
-  return (
-    <Paper variant="outlined" sx={{ p: 1.5 }}>
-      <Typography variant="caption" color="text.secondary" component="div">
-        {libelle}
-      </Typography>
-      <Typography sx={{ fontSize: 18, fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: couleur }} data-testid={testid}>
-        {valeur}
-      </Typography>
-      {sous && (
-        <Typography variant="caption" color={couleur ?? 'text.secondary'} component="div">
-          {sous}
-        </Typography>
-      )}
-    </Paper>
-  )
-}
+type FiltreJours = 'TOUS' | 'VERSES' | 'ARRETES' | 'SAISIE'
 
 function Caisse() {
   const stations = useStations()
@@ -417,6 +486,7 @@ function Caisse() {
   const stationId = params.get('station') ?? (actives.length === 1 ? actives[0]!.id : null)
   const mois = params.get('mois') ?? moisCourant()
   const livre = useLivreCaisse(stationId, mois)
+  const [ligneChoisie, marquer] = useLigneChoisie()
   const versements = useVersements(stationId, mois)
   const [versement, setVersement] = useState(false)
   const [arrete, setArrete] = useState(false)
@@ -432,6 +502,19 @@ function Caisse() {
   const depasse = l !== undefined && l.plafondEspeces !== null && l.soldeFin > l.plafondEspeces
   const avecEncaissements = (l?.totalEncaissements ?? 0) > 0
   const avecCartes = (l?.totalCartes ?? 0) > 0
+  // Livre de caisse : filtre sur les jours et tri par colonne
+  const [jours, setJours] = useState<FiltreJours>('TOUS')
+  const tri = useTri<LigneCaisse, 'date' | 'ventes' | 'aVerser' | 'verse' | 'solde'>(
+    { date: (x) => x.date, ventes: (x) => x.ventes, aVerser: (x) => x.montantAVerser, verse: (x) => x.versements, solde: (x) => x.solde },
+    'date',
+  )
+  const filtresJours: Record<FiltreJours, { libelle: string; garde: (x: LigneCaisse) => boolean }> = {
+    TOUS: { libelle: 'Tous les jours', garde: () => true },
+    VERSES: { libelle: 'Avec versement', garde: (x) => x.versements > 0 },
+    ARRETES: { libelle: 'Avec arrêté', garde: (x) => x.arrete !== null },
+    SAISIE: { libelle: 'En saisie', garde: (x) => x.statutJournee === 'BROUILLON' },
+  }
+  const lignes = l ? tri.trier(l.lignes.filter(filtresJours[jours].garde)) : []
 
   return (
     <>
@@ -474,22 +557,30 @@ function Caisse() {
       {livre.isLoading && <Chargement />}
       {l && (
         <>
-          <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(5, 1fr)' }, mb: 2 }}>
-            <Indicateur libelle="Solde non versé au début du mois" valeur={formaterPrix(l.soldeDebut)} />
-            <Indicateur libelle="Montant à verser du mois" valeur={formaterPrix(l.totalMontants)} />
-            <Indicateur libelle="Versements" valeur={formaterPrix(l.totalVersements)} />
-            <Indicateur
+          <Box sx={{ display: 'grid', gap: { xs: 1.5, md: 2 }, gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(5, 1fr)' }, mb: 2.5 }}>
+            <CarteIndicateur icone={<HistoryToggleOffIcon />} libelle="Solde au début du mois" valeur={formaterPrix(l.soldeDebut)} sous="espèces non versées reportées" />
+            <CarteIndicateur icone={<PaymentsOutlinedIcon />} libelle="Montant à verser du mois" valeur={formaterPrix(l.totalMontants)} sous="journées clôturées" />
+            <CarteIndicateur icone={<AccountBalanceIcon />} libelle="Versements" valeur={formaterPrix(l.totalVersements)} ton="success" sous="déposés en banque" />
+            <CarteIndicateur
+              icone={<BalanceOutlinedIcon />}
               libelle="Écarts aux arrêtés"
               valeur={formaterEcart(l.totalEcarts, formaterPrix)}
-              couleur={l.totalEcarts < 0 ? 'error.main' : undefined}
+              ton={l.totalEcarts < 0 ? 'error' : 'primary'}
+              sous={l.totalEcarts < 0 ? 'manquant à la charge du gérant' : 'caisse comptée'}
             />
-            <Indicateur
-              libelle="Solde non versé"
-              valeur={formaterPrix(l.soldeFin)}
-              testid="solde-mois"
-              couleur={depasse ? 'warning.main' : undefined}
-              sous={l.plafondEspeces === null ? undefined : `${depasse ? 'Au-delà du plafond' : 'Plafond'} : ${formaterPrix(l.plafondEspeces)}`}
-            />
+            <Box sx={{ gridColumn: { xs: '1 / -1', md: 'auto' }, display: 'flex', '& > *': { flexGrow: 1 } }}>
+              <CarteIndicateur
+                icone={<AccountBalanceWalletOutlinedIcon />}
+                libelle="Solde non versé"
+                valeur={formaterPrix(l.soldeFin)}
+                testid="solde-mois"
+                accent
+                ton={depasse ? 'warning' : 'primary'}
+                sous={
+                  l.plafondEspeces === null ? 'espèces détenues par le gérant' : `${depasse ? 'Au-delà du plafond' : 'Plafond'} : ${formaterPrix(l.plafondEspeces)}`
+                }
+              />
+            </Box>
           </Box>
           {avecEncaissements && (
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }} data-testid="encaissements-mois">
@@ -506,30 +597,66 @@ function Caisse() {
               {l.joursNonClotures} journée(s) du mois non clôturée(s) : leur recette n’entre dans la caisse qu’à la clôture.
             </Alert>
           )}
-          <Paper variant="outlined" sx={{ overflowX: 'auto', mb: 3 }}>
+          <BarreFiltres resume={`${lignes.length} jour(s) sur ${l.lignes.length}`}>
+            <Typography variant="h6" component="h2">
+              Livre de caisse
+            </Typography>
+            <FiltrePuces
+              libelle="Filtrer les jours"
+              valeur={jours}
+              onChange={setJours}
+              options={(Object.keys(filtresJours) as FiltreJours[])
+                .map((f) => ({ valeur: f, libelle: filtresJours[f].libelle, nombre: l.lignes.filter(filtresJours[f].garde).length }))
+                .filter((o) => o.valeur === 'TOUS' || o.valeur === jours || o.nombre > 0)}
+            />
+          </BarreFiltres>
+          {lignes.length === 0 && (
+            <Alert severity="info" sx={{ mb: 3 }}>
+              Aucun jour ne correspond à ce filtre.
+            </Alert>
+          )}
+          <CadreTableau
+            compact
+            sx={{ mb: 3, display: lignes.length === 0 ? 'none' : undefined, '& .MuiTableCell-root': { fontVariantNumeric: 'tabular-nums' } }}
+          >
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>Date</TableCell>
-                  <TableCell align="right">Ventes</TableCell>
+                  <EnTeteTri tri={tri} cle="date">
+                    Date
+                  </EnTeteTri>
+                  <EnTeteTri tri={tri} cle="ventes" align="right">
+                    Ventes
+                  </EnTeteTri>
                   <TableCell align="right">Bons</TableCell>
                   <TableCell align="right">Dépenses</TableCell>
                   <TableCell align="right">Compléments</TableCell>
                   {avecEncaissements && <TableCell align="right">Wave, OM, carte</TableCell>}
                   {avecCartes && <TableCell align="right">Cartes carburant</TableCell>}
-                  <TableCell align="right">À verser</TableCell>
-                  <TableCell align="right">Versé</TableCell>
+                  <EnTeteTri tri={tri} cle="aVerser" align="right">
+                    À verser
+                  </EnTeteTri>
+                  <EnTeteTri tri={tri} cle="verse" align="right">
+                    Versé
+                  </EnTeteTri>
                   <TableCell align="right">Arrêté</TableCell>
-                  <TableCell align="right">Solde non versé</TableCell>
+                  <EnTeteTri tri={tri} cle="solde" align="right">
+                    Solde non versé
+                  </EnTeteTri>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {l.lignes.map((x) => (
+                {lignes.map((x) => (
                   <TableRow
                     key={x.date}
                     hover
-                    sx={{ cursor: x.journeeId ? 'pointer' : undefined }}
-                    onClick={() => x.journeeId && navigate(`/journees/${x.journeeId}`)}
+                    selected={ligneChoisie === x.date}
+                    sx={{ cursor: 'pointer' }}
+                    onClick={() => {
+                      // Le jour cliqué reste marqué au retour de la journée ouverte
+                      marquer(x.date)
+                      if (x.journeeId) navigate(`/journees/${x.journeeId}`)
+                    }}
                     data-testid={`caisse-${x.date}`}
                   >
                     <TableCell>
@@ -549,14 +676,14 @@ function Caisse() {
                     <TableCell align="right" sx={{ fontWeight: 600 }}>
                       {prix(x.montantAVerser)}
                     </TableCell>
-                    <TableCell align="right">{x.versements ? prix(x.versements) : ''}</TableCell>
+                    <TableCell align="right" sx={{ color: 'success.dark', fontWeight: x.versements ? 600 : undefined }}>
+                      {x.versements ? prix(x.versements) : ''}
+                    </TableCell>
                     <TableCell align="right">
                       {x.arrete && (
-                        <Chip
-                          size="small"
-                          variant="outlined"
-                          color={x.ecart !== null && x.ecart < 0 ? 'error' : 'default'}
-                          label={x.arrete.type === 'REPRISE' ? 'Reprise' : `Écart ${formaterEcart(x.ecart, formaterPrix)}`}
+                        <PuceEtat
+                          ton={x.ecart !== null && x.ecart < 0 ? 'error' : 'default'}
+                          libelle={x.arrete.type === 'REPRISE' ? 'Reprise' : `Écart ${formaterEcart(x.ecart, formaterPrix)}`}
                         />
                       )}
                     </TableCell>
@@ -567,7 +694,7 @@ function Caisse() {
                 ))}
               </TableBody>
             </Table>
-          </Paper>
+          </CadreTableau>
         </>
       )}
       {stationId && versements.data && (
@@ -611,6 +738,23 @@ function DepensesAValider() {
   const navigate = useNavigate()
   const [cible, setCible] = useState<{ depense: DepenseAValider; autoriser: boolean } | null>(null)
   const [motif, setMotif] = useState('')
+  const [recherche, setRecherche] = useState('')
+  const [station, setStation] = useState('')
+  const [piece, setPiece] = useState<'TOUS' | 'ABSENT'>('TOUS')
+  const [ligneChoisie, marquer] = useLigneChoisie()
+  const tri = useTri<DepenseAValider, 'journee' | 'depense' | 'montant' | 'plafond'>(
+    { journee: (d) => `${d.date} ${d.stationCode}`, depense: (d) => d.libelle, montant: (d) => d.montant, plafond: (d) => d.plafond },
+    'journee',
+  )
+  const stations = [...new Set((liste.data ?? []).map((d) => d.stationCode))].sort()
+  const visibles = tri.trier(
+    (liste.data ?? []).filter(
+      (d) =>
+        (station === '' || d.stationCode === station) &&
+        (piece === 'TOUS' || !d.justificatif) &&
+        correspond(recherche, d.libelle, d.natureLibelle, d.beneficiaire, d.creePar, d.stationCode),
+    ),
+  )
   const decision = useMutation({
     mutationFn: ({ depense, autoriser }: { depense: DepenseAValider; autoriser: boolean }) =>
       api.post(`/journees/${depense.journeeId}/depenses/${depense.id}/decision`, {
@@ -633,21 +777,54 @@ function DepensesAValider() {
       {liste.isLoading && <Chargement />}
       {liste.data?.length === 0 && <Alert severity="success">Aucune dépense au-delà du plafond en attente.</Alert>}
       {liste.data && liste.data.length > 0 && (
-        <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+        <BarreFiltres resume={`${visibles.length} dépense(s) · ${formaterPrix(visibles.reduce((t, d) => t + d.montant, 0))}`}>
+          <ChampRecherche valeur={recherche} onChange={setRecherche} libelle="Rechercher une dépense, un bénéficiaire" />
+          {stations.length > 1 && (
+            <TextField select label="Station" value={station} onChange={(e) => setStation(e.target.value)} sx={{ width: { xs: '100%', sm: 150 } }}>
+              <MenuItem value="">Toutes</MenuItem>
+              {stations.map((s) => (
+                <MenuItem key={s} value={s}>
+                  {s}
+                </MenuItem>
+              ))}
+            </TextField>
+          )}
+          <FiltrePuces
+            libelle="Filtrer par justificatif"
+            valeur={piece}
+            onChange={setPiece}
+            options={[
+              { valeur: 'TOUS', libelle: 'Toutes' },
+              { valeur: 'ABSENT', libelle: 'Sans justificatif', nombre: liste.data.filter((d) => !d.justificatif).length },
+            ]}
+          />
+        </BarreFiltres>
+      )}
+      {liste.data && liste.data.length > 0 && visibles.length === 0 && <Alert severity="info">Aucune dépense ne correspond à ces filtres.</Alert>}
+      {visibles.length > 0 && (
+        <CadreTableau compact>
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>Journée</TableCell>
-                <TableCell>Dépense</TableCell>
-                <TableCell align="right">Montant</TableCell>
-                <TableCell align="right">Plafond</TableCell>
+                <EnTeteTri tri={tri} cle="journee">
+                  Journée
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="depense">
+                  Dépense
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="montant" align="right">
+                  Montant
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="plafond" align="right">
+                  Plafond
+                </EnTeteTri>
                 <TableCell>Justificatif</TableCell>
                 <TableCell />
               </TableRow>
             </TableHead>
             <TableBody>
-              {liste.data.map((d) => (
-                <TableRow key={d.id} hover>
+              {visibles.map((d) => (
+                <TableRow key={d.id} hover selected={ligneChoisie === d.id} onClick={() => marquer(d.id)} sx={{ cursor: 'pointer' }}>
                   <TableCell sx={{ cursor: 'pointer' }} onClick={() => navigate(`/journees/${d.journeeId}`)}>
                     {d.stationCode} · {formaterDate(d.date)}
                   </TableCell>
@@ -657,9 +834,13 @@ function DepensesAValider() {
                       {[d.natureLibelle, d.beneficiaire, `saisie par ${d.creePar}`].filter(Boolean).join(' · ')}
                     </Typography>
                   </TableCell>
-                  <TableCell align="right">{formaterPrix(d.montant)}</TableCell>
-                  <TableCell align="right">{prix(d.plafond)}</TableCell>
-                  <TableCell>{d.justificatif ? 'Joint' : <Chip size="small" color="warning" label="Absent" />}</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 600, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                    {formaterPrix(d.montant)}
+                  </TableCell>
+                  <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                    {prix(d.plafond)}
+                  </TableCell>
+                  <TableCell>{d.justificatif ? <PuceEtat ton="success" libelle="Joint" /> : <PuceEtat ton="warning" libelle="Absent" />}</TableCell>
                   <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                     {d.decidable && (
                       <>
@@ -676,7 +857,7 @@ function DepensesAValider() {
               ))}
             </TableBody>
           </Table>
-        </Paper>
+        </CadreTableau>
       )}
       <Dialog open={!!cible} onClose={() => setCible(null)} maxWidth="sm" fullWidth>
         <DialogTitle>{cible?.autoriser ? 'Autoriser la dépense' : 'Refuser la dépense'}</DialogTitle>
@@ -720,33 +901,99 @@ function Manquants() {
   const [statut, setStatut] = useState('OUVERT')
   const liste = useManquants(statut)
   const [aRegler, setARegler] = useState<Manquant | null>(null)
+  const [recherche, setRecherche] = useState('')
+  const [retard, setRetard] = useState<'TOUS' | 'RETARD'>('TOUS')
+  const [ligneChoisie, marquer] = useLigneChoisie()
+  const tri = useTri<Manquant, 'date' | 'station' | 'responsable' | 'montant' | 'reste'>(
+    { date: (m) => m.date, station: (m) => m.stationCode, responsable: (m) => m.responsable, montant: (m) => m.montant, reste: (m) => m.reste },
+    'date',
+    'desc',
+  )
+  const tous = liste.data ?? []
+  const enRetard = tous.filter((m) => m.retard > 0)
+  const visibles = tri.trier(
+    tous.filter((m) => (retard === 'TOUS' || m.retard > 0) && correspond(recherche, m.stationCode, m.responsable, m.observation)),
+  )
   return (
     <>
-      <TextField select label="Statut" value={statut} onChange={(e) => setStatut(e.target.value)} sx={{ mb: 2, minWidth: 200 }}>
-        <MenuItem value="OUVERT">Ouverts</MenuItem>
-        <MenuItem value="SOLDE">Soldés</MenuItem>
-        <MenuItem value="">Tous</MenuItem>
-      </TextField>
+      {tous.length > 0 && (
+        <Box sx={{ display: 'grid', gap: { xs: 1.5, md: 2 }, gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(3, 1fr)' }, mb: 2.5 }}>
+          <CarteIndicateur
+            icone={<ReportProblemOutlinedIcon />}
+            libelle={statut === 'OUVERT' ? 'Manquants ouverts' : statut === 'SOLDE' ? 'Manquants soldés' : 'Manquants'}
+            valeur={tous.length}
+            sous={`pour ${formaterPrix(tous.reduce((t, m) => t + m.montant, 0))} constatés`}
+            ton={statut === 'SOLDE' ? 'success' : 'primary'}
+          />
+          <CarteIndicateur
+            icone={<AccountBalanceWalletOutlinedIcon />}
+            libelle="Reste dû par les gérants"
+            valeur={formaterPrix(tous.reduce((t, m) => t + m.reste, 0))}
+            testid="reste-du-total"
+            ton="error"
+            accent={tous.some((m) => m.reste > 0)}
+          />
+          <Box sx={{ gridColumn: { xs: '1 / -1', md: 'auto' }, display: 'flex', '& > *': { flexGrow: 1 } }}>
+            <CarteIndicateur
+              icone={<ScheduleOutlinedIcon />}
+              libelle="Échéances en retard"
+              valeur={enRetard.length}
+              sous={enRetard.length > 0 ? 'manquant(s) à relancer' : 'aucun retard'}
+              ton={enRetard.length > 0 ? 'warning' : 'success'}
+            />
+          </Box>
+        </Box>
+      )}
+      <BarreFiltres resume={tous.length > 0 ? `${visibles.length} manquant(s) sur ${tous.length}` : undefined}>
+        <TextField select label="Statut" value={statut} onChange={(e) => setStatut(e.target.value)} sx={{ width: { xs: '100%', sm: 160 } }}>
+          <MenuItem value="OUVERT">Ouverts</MenuItem>
+          <MenuItem value="SOLDE">Soldés</MenuItem>
+          <MenuItem value="">Tous</MenuItem>
+        </TextField>
+        {tous.length > 0 && <ChampRecherche valeur={recherche} onChange={setRecherche} libelle="Rechercher une station, un responsable" />}
+        {enRetard.length > 0 && (
+          <FiltrePuces
+            libelle="Filtrer par retard"
+            valeur={retard}
+            onChange={setRetard}
+            options={[
+              { valeur: 'TOUS', libelle: 'Tous' },
+              { valeur: 'RETARD', libelle: 'En retard', nombre: enRetard.length },
+            ]}
+          />
+        )}
+      </BarreFiltres>
       <AlerteErreur erreur={liste.error} />
       {liste.isLoading && <Chargement />}
       {liste.data?.length === 0 && <Alert severity="success">Aucun manquant {statut === 'OUVERT' ? 'ouvert' : ''}.</Alert>}
-      {liste.data && liste.data.length > 0 && (
-        <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+      {tous.length > 0 && visibles.length === 0 && <Alert severity="info">Aucun manquant ne correspond à ces filtres.</Alert>}
+      {visibles.length > 0 && (
+        <CadreTableau compact>
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>Arrêté du</TableCell>
-                <TableCell>Station</TableCell>
-                <TableCell>Responsable</TableCell>
-                <TableCell align="right">Montant</TableCell>
-                <TableCell align="right">Reste dû</TableCell>
+                <EnTeteTri tri={tri} cle="date">
+                  Arrêté du
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="station">
+                  Station
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="responsable">
+                  Responsable
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="montant" align="right">
+                  Montant
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="reste" align="right">
+                  Reste dû
+                </EnTeteTri>
                 <TableCell>Statut</TableCell>
                 <TableCell />
               </TableRow>
             </TableHead>
             <TableBody>
-              {liste.data.map((m) => (
-                <TableRow key={m.id}>
+              {visibles.map((m) => (
+                <TableRow key={m.id} hover selected={ligneChoisie === m.id} onClick={() => marquer(m.id)} sx={{ cursor: 'pointer' }}>
                   <TableCell>{formaterDate(m.date)}</TableCell>
                   <TableCell>{m.stationCode}</TableCell>
                   <TableCell>
@@ -769,16 +1016,17 @@ function Manquants() {
                     )}
                   </TableCell>
                   <TableCell>
-                    {m.retard > 0 && <Chip size="small" color="error" variant="outlined" label="Échéance en retard" sx={{ mr: 0.5 }} />}
-                    <Chip
-                      size="small"
-                      color={STATUTS_MANQUANT[m.statut].couleur}
-                      label={
-                        m.statut === 'SOLDE' && m.modeReglement
-                          ? `${MODES_REGLEMENT[m.modeReglement]} · ${formaterDate(m.regleLe)}`
-                          : STATUTS_MANQUANT[m.statut].libelle
-                      }
-                    />
+                    <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap' }}>
+                      {m.retard > 0 && <PuceEtat ton="warning" libelle="Échéance en retard" />}
+                      <PuceEtat
+                        ton={STATUTS_MANQUANT[m.statut].couleur}
+                        libelle={
+                          m.statut === 'SOLDE' && m.modeReglement
+                            ? `${MODES_REGLEMENT[m.modeReglement]} · ${formaterDate(m.regleLe)}`
+                            : STATUTS_MANQUANT[m.statut].libelle
+                        }
+                      />
+                    </Stack>
                   </TableCell>
                   <TableCell>
                     <Button size="small" onClick={() => setARegler(m)}>
@@ -789,7 +1037,7 @@ function Manquants() {
               ))}
             </TableBody>
           </Table>
-        </Paper>
+        </CadreTableau>
       )}
       {aRegler && <DialogueManquant manquant={aRegler} onFermer={() => setARegler(null)} />}
     </>

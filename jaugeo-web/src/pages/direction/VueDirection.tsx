@@ -1,4 +1,8 @@
+import AccountBalanceOutlinedIcon from '@mui/icons-material/AccountBalanceOutlined'
+import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined'
 import ArrowForward from '@mui/icons-material/ArrowForward'
+import LocalGasStationOutlinedIcon from '@mui/icons-material/LocalGasStationOutlined'
+import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined'
 import TrendingDown from '@mui/icons-material/TrendingDown'
 import TrendingFlat from '@mui/icons-material/TrendingFlat'
 import TrendingUp from '@mui/icons-material/TrendingUp'
@@ -25,11 +29,14 @@ import {
   useTableauReseau,
   useVueDirection,
 } from '../../api/requetes'
-import type { NiveauEcart, VueDirection as Vue } from '../../api/types'
+import type { NiveauEcart, StationDirection, VueDirection as Vue } from '../../api/types'
 import { useSession } from '../../auth/session'
+import { CarteIndicateur } from '../../shared/CarteIndicateur'
 import { NomStation, PastilleStation } from '../../shared/CarteStation'
 import { AlerteErreur, Chargement } from '../../shared/composants'
 import { formaterDateHeureCourte, formaterNombre, formaterPrix } from '../../shared/libelles'
+import { EnTeteTri } from '../../shared/tableaux'
+import { useTri } from '../../shared/tri'
 import { aujourdhui } from '../../shared/tresorerie'
 import { couleurProduit } from './couleursProduits'
 import { GraphiqueVentesJour } from './GraphiqueVentesJour'
@@ -71,20 +78,6 @@ function Variation({ v, libelle }: { v: number | null; libelle: string }) {
         {libelle}
       </Typography>
     </Stack>
-  )
-}
-
-function Tuile({ libelle, valeur, children }: { libelle: string; valeur: string; children?: ReactNode }) {
-  return (
-    <Paper sx={{ p: 2, minWidth: 0 }}>
-      <Typography variant="body2" color="text.secondary">
-        {libelle}
-      </Typography>
-      <Typography variant="h5" component="p" sx={{ my: 0.5, fontVariantNumeric: 'tabular-nums', overflowWrap: 'anywhere' }}>
-        {valeur}
-      </Typography>
-      {children}
-    </Paper>
   )
 }
 
@@ -346,6 +339,18 @@ function Decisions({ date }: { date: string }) {
 
 function Stations({ vue }: { vue: Vue }) {
   const navigate = useNavigate()
+  const tri = useTri<StationDirection, 'station' | 'ventes' | 'evolution' | 'litres' | 'verse' | 'caisse' | 'jours'>(
+    {
+      station: (s) => s.nom,
+      ventes: (s) => s.ventes,
+      evolution: (s) => variation(s.ventes, s.ventesPrecedent),
+      litres: (s) => s.litres,
+      verse: (s) => s.versements,
+      caisse: (s) => s.soldeCaisse,
+      jours: (s) => s.joursNonClotures,
+    },
+    'station',
+  )
   const ecart = (a: number, b: number) => {
     const v = variation(a, b)
     if (v === null) return '—'
@@ -354,21 +359,35 @@ function Stations({ vue }: { vue: Vue }) {
   }
   return (
     <Bloc titre="Stations" action={<Typography variant="caption" color="text.secondary">{periodeTexte(vue.periode.du, vue.periode.au, false)}</Typography>}>
-      <Box sx={{ overflowX: 'auto' }}>
+      <Box sx={{ overflowX: 'auto', '& .MuiTableCell-head': { whiteSpace: 'nowrap' } }}>
         <Table size="small" aria-label="Activité et caisse par station">
           <TableHead>
             <TableRow>
-              <TableCell>Station</TableCell>
-              <TableCell align="right">Ventes</TableCell>
-              <TableCell align="right">Évolution</TableCell>
-              <TableCell align="right">Litres</TableCell>
-              <TableCell align="right">Versé / dû</TableCell>
-              <TableCell align="right">Caisse non versée</TableCell>
-              <TableCell align="right">Jours non clôturés</TableCell>
+              <EnTeteTri tri={tri} cle="station">
+                Station
+              </EnTeteTri>
+              <EnTeteTri tri={tri} cle="ventes" align="right">
+                Ventes
+              </EnTeteTri>
+              <EnTeteTri tri={tri} cle="evolution" align="right">
+                Évolution
+              </EnTeteTri>
+              <EnTeteTri tri={tri} cle="litres" align="right">
+                Litres
+              </EnTeteTri>
+              <EnTeteTri tri={tri} cle="verse" align="right">
+                Versé / dû
+              </EnTeteTri>
+              <EnTeteTri tri={tri} cle="caisse" align="right">
+                Caisse non versée
+              </EnTeteTri>
+              <EnTeteTri tri={tri} cle="jours" align="right">
+                Jours non clôturés
+              </EnTeteTri>
             </TableRow>
           </TableHead>
           <TableBody>
-            {vue.stations.map((s) => {
+            {tri.trier(vue.stations).map((s) => {
               const v = variation(s.ventes, s.ventesPrecedent)
               return (
                 <TableRow key={s.stationId} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/stations/${s.stationId}`)}>
@@ -439,29 +458,43 @@ export function VueDirection() {
         </Button>
       </Stack>
 
-      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', lg: 'repeat(4, 1fr)' }, mb: 3 }}>
-        <Tuile libelle="Ventes" valeur={formaterPrix(vue.periode.ventes)}>
-          <Variation v={variation(vue.periode.ventes, vue.precedente.ventes)} libelle={comparaison} />
-          {vue.marge !== null && (
-            <Typography variant="caption" color="text.secondary" component="div" data-testid="direction-marge">
-              Marge sur carburants : {formaterPrix(vue.marge)}
-              {vue.tauxMarge !== null && ` (${vue.tauxMarge.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %)`}
-            </Typography>
-          )}
-        </Tuile>
-        <Tuile libelle="Litres vendus" valeur={`${formaterNombre(vue.periode.litres)} L`}>
-          <Variation v={variation(vue.periode.litres, vue.precedente.litres)} libelle={comparaison} />
-        </Tuile>
-        <Tuile libelle="Versé en banque" valeur={formaterPrix(vue.versements)}>
-          <Typography variant="caption" color="text.secondary">
-            {tauxVersement === null ? 'Aucun montant dû ce mois' : `${tauxVersement} % des ${formaterPrix(vue.montantDu)} dus par les stations`}
-          </Typography>
-        </Tuile>
-        <Tuile libelle="Argent dû au réseau" valeur={formaterPrix(argentDu)}>
-          <Typography variant="caption" color="text.secondary">
-            Caisse des gérants, créances, manquants, compléments
-          </Typography>
-        </Tuile>
+      <Box sx={{ display: 'grid', gap: { xs: 1.5, md: 2 }, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', lg: 'repeat(4, 1fr)' }, mb: 3 }}>
+        <CarteIndicateur
+          icone={<PaymentsOutlinedIcon />}
+          libelle="Ventes"
+          valeur={formaterPrix(vue.periode.ventes)}
+          sous={
+            <>
+              <Variation v={variation(vue.periode.ventes, vue.precedente.ventes)} libelle={comparaison} />
+              {vue.marge !== null && (
+                <Box data-testid="direction-marge">
+                  Marge sur carburants : {formaterPrix(vue.marge)}
+                  {vue.tauxMarge !== null && ` (${vue.tauxMarge.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %)`}
+                </Box>
+              )}
+            </>
+          }
+        />
+        <CarteIndicateur
+          icone={<LocalGasStationOutlinedIcon />}
+          libelle="Litres vendus"
+          valeur={`${formaterNombre(vue.periode.litres)} L`}
+          sous={<Variation v={variation(vue.periode.litres, vue.precedente.litres)} libelle={comparaison} />}
+        />
+        <CarteIndicateur
+          icone={<AccountBalanceOutlinedIcon />}
+          libelle="Versé en banque"
+          valeur={formaterPrix(vue.versements)}
+          ton="success"
+          sous={tauxVersement === null ? 'Aucun montant dû ce mois' : `${tauxVersement} % des ${formaterPrix(vue.montantDu)} dus par les stations`}
+        />
+        <CarteIndicateur
+          icone={<AccountBalanceWalletOutlinedIcon />}
+          libelle="Argent dû au réseau"
+          valeur={formaterPrix(argentDu)}
+          ton="warning"
+          sous="Caisse des gérants, créances, manquants, compléments"
+        />
       </Box>
 
       <Box sx={{ mb: 3 }}>

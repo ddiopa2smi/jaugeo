@@ -1,4 +1,7 @@
 import AddIcon from '@mui/icons-material/Add'
+import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined'
+import MoveToInboxOutlinedIcon from '@mui/icons-material/MoveToInboxOutlined'
+import ShoppingBasketOutlinedIcon from '@mui/icons-material/ShoppingBasketOutlined'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
@@ -26,11 +29,14 @@ import { useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { api } from '../../api/client'
 import { cles, useMouvementsArticles, useStations, useStockArticles } from '../../api/requetes'
-import type { ArticleStation, EntreeArticle, StockArticles, TypeMouvementArticle } from '../../api/types'
+import type { ArticleStation, EntreeArticle, MouvementArticle, StockArticles, TypeMouvementArticle } from '../../api/types'
+import { CarteIndicateur } from '../../shared/CarteIndicateur'
 import { AlerteErreur, Chargement, EnTetePage } from '../../shared/composants'
 import { formaterDate, formaterNombre, formaterPrix, versNombre, videVersNull } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
 import { moisCourant } from '../../shared/stock'
+import { BarreFiltres, CadreTableau, ChampRecherche, EnTeteTri, PuceEtat } from '../../shared/tableaux'
+import { correspond, useTri } from '../../shared/tri'
 
 /** Colonnes secondaires masquées sur téléphone. */
 const CACHE_TELEPHONE = { display: { xs: 'none', md: 'table-cell' } } as const
@@ -211,6 +217,19 @@ function OngletStock({ stock }: { stock: StockArticles }) {
   const [annonce, setAnnonce] = useState(false)
   const [aRecevoir, setARecevoir] = useState<EntreeArticle | null>(null)
   const [aAnnuler, setAAnnuler] = useState<EntreeArticle | null>(null)
+  const [recherche, setRecherche] = useState('')
+  const tri = useTri<ArticleStation, 'article' | 'stock' | 'cmup' | 'valeur' | 'prix' | 'comptage'>(
+    {
+      article: (a) => a.libelle,
+      stock: (a) => a.quantite,
+      cmup: (a) => a.cmup,
+      valeur: (a) => a.valeur,
+      prix: (a) => a.prixVente,
+      comptage: (a) => a.dernierComptage,
+    },
+    'article',
+  )
+  const visibles = tri.trier(stock.articles.filter((a) => correspond(recherche, a.libelle, a.code)))
   return (
     <>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2, alignItems: { sm: 'center' } }}>
@@ -269,24 +288,37 @@ function OngletStock({ stock }: { stock: StockArticles }) {
       {stock.articles.length === 0 ? (
         <Alert severity="info">Aucun lubrifiant ni article boutique au référentiel : créez-les dans Produits (sans suivi en cuve).</Alert>
       ) : (
-        <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+        <>
+        <BarreFiltres resume={`${visibles.length} article(s) · ${formaterPrix(visibles.reduce((t, a) => t + a.valeur, 0))}`}>
+          <ChampRecherche valeur={recherche} onChange={setRecherche} libelle="Rechercher un article" />
+        </BarreFiltres>
+        {visibles.length === 0 && <Alert severity="info">Aucun article ne correspond à la recherche.</Alert>}
+        <CadreTableau sx={{ display: visibles.length === 0 ? 'none' : undefined }}>
           <Table size="small" sx={{ '& td, & th': { px: { xs: 1, sm: 2 } } }}>
             <TableHead>
               <TableRow>
-                <TableCell>Article</TableCell>
-                <TableCell align="right">Stock</TableCell>
-                <TableCell align="right" sx={CACHE_TELEPHONE}>
+                <EnTeteTri tri={tri} cle="article">
+                  Article
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="stock" align="right">
+                  Stock
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="cmup" align="right" sx={CACHE_TELEPHONE}>
                   Coût moyen
-                </TableCell>
-                <TableCell align="right">Valeur</TableCell>
-                <TableCell align="right" sx={CACHE_TELEPHONE}>
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="valeur" align="right">
+                  Valeur
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="prix" align="right" sx={CACHE_TELEPHONE}>
                   Prix de vente
-                </TableCell>
-                <TableCell sx={CACHE_TELEPHONE}>Dernier comptage</TableCell>
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="comptage" sx={CACHE_TELEPHONE}>
+                  Dernier comptage
+                </EnTeteTri>
               </TableRow>
             </TableHead>
             <TableBody>
-              {stock.articles.map((a) => (
+              {visibles.map((a) => (
                 <TableRow key={a.produitId} data-testid={`article-${a.code}`}>
                   <TableCell>
                     {a.libelle}
@@ -310,13 +342,18 @@ function OngletStock({ stock }: { stock: StockArticles }) {
                   </TableCell>
                   <TableCell sx={CACHE_TELEPHONE}>
                     {a.dernierComptage ? formaterDate(a.dernierComptage) : 'jamais'}
-                    {a.enRetard && <Chip size="small" color="warning" label="à compter" sx={{ ml: 1 }} />}
+                    {a.enRetard && (
+                      <Box component="span" sx={{ ml: 1 }}>
+                        <PuceEtat ton="warning" libelle="à compter" />
+                      </Box>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
-        </Paper>
+        </CadreTableau>
+        </>
       )}
       {annonce && <DialogueEntree stock={stock} onFermer={() => setAnnonce(false)} />}
       {aRecevoir && <DialogueReception entree={aRecevoir} onFermer={() => setARecevoir(null)} />}
@@ -366,7 +403,7 @@ function OngletInventaire({ stock }: { stock: StockArticles }) {
       {liste.length === 0 ? (
         <Alert severity="success">Rien à compter cette semaine.</Alert>
       ) : (
-        <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+        <CadreTableau>
           <Table size="small" sx={{ '& td, & th': { px: { xs: 1, sm: 2 } } }}>
             <TableHead>
               <TableRow>
@@ -449,7 +486,7 @@ function OngletInventaire({ stock }: { stock: StockArticles }) {
               })}
             </TableBody>
           </Table>
-        </Paper>
+        </CadreTableau>
       )}
       <AlerteErreur erreur={comptage.error} />
       {stock.peutCompter && liste.length > 0 && (
@@ -465,8 +502,22 @@ function OngletInventaire({ stock }: { stock: StockArticles }) {
 
 function OngletMouvements({ stationId }: { stationId: string }) {
   const [mois, setMois] = useState(moisCourant())
+  const [recherche, setRecherche] = useState('')
+  const tri = useTri<MouvementArticle, 'date' | 'article' | 'quantite' | 'valeur' | 'stock' | 'cmup'>(
+    {
+      date: (x) => x.date,
+      article: (x) => x.produitLibelle,
+      quantite: (x) => x.quantite,
+      valeur: (x) => x.valeur,
+      stock: (x) => x.stockApres,
+      cmup: (x) => x.cmupApres,
+    },
+    'date',
+    'desc',
+  )
   const mouvements = useMouvementsArticles(stationId, mois)
   const m = mouvements.data
+  const mouvementsVisibles = tri.trier((m?.mouvements ?? []).filter((x) => correspond(recherche, x.produitLibelle, x.produitCode, x.libelle)))
   return (
     <>
       <TextField
@@ -481,45 +532,51 @@ function OngletMouvements({ stationId }: { stationId: string }) {
       {mouvements.isLoading && <Chargement />}
       {m && (
         <>
-          <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, mb: 2 }}>
-            {[
-              ['Entrées', m.valeurEntrees],
-              ['Ventes au coût moyen', m.valeurVentes],
-              ["Écarts d'inventaire", m.valeurEcarts],
-            ].map(([l, v]) => (
-              <Paper key={l as string} variant="outlined" sx={{ px: 2, py: 1 }}>
-                <Typography variant="caption" color="text.secondary">
-                  {l}
-                </Typography>
-                <Typography variant="h6" sx={{ fontVariantNumeric: 'tabular-nums', color: (v as number) < 0 ? 'error.main' : undefined }}>
-                  {formaterPrix(v as number)}
-                </Typography>
-              </Paper>
-            ))}
+          <Box sx={{ display: 'grid', gap: { xs: 1.5, md: 2 }, gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, mb: 2.5 }}>
+            <CarteIndicateur icone={<MoveToInboxOutlinedIcon />} libelle="Entrées" valeur={formaterPrix(m.valeurEntrees)} sous="réceptions confirmées" />
+            <CarteIndicateur icone={<ShoppingBasketOutlinedIcon />} libelle="Ventes au coût moyen" valeur={formaterPrix(m.valeurVentes)} ton="success" />
+            <CarteIndicateur
+              icone={<FactCheckOutlinedIcon />}
+              libelle="Écarts d'inventaire"
+              valeur={formaterPrix(m.valeurEcarts)}
+              ton={m.valeurEcarts < 0 ? 'error' : 'primary'}
+              accent={m.valeurEcarts < 0}
+              sous={m.valeurEcarts < 0 ? 'manquant constaté au comptage' : undefined}
+            />
           </Box>
           {m.mouvements.length === 0 ? (
             <Alert severity="info">Aucun mouvement ce mois-ci.</Alert>
           ) : (
-            <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+            <>
+            <BarreFiltres resume={`${mouvementsVisibles.length} mouvement(s) sur ${m.mouvements.length}`}>
+              <ChampRecherche valeur={recherche} onChange={setRecherche} libelle="Rechercher un article, un libellé" />
+            </BarreFiltres>
+            <CadreTableau>
               <Table size="small" sx={{ '& td, & th': { px: { xs: 1, sm: 2 } } }}>
                 <TableHead>
                   <TableRow>
-                    <TableCell>Date</TableCell>
-                    <TableCell>Article</TableCell>
-                    <TableCell align="right">Quantité</TableCell>
-                    <TableCell align="right" sx={CACHE_TELEPHONE}>
+                    <EnTeteTri tri={tri} cle="date">
+                      Date
+                    </EnTeteTri>
+                    <EnTeteTri tri={tri} cle="article">
+                      Article
+                    </EnTeteTri>
+                    <EnTeteTri tri={tri} cle="quantite" align="right">
+                      Quantité
+                    </EnTeteTri>
+                    <EnTeteTri tri={tri} cle="valeur" align="right" sx={CACHE_TELEPHONE}>
                       Valeur
-                    </TableCell>
-                    <TableCell align="right" sx={CACHE_TELEPHONE}>
+                    </EnTeteTri>
+                    <EnTeteTri tri={tri} cle="stock" align="right" sx={CACHE_TELEPHONE}>
                       Stock après
-                    </TableCell>
-                    <TableCell align="right" sx={CACHE_TELEPHONE}>
+                    </EnTeteTri>
+                    <EnTeteTri tri={tri} cle="cmup" align="right" sx={CACHE_TELEPHONE}>
                       Coût moyen après
-                    </TableCell>
+                    </EnTeteTri>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {m.mouvements.map((x, i) => (
+                  {mouvementsVisibles.map((x, i) => (
                     <TableRow key={i}>
                       <TableCell sx={{ whiteSpace: 'nowrap' }}>{formaterDate(x.date)}</TableCell>
                       <TableCell>
@@ -556,7 +613,8 @@ function OngletMouvements({ stationId }: { stationId: string }) {
                   ))}
                 </TableBody>
               </Table>
-            </Paper>
+            </CadreTableau>
+            </>
           )}
         </>
       )}

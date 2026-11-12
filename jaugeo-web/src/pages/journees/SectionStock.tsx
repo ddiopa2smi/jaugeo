@@ -293,6 +293,12 @@ function DialogueReception({ stock, reception, onFermer }: { stock: StockJournee
   /** Tournée déjà rattachée à la réception corrigée : elle n'est plus « attendue » mais reste proposée */
   const rattachee = reception?.livraisonId ? { id: reception.livraisonId, tournee: reception.tourneeNumero } : null
   const attendue = attendues.find((l) => l.id === f.livraisonId)
+  // Fournisseurs déclarés par la logistique ; le nom déjà saisi (réception corrigée, tournée) reste proposé
+  const fournisseursDeclares = stock.fournisseurs ?? []
+  const fournisseurs = [...fournisseursDeclares]
+  for (const nom of [reception?.fournisseur, f.fournisseur]) {
+    if (nom && !fournisseurs.some((x) => x.toLowerCase() === nom.trim().toLowerCase())) fournisseurs.push(nom)
+  }
   const tolerancePct =
     attendue?.tolerancePct ?? (rattachee && f.livraisonId === rattachee.id ? reception!.tolerancePct : stock.toleranceTransportPct)
   /** Reprend le BL, le transport et la cuve du produit de la livraison attendue choisie. */
@@ -414,7 +420,31 @@ function DialogueReception({ stock, reception, onFermer }: { stock: StockJournee
             ))}
           </TextField>
           <TextField label="N° de BL" value={f.numeroBl} onChange={maj('numeroBl')} required slotProps={{ htmlInput: { maxLength: 30 } }} />
-          <TextField label="Fournisseur / dépôt" value={f.fournisseur} onChange={maj('fournisseur')} required slotProps={{ htmlInput: { maxLength: 80 } }} />
+          {fournisseursDeclares.length > 0 ? (
+            <TextField
+              select
+              label="Fournisseur / dépôt"
+              value={fournisseurs.find((x) => x.toLowerCase() === f.fournisseur.trim().toLowerCase()) ?? ''}
+              onChange={maj('fournisseur')}
+              required
+            >
+              {fournisseurs.map((nom) => (
+                <MenuItem key={nom} value={nom}>
+                  {nom}
+                  {!fournisseursDeclares.includes(nom) && ' (hors liste)'}
+                </MenuItem>
+              ))}
+            </TextField>
+          ) : (
+            <TextField
+              label="Fournisseur / dépôt"
+              value={f.fournisseur}
+              onChange={maj('fournisseur')}
+              required
+              helperText="Aucun fournisseur déclaré par la logistique : saisissez le nom du dépôt."
+              slotProps={{ htmlInput: { maxLength: 80 } }}
+            />
+          )}
           <TextField label="Transporteur" value={f.transporteur} onChange={maj('transporteur')} slotProps={{ htmlInput: { maxLength: 80 } }} />
           <TextField label="Chauffeur" value={f.chauffeur} onChange={maj('chauffeur')} slotProps={{ htmlInput: { maxLength: 80 } }} />
           <TextField label="Immatriculation" value={f.immatriculation} onChange={maj('immatriculation')} slotProps={{ htmlInput: { maxLength: 20 } }} />

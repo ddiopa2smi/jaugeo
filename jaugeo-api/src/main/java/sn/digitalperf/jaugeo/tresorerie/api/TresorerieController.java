@@ -139,15 +139,28 @@ class TresorerieController {
         return service.versements(station, mois == null || mois.isBlank() ? null : mois(mois));
     }
 
-    @Operation(summary = "Enregistre un versement bancaire (bordereau)")
-    @PostMapping("/tresorerie/versements")
+    @Operation(summary = "Enregistre un versement bancaire avec la photo de son bordereau (BV), obligatoire : "
+            + "partie « versement » (JSON) et partie « fichier » (JPEG, PNG, WebP ou PDF, 5 Mo au plus)")
+    @PostMapping(path = "/tresorerie/versements", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAuthority('VERSEMENT_SAISIR')")
-    VersementVue creer(@Valid @RequestBody VersementSaisi v) {
+    VersementVue creer(@Valid @RequestPart("versement") VersementSaisi v,
+                       @RequestPart(name = "fichier", required = false) MultipartFile fichier) {
         if (v.stationId() == null) {
             throw ErreurMetier.regle("STATION_OBLIGATOIRE", "Indiquez la station du versement.");
         }
-        return service.creerVersement(v.stationId(), v.donnees());
+        // Le bordereau justifie le versement : pas de versement sans sa photo
+        if (fichier == null || fichier.isEmpty()) {
+            throw ErreurMetier.regle("PIECE_OBLIGATOIRE", "Joignez la photo du bordereau (BV) au versement.");
+        }
+        return service.creerVersement(v.stationId(), v.donnees(), PieceJointe.lire(fichier));
+    }
+
+    /** Ancien envoi JSON seul (client pas encore mis a jour) : refus explicite plutot qu'une erreur technique. */
+    @PostMapping(path = "/tresorerie/versements", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("hasAuthority('VERSEMENT_SAISIR')")
+    VersementVue creerSansPiece() {
+        throw ErreurMetier.regle("PIECE_OBLIGATOIRE", "Joignez la photo du bordereau (BV) au versement.");
     }
 
     @Operation(summary = "Corrige un versement pas encore vérifié")

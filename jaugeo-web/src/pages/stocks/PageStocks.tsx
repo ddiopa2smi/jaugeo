@@ -1,4 +1,7 @@
 import Alert from '@mui/material/Alert'
+import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined'
+import OpacityOutlinedIcon from '@mui/icons-material/OpacityOutlined'
+import PropaneTankOutlinedIcon from '@mui/icons-material/PropaneTankOutlined'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
@@ -23,11 +26,21 @@ import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { api } from '../../api/client'
 import { useComplements, useSituationStock, useStations, useStockMensuel } from '../../api/requetes'
-import type { ComplementCiterne } from '../../api/types'
+import type { ComplementCiterne, LigneStock, SituationCuve } from '../../api/types'
+import { CarteIndicateur } from '../../shared/CarteIndicateur'
 import { AlerteErreur, Chargement, EnTetePage } from '../../shared/composants'
 import { formaterDate, formaterNombre, formaterPrix } from '../../shared/libelles'
 import { notifier } from '../../shared/notifications'
 import { formaterPct, IMPUTATIONS, moisCourant, NIVEAUX_ECART } from '../../shared/stock'
+import { BarreFiltres, CadreTableau, ChampRecherche, EnTeteTri, FiltrePuces, PuceEtat } from '../../shared/tableaux'
+import { correspond, useLigneChoisie, useTri } from '../../shared/tri'
+
+type ColonneStock = 'date' | 'cuve' | 'depart' | 'receptions' | 'sorties' | 'theorique' | 'jauge' | 'ecart' | 'cumul' | 'observation'
+
+/** Observation longue coupée avec « … » (texte complet au survol) : une ligne par cuve et par jour. */
+const OBSERVATION_COUPEE = {
+  '& .MuiTableBody-root .MuiTableCell-root:last-of-type': { maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis' },
+}
 
 function AnalyseMensuelle() {
   const stations = useStations()
@@ -37,12 +50,51 @@ function AnalyseMensuelle() {
   const stationId = params.get('station') ?? (actives.length === 1 ? actives[0]!.id : null)
   const mois = params.get('mois') ?? moisCourant()
   const analyse = useStockMensuel(stationId, mois)
+  const [recherche, setRecherche] = useState('')
+  const [cuve, setCuve] = useState('TOUTES')
+  const [filtre, setFiltre] = useState<'TOUTES' | 'HORS_TOLERANCE' | 'RECEPTIONS' | 'ECART_NEGATIF'>('TOUTES')
+  // Tri par défaut : les journées les plus récentes d'abord
+  const tri = useTri<LigneStock, ColonneStock>(
+    {
+      date: (l) => l.date,
+      cuve: (l) => l.cuveCode,
+      depart: (l) => l.stockDepart,
+      receptions: (l) => l.receptions || null,
+      sorties: (l) => l.sorties,
+      theorique: (l) => l.stockTheorique,
+      jauge: (l) => l.stockPhysique,
+      ecart: (l) => l.ecartLitres,
+      cumul: (l) => l.ecartPctMois,
+      observation: (l) => l.observation,
+    },
+    'date',
+    'desc',
+  )
   const changer = (cle: string, valeur: string) => {
     const p = new URLSearchParams(params)
     p.set(cle, valeur)
     if (stationId && !p.get('station')) p.set('station', stationId)
     setParams(p)
   }
+  // Ligne cliquée, gardée dans l'adresse : elle reste marquée au retour de la journée ouverte
+  const [ligneChoisie, marquer] = useLigneChoisie()
+  const choisir = (cle: string, journeeId: string | null) => {
+    marquer(cle)
+    if (journeeId) navigate(`/journees/${journeeId}`)
+  }
+  const toutes = analyse.data?.lignes ?? []
+  const codesCuves = [...new Set(toutes.map((l) => l.cuveCode))].sort((a, b) => a.localeCompare(b, 'fr', { numeric: true }))
+  const lignes = tri.trier(
+    toutes.filter(
+      (l) =>
+        (cuve === 'TOUTES' || l.cuveCode === cuve) &&
+        (filtre === 'TOUTES' ||
+          (filtre === 'HORS_TOLERANCE' && l.niveau !== 'NORMAL') ||
+          (filtre === 'ECART_NEGATIF' && l.ecartLitres < 0) ||
+          (filtre === 'RECEPTIONS' && l.receptions > 0)) &&
+        correspond(recherche, formaterDate(l.date), l.date, l.cuveCode, l.observation),
+    ),
+  )
 
   return (
     <>
@@ -112,29 +164,62 @@ function AnalyseMensuelle() {
               )
             })}
           </Box>
-          <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+          <BarreFiltres resume={`${lignes.length} ligne(s) sur ${toutes.length}`}>
+            <ChampRecherche valeur={recherche} onChange={setRecherche} libelle="Rechercher une date, une observation" />
+            {codesCuves.length > 1 && (
+              <FiltrePuces
+                libelle="Filtrer par cuve"
+                valeur={cuve}
+                onChange={setCuve}
+                options={[
+                  { valeur: 'TOUTES', libelle: 'Toutes les cuves' },
+                  ...codesCuves.map((c) => ({ valeur: c, libelle: c, nombre: toutes.filter((l) => l.cuveCode === c).length })),
+                ]}
+              />
+            )}
+            <FiltrePuces
+              libelle="Filtrer les journées"
+              valeur={filtre}
+              onChange={setFiltre}
+              options={[
+                { valeur: 'TOUTES', libelle: 'Toutes', nombre: toutes.length },
+                { valeur: 'HORS_TOLERANCE', libelle: 'Hors tolérance', nombre: toutes.filter((l) => l.niveau !== 'NORMAL').length },
+                { valeur: 'ECART_NEGATIF', libelle: 'Écart négatif', nombre: toutes.filter((l) => l.ecartLitres < 0).length },
+                { valeur: 'RECEPTIONS', libelle: 'Avec réception', nombre: toutes.filter((l) => l.receptions > 0).length },
+              ]}
+            />
+          </BarreFiltres>
+          <CadreTableau compact sx={OBSERVATION_COUPEE}>
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>Date</TableCell>
-                  <TableCell>Cuve</TableCell>
-                  <TableCell align="right">Départ</TableCell>
-                  <TableCell align="right">Réceptions</TableCell>
-                  <TableCell align="right">Sorties</TableCell>
-                  <TableCell align="right">Théorique</TableCell>
-                  <TableCell align="right">Jauge</TableCell>
-                  <TableCell align="right">Écart</TableCell>
-                  <TableCell align="right">Cumul mois</TableCell>
-                  <TableCell>Observation</TableCell>
+                  <EnTeteTri tri={tri} cle="date">Date</EnTeteTri>
+                  <EnTeteTri tri={tri} cle="cuve">Cuve</EnTeteTri>
+                  <EnTeteTri tri={tri} cle="depart" align="right">Départ</EnTeteTri>
+                  <EnTeteTri tri={tri} cle="receptions" align="right">Réceptions</EnTeteTri>
+                  <EnTeteTri tri={tri} cle="sorties" align="right">Sorties</EnTeteTri>
+                  <EnTeteTri tri={tri} cle="theorique" align="right">Théorique</EnTeteTri>
+                  <EnTeteTri tri={tri} cle="jauge" align="right">Jauge</EnTeteTri>
+                  <EnTeteTri tri={tri} cle="ecart" align="right">Écart</EnTeteTri>
+                  <EnTeteTri tri={tri} cle="cumul" align="right">Cumul mois</EnTeteTri>
+                  <EnTeteTri tri={tri} cle="observation">Observation</EnTeteTri>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {analyse.data.lignes.map((l) => (
+                {lignes.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={10} align="center" sx={{ color: 'text.secondary' }}>
+                      Aucune ligne ne correspond aux filtres.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {lignes.map((l) => (
                   <TableRow
                     key={`${l.date}-${l.cuveId}`}
                     hover
-                    sx={{ cursor: l.journeeId ? 'pointer' : undefined }}
-                    onClick={() => l.journeeId && navigate(`/journees/${l.journeeId}`)}
+                    selected={ligneChoisie === `${l.date}-${l.cuveId}`}
+                    sx={{ cursor: 'pointer' }}
+                    onClick={() => choisir(`${l.date}-${l.cuveId}`, l.journeeId)}
                   >
                     <TableCell>{formaterDate(l.date)}</TableCell>
                     <TableCell>{l.cuveCode}</TableCell>
@@ -149,12 +234,12 @@ function AnalyseMensuelle() {
                     <TableCell align="right">
                       <Chip size="small" variant="outlined" color={NIVEAUX_ECART[l.niveau].couleur} label={formaterPct(l.ecartPctMois)} />
                     </TableCell>
-                    <TableCell sx={{ maxWidth: 260 }}>{l.observation}</TableCell>
+                    <TableCell title={l.observation ?? undefined}>{l.observation}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          </Paper>
+          </CadreTableau>
         </>
       )}
     </>
@@ -168,15 +253,32 @@ function Autonomie() {
   const situation = useSituationStock()
   const navigate = useNavigate()
   const s = situation.data
+  const [recherche, setRecherche] = useState('')
+  const [filtre, setFiltre] = useState<'TOUTES' | 'REAPPRO' | 'EAU'>('TOUTES')
+  // Tri initial : les cuves à réapprovisionner d'abord, puis par autonomie croissante
+  const tri = useTri<SituationCuve, 'priorite' | 'cuve' | 'stock' | 'ventes' | 'autonomie' | 'eau'>(
+    {
+      priorite: (c) => (c.aReapprovisionner ? 0 : 1e9) + (c.autonomieJours ?? 1e8),
+      cuve: (c) => `${c.stationCode} ${c.cuveCode}`,
+      stock: (c) => c.stockPhysique,
+      ventes: (c) => c.ventesMoyennes,
+      autonomie: (c) => c.autonomieJours,
+      eau: (c) => c.hauteurEauMm,
+    },
+    'priorite',
+  )
   if (situation.isLoading) return <Chargement />
   if (!s) return <AlerteErreur erreur={situation.error} />
   if (s.cuves.length === 0) return <Alert severity="info">Aucune cuve jaugée à une clôture.</Alert>
-  // Les cuves à réapprovisionner d'abord, puis par autonomie croissante
-  const cuves = [...s.cuves].sort(
-    (a, b) =>
-      Number(b.aReapprovisionner) - Number(a.aReapprovisionner) ||
-      (a.autonomieJours ?? Infinity) - (b.autonomieJours ?? Infinity) ||
-      a.stationCode.localeCompare(b.stationCode),
+  const parCode = [...s.cuves].sort((a, b) => a.stationCode.localeCompare(b.stationCode))
+  const aReappro = s.cuves.filter((c) => c.aReapprovisionner).length
+  const avecEau = s.cuves.filter((c) => c.eauAlerte).length
+  const cuves = tri.trier(
+    parCode.filter(
+      (c) =>
+        (filtre === 'TOUTES' || (filtre === 'REAPPRO' ? c.aReapprovisionner : c.eauAlerte)) &&
+        correspond(recherche, c.stationCode, c.stationNom, c.cuveCode, c.produitLibelle),
+    ),
   )
   return (
     <>
@@ -185,19 +287,59 @@ function Autonomie() {
         réapprovisionner sous son seuil en litres, ou, sans seuil, sous {formaterNombre(s.autonomieAlerteJours)} jours
         d'autonomie.
       </Typography>
-      <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+      <Box sx={{ display: 'grid', gap: { xs: 1.5, md: 2 }, gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(3, 1fr)' }, mb: 2.5 }}>
+        <CarteIndicateur icone={<PropaneTankOutlinedIcon />} libelle="Cuves suivies" valeur={s.cuves.length} sous="jaugées à une clôture" />
+        <CarteIndicateur
+          icone={<LocalShippingOutlinedIcon />}
+          libelle="À réapprovisionner"
+          valeur={aReappro}
+          ton={aReappro > 0 ? 'error' : 'success'}
+          accent={aReappro > 0}
+          sous={aReappro > 0 ? 'sous le seuil ou l’autonomie d’alerte' : 'aucune cuve sous le seuil'}
+        />
+        <CarteIndicateur
+          icone={<OpacityOutlinedIcon />}
+          libelle="Eau en fond de cuve"
+          valeur={avecEau}
+          ton={avecEau > 0 ? 'warning' : 'success'}
+          sous={avecEau > 0 ? 'au-dessus du seuil toléré' : 'aucune alerte'}
+        />
+      </Box>
+      <BarreFiltres resume={`${cuves.length} cuve(s) sur ${s.cuves.length}`}>
+        <ChampRecherche valeur={recherche} onChange={setRecherche} libelle="Rechercher une station, un produit" />
+        {(aReappro > 0 || avecEau > 0) && (
+          <FiltrePuces
+            libelle="Filtrer les cuves"
+            valeur={filtre}
+            onChange={setFiltre}
+            options={[
+              { valeur: 'TOUTES', libelle: 'Toutes', nombre: s.cuves.length },
+              { valeur: 'REAPPRO', libelle: 'À réapprovisionner', nombre: aReappro },
+              { valeur: 'EAU', libelle: 'Avec eau', nombre: avecEau },
+            ]}
+          />
+        )}
+      </BarreFiltres>
+      {cuves.length === 0 && <Alert severity="info">Aucune cuve ne correspond à ces filtres.</Alert>}
+      <CadreTableau sx={{ display: cuves.length === 0 ? 'none' : undefined }}>
         <Table size="small" aria-label="Autonomie des cuves" sx={{ '& td, & th': { px: { xs: 1, sm: 2 } } }}>
           <TableHead>
             <TableRow>
-              <TableCell>Cuve</TableCell>
-              <TableCell align="right">Stock</TableCell>
-              <TableCell align="right" sx={{ display: CACHE_TELEPHONE }}>
+              <EnTeteTri tri={tri} cle="cuve">
+                Cuve
+              </EnTeteTri>
+              <EnTeteTri tri={tri} cle="stock" align="right">
+                Stock
+              </EnTeteTri>
+              <EnTeteTri tri={tri} cle="ventes" align="right" sx={{ display: CACHE_TELEPHONE }}>
                 Ventes / jour
-              </TableCell>
-              <TableCell align="right">Autonomie</TableCell>
-              <TableCell align="right" sx={{ display: CACHE_TELEPHONE }}>
+              </EnTeteTri>
+              <EnTeteTri tri={tri} cle="autonomie" align="right">
+                Autonomie
+              </EnTeteTri>
+              <EnTeteTri tri={tri} cle="eau" align="right" sx={{ display: CACHE_TELEPHONE }}>
                 Eau
-              </TableCell>
+              </EnTeteTri>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -215,8 +357,8 @@ function Autonomie() {
                     jaugé le {formaterDate(c.date)}
                   </Typography>
                   <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', rowGap: 0.5, mt: 0.5 }}>
-                    {c.aReapprovisionner && <Chip size="small" color="error" label="À réapprovisionner" />}
-                    {c.eauAlerte && <Chip size="small" color="warning" label={`Eau ${c.hauteurEauMm} mm > ${c.seuilEauMm} mm`} />}
+                    {c.aReapprovisionner && <PuceEtat ton="error" libelle="À réapprovisionner" />}
+                    {c.eauAlerte && <PuceEtat ton="warning" libelle={`Eau ${c.hauteurEauMm} mm > ${c.seuilEauMm} mm`} />}
                   </Stack>
                 </TableCell>
                 <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
@@ -245,7 +387,7 @@ function Autonomie() {
             ))}
           </TableBody>
         </Table>
-      </Paper>
+      </CadreTableau>
     </>
   )
 }
@@ -298,6 +440,25 @@ function Complements() {
   const liste = useComplements(statut)
   const [aRegler, setARegler] = useState<ComplementCiterne | null>(null)
   const navigate = useNavigate()
+  const [recherche, setRecherche] = useState('')
+  const tri = useTri<ComplementCiterne, 'date' | 'station' | 'bl' | 'transporteur' | 'charge' | 'manquant' | 'montant' | 'statut'>(
+    {
+      date: (c) => c.date,
+      station: (c) => c.stationCode,
+      bl: (c) => c.numeroBl,
+      transporteur: (c) => c.transporteur,
+      charge: (c) => IMPUTATIONS[c.imputeA],
+      manquant: (c) => c.litres,
+      montant: (c) => c.montant,
+      statut: (c) => c.statut,
+    },
+    'date',
+    'desc',
+  )
+  const complements = liste.data ?? []
+  const visibles = tri.trier(
+    complements.filter((c) => correspond(recherche, c.stationCode, c.numeroBl, c.fournisseur, c.transporteur, c.immatriculation, c.referenceReglement)),
+  )
 
   return (
     <>
@@ -309,25 +470,47 @@ function Complements() {
       <AlerteErreur erreur={liste.error} />
       {liste.isLoading && <Chargement />}
       {liste.data?.length === 0 && <Alert severity="success">Aucun complément citerne {statut === 'A_REGLER' ? 'en attente' : ''}.</Alert>}
-      {liste.data && liste.data.length > 0 && (
-        <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
-          <Table size="small">
+      {complements.length > 0 && (
+        <BarreFiltres resume={`${visibles.length} complément(s) · ${formaterPrix(visibles.reduce((t, c) => t + (c.montant ?? 0), 0))}`}>
+          <ChampRecherche valeur={recherche} onChange={setRecherche} libelle="Rechercher un BL, un transporteur" />
+        </BarreFiltres>
+      )}
+      {complements.length > 0 && visibles.length === 0 && <Alert severity="info">Aucun complément ne correspond à la recherche.</Alert>}
+      {visibles.length > 0 && (
+        <CadreTableau>
+          <Table size="small" aria-label="Compléments citerne">
             <TableHead>
               <TableRow>
-                <TableCell>Date</TableCell>
-                <TableCell>Station</TableCell>
-                <TableCell>BL</TableCell>
-                <TableCell>Transporteur</TableCell>
-                <TableCell>À la charge du</TableCell>
+                <EnTeteTri tri={tri} cle="date">
+                  Date
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="station">
+                  Station
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="bl">
+                  BL
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="transporteur">
+                  Transporteur
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="charge">
+                  À la charge du
+                </EnTeteTri>
                 <TableCell align="right">BL / reçu</TableCell>
-                <TableCell align="right">Manquant</TableCell>
-                <TableCell align="right">Montant</TableCell>
-                <TableCell>Statut</TableCell>
+                <EnTeteTri tri={tri} cle="manquant" align="right">
+                  Manquant
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="montant" align="right">
+                  Montant
+                </EnTeteTri>
+                <EnTeteTri tri={tri} cle="statut">
+                  Statut
+                </EnTeteTri>
                 <TableCell />
               </TableRow>
             </TableHead>
             <TableBody>
-              {liste.data.map((c) => (
+              {visibles.map((c) => (
                 <TableRow key={c.id} hover>
                   <TableCell sx={{ cursor: 'pointer' }} onClick={() => c.journeeId && navigate(`/journees/${c.journeeId}`)}>
                     {formaterDate(c.date)}
@@ -355,9 +538,9 @@ function Complements() {
                   <TableCell align="right">{formaterPrix(c.montant)}</TableCell>
                   <TableCell>
                     {c.statut === 'REGLE' ? (
-                      <Chip size="small" color="success" label={`Réglé le ${formaterDate(c.regleLe)} · ${c.referenceReglement}`} />
+                      <PuceEtat ton="success" libelle={`Réglé le ${formaterDate(c.regleLe)} · ${c.referenceReglement}`} />
                     ) : (
-                      <Chip size="small" color="warning" label="À régler" />
+                      <PuceEtat ton="warning" libelle="À régler" />
                     )}
                   </TableCell>
                   <TableCell>
@@ -371,7 +554,7 @@ function Complements() {
               ))}
             </TableBody>
           </Table>
-        </Paper>
+        </CadreTableau>
       )}
       {aRegler && <DialogueReglement complement={aRegler} onFermer={() => setARegler(null)} />}
     </>

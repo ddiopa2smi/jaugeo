@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static sn.digitalperf.jaugeo.OutilsApi.avec;
+import static sn.digitalperf.jaugeo.OutilsApi.versement;
 import static sn.digitalperf.jaugeo.OutilsApi.numeroStation;
 
 import com.jayway.jsonpath.JsonPath;
@@ -207,8 +208,9 @@ class ClientsSynthesesTest {
         assertThat(JsonPath.<Boolean>read(obtenir(gerant, "/api/v1/journees/" + id + "/credit"), "$.modifiable")).isFalse();
 
         // Versement, puis arrete de caisse du 05/01 : 2 000 F manquent
-        creer(gerant, "/api/v1/tresorerie/versements",
-                "{\"stationId\":\"%s\",\"dateDepot\":\"2026-01-06\",\"banque\":\"CBAO\",\"referenceBv\":\"S5-1\",\"montant\":100000}".formatted(station));
+        mvc.perform(versement(gerant,
+                "{\"stationId\":\"%s\",\"dateDepot\":\"2026-01-06\",\"banque\":\"CBAO\",\"referenceBv\":\"S5-1\",\"montant\":100000}".formatted(station)))
+                .andExpect(status().isCreated());
         String compte = montant.subtract(BigDecimal.valueOf(2_000)).toPlainString();
         creer(superviseur, "/api/v1/stations/" + station + "/arretes", "{\"date\":\"2026-01-05\",\"type\":\"CONTROLE\",\"especesComptees\":"
                 + compte + ",\"responsable\":\"Gérant CRD\",\"observation\":\"Comptage de fin de journée\"}");

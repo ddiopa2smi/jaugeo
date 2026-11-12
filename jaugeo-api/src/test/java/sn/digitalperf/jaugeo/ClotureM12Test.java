@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static sn.digitalperf.jaugeo.OutilsApi.avec;
+import static sn.digitalperf.jaugeo.OutilsApi.versement;
 import static sn.digitalperf.jaugeo.OutilsApi.numeroStation;
 
 import com.jayway.jsonpath.JsonPath;
@@ -128,8 +129,8 @@ class ClotureM12Test {
                 "{\"version\":%s,\"releves\":[{\"pistoletId\":\"%s\",\"indexArrivee\":1500}]}".formatted(version(j), pistolet));
         j = OutilsApi.jaugerSansEcart(mvc, gerant, journee);
         j = poster(gerant, "/api/v1/journees/" + journee + "/cloture", "{\"version\":" + version(j) + "}");
-        String versement = "{\"stationId\":\"%s\",\"dateDepot\":\"%s\",\"banque\":\"CBAO\",\"referenceBv\":\"%s\",\"montant\":100000,\"deposant\":\"Gérant M12\"}";
-        String v = creer(gerant, "/api/v1/tresorerie/versements", versement.formatted(station, jour, "BV-M12-1"));
+        String saisieVersement = "{\"stationId\":\"%s\",\"dateDepot\":\"%s\",\"banque\":\"CBAO\",\"referenceBv\":\"%s\",\"montant\":100000,\"deposant\":\"Gérant M12\"}";
+        String v = lire(mvc.perform(versement(gerant, saisieVersement.formatted(station, jour, "BV-M12-1"))).andExpect(status().isCreated()));
 
         // Le compte d'exploitation (marge) n'est pas ouvert aux gerants ni a la logistique
         mvc.perform(avec(get(BASE + "/compte?mois=" + mois), gerant)).andExpect(status().isForbidden());
@@ -183,8 +184,7 @@ class ClotureM12Test {
         // Mois verrouille : ni renvoi de journee, ni versement, ni arrete de caisse, ni operation de compte client
         refuse(mvc.perform(avec(post("/api/v1/journees/" + journee + "/renvoi"), superviseur)
                 .content("{\"version\":%s,\"motif\":\"Index à revoir\"}".formatted(version(j)))), "MOIS_CLOS");
-        refuse(mvc.perform(avec(post("/api/v1/tresorerie/versements"), gerant)
-                .content(versement.formatted(station, jour, "BV-M12-2"))), "MOIS_CLOS");
+        refuse(mvc.perform(versement(gerant, saisieVersement.formatted(station, jour, "BV-M12-2"))), "MOIS_CLOS");
         refuse(mvc.perform(avec(post("/api/v1/stations/" + station + "/arretes"), superviseur)
                 .content("{\"date\":\"" + jour + "\",\"type\":\"CONTROLE\",\"especesComptees\":350000}")), "MOIS_CLOS");
         String client = JsonPath.read(creer(comptable, "/api/v1/clients",

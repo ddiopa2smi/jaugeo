@@ -32,4 +32,12 @@ public interface LivraisonsAttendues {
      * transporteur dont le nom a ete saisi ; vide si le transporteur n'a pas de tolerance propre.
      */
     Optional<BigDecimal> tolerancePct(Long livraisonId, String transporteur);
+
+    /**
+     * Noms des fournisseurs (depots) actifs declares par la logistique, par ordre alphabetique : le gerant choisit
+     * dans cette liste le fournisseur d'une reception hors tournee.
+     */
+    default List<String> fournisseurs() {
+        return List.of();
+    }
 }

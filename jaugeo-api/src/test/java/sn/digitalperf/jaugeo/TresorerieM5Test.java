@@ -111,9 +111,9 @@ class TresorerieM5Test {
     }
 
     private String versement(String date, String reference, long montant) throws Exception {
-        return JsonPath.read(creer(gerant, "/api/v1/tresorerie/versements",
+        return JsonPath.read(lire(mvc.perform(OutilsApi.versement(gerant,
                 "{\"stationId\":\"%s\",\"dateDepot\":\"%s\",\"banque\":\"CBAO\",\"referenceBv\":\"%s\",\"montant\":%d}"
-                        .formatted(station, date, reference, montant)), "$.id");
+                        .formatted(station, date, reference, montant))).andExpect(status().isCreated())), "$.id");
     }
 
     private static Map<String, Object> operation(String rapprochement, String libelle) {

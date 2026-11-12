@@ -1,0 +1,1244 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Jaugeo — Manuel des fonctionnalités</title>
+<!--
+  SOURCE DU MANUEL DES FONCTIONNALITÉS DE JAUGEO.
+  Ce fichier est la seule source : le PDF « Jaugeo — Manuel des fonctionnalités.pdf » (même dossier) en est tiré.
+  Pour le régénérer après une modification :   cd jaugeo-web ; npm run manuel
+  À chaque fonctionnalité livrée ou modifiée :
+    1. corriger ou compléter le chapitre concerné ;
+    2. ajouter une ligne en tête du « Journal des mises à jour » (chapitre « À propos de ce manuel ») ;
+    3. mettre à jour la version et la date de la couverture (balises data-version et data-date ci-dessous) ;
+    4. régénérer le PDF et valider les deux fichiers ensemble.
+  Le sommaire et la numérotation des chapitres sont construits automatiquement à partir des titres h1 et h2.
+-->
+<style>
+  :root {
+    --petrole: #0b4f6c; --petrole-pale: #e6f0f4; --orange: #f5a623; --orange-fonce: #b26a00; --orange-pale: #fdf3df;
+    --encre: #1c2a30; --encre-douce: #55666d; --trait: #cfd9dd; --fond-doux: #f4f6f8;
+    --vert: #2e7d32; --vert-pale: #e8f3e9; --rouge: #b3261e; --rouge-pale: #fbe9e7;
+  }
+  @page { size: A4; margin: 18mm 16mm 20mm 16mm; }
+  * { box-sizing: border-box; }
+  html { font-family: "Segoe UI", Roboto, Arial, sans-serif; font-size: 10.4pt; line-height: 1.5; color: var(--encre); }
+  body { margin: 0; counter-reset: chapitre; }
+  p { margin: 0 0 7px; }
+  ul, ol { margin: 0 0 8px; padding-left: 1.35em; }
+  li { margin-bottom: 3px; }
+  strong { font-weight: 600; }
+  a { color: var(--petrole); text-decoration: none; }
+
+  /* Couverture */
+  .couverture { height: 247mm; display: flex; flex-direction: column; justify-content: space-between; page-break-after: always; }
+  .couverture .bandeau { border-top: 6px solid var(--petrole); padding-top: 14mm; }
+  .marque { font-size: 46pt; font-weight: 700; color: var(--petrole); letter-spacing: -0.02em; line-height: 1; }
+  .marque span { color: var(--orange); }
+  .couverture h1.titre { font-size: 25pt; font-weight: 600; margin: 12mm 0 4mm; color: var(--encre); border: 0; padding: 0; page-break-before: avoid; }
+  .couverture h1.titre::before { content: none; }
+  .couverture .accroche { font-size: 12.5pt; color: var(--encre-douce); max-width: 135mm; }
+  .couverture .pied { border-top: 1px solid var(--trait); padding-top: 5mm; display: flex; justify-content: space-between; color: var(--encre-douce); font-size: 9.5pt; }
+  .couverture .pied strong { color: var(--encre); display: block; font-size: 11pt; }
+
+  /* Sommaire */
+  .sommaire { page-break-after: always; }
+  .sommaire h1 { page-break-before: avoid; }
+  .sommaire h1::before { content: none; }
+  .sommaire ol { list-style: none; padding: 0; margin: 0; columns: 2; column-gap: 10mm; }
+  .sommaire li { break-inside: avoid; margin-bottom: 2px; }
+  .sommaire li.n1 { font-weight: 600; margin-top: 7px; color: var(--petrole); }
+  .sommaire li.n2 { padding-left: 6mm; font-size: 9.4pt; color: var(--encre-douce); }
+  .sommaire a { color: inherit; }
+
+  /* Titres */
+  h1 { font-size: 19pt; font-weight: 600; color: var(--petrole); margin: 0 0 4mm; padding-bottom: 2.5mm; border-bottom: 2px solid var(--petrole); page-break-before: always; page-break-after: avoid; line-height: 1.2; }
+  h1.chapitre { counter-increment: chapitre; }
+  h1.chapitre::before { content: counter(chapitre) "."; color: var(--orange-fonce); margin-right: 3mm; }
+  h2 { font-size: 13pt; font-weight: 600; color: var(--petrole); margin: 7mm 0 2.5mm; page-break-after: avoid; line-height: 1.25; }
+  h3 { font-size: 10.8pt; font-weight: 600; margin: 4.5mm 0 1.5mm; page-break-after: avoid; }
+  .resume { font-size: 11.2pt; color: var(--encre-douce); margin-bottom: 5mm; }
+  .ou { background: var(--fond-doux); border-left: 3px solid var(--petrole); padding: 2mm 3.5mm; margin: 0 0 4mm; font-size: 9.8pt; page-break-inside: avoid; }
+  .ou strong { color: var(--petrole); }
+
+  /* Encadrés */
+  .regle, .exemple, .attention, .astuce { border-radius: 4px; padding: 2.5mm 3.5mm; margin: 3mm 0 4mm; page-break-inside: avoid; font-size: 9.9pt; }
+  .regle { background: var(--petrole-pale); }
+  .exemple { background: var(--orange-pale); }
+  .attention { background: var(--rouge-pale); }
+  .astuce { background: var(--vert-pale); }
+  .regle::before, .exemple::before, .attention::before, .astuce::before { display: block; font-size: 8pt; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 1mm; }
+  .regle::before { content: "Règle de calcul"; color: var(--petrole); }
+  .exemple::before { content: "Exemple"; color: var(--orange-fonce); }
+  .attention::before { content: "Attention"; color: var(--rouge); }
+  .astuce::before { content: "Bon à savoir"; color: var(--vert); }
+  .regle p:last-child, .exemple p:last-child, .attention p:last-child, .astuce p:last-child,
+  .regle ul:last-child, .exemple ul:last-child, .attention ul:last-child, .astuce ul:last-child { margin-bottom: 0; }
+  .formule { font-family: Consolas, "Courier New", monospace; font-size: 9.4pt; display: block; margin: 1mm 0; }
+
+  /* Tableaux */
+  table { border-collapse: collapse; width: 100%; margin: 2mm 0 5mm; font-size: 9.5pt; }
+  thead { display: table-header-group; }
+  tr { page-break-inside: avoid; }
+  th { text-align: left; background: var(--petrole); color: #fff; font-weight: 600; padding: 1.8mm 2.5mm; font-size: 9pt; }
+  td { padding: 1.8mm 2.5mm; border-bottom: 1px solid var(--trait); vertical-align: top; }
+  tbody tr:nth-child(even) td { background: #f8fafb; }
+  td.c { text-align: center; }
+  td.oui { text-align: center; color: var(--vert); font-weight: 700; }
+  td.fort, th.fort { font-weight: 600; white-space: nowrap; }
+  .etroit td, .etroit th { padding: 1.3mm 1.6mm; font-size: 8.4pt; }
+  .bouton { font-weight: 600; border: 1px solid var(--petrole); color: var(--petrole); border-radius: 3px; padding: 0 1.4mm; white-space: nowrap; font-size: 0.94em; }
+  code { font-family: Consolas, "Courier New", monospace; font-size: 0.92em; background: var(--fond-doux); padding: 0 1mm; border-radius: 2px; }
+  ol.etapes > li { margin-bottom: 5px; }
+  ol.etapes > li::marker { font-weight: 700; color: var(--orange-fonce); }
+  .etat { display: inline-block; border-radius: 10px; padding: 0 2.2mm; font-size: 8.6pt; font-weight: 600; border: 1px solid currentColor; white-space: nowrap; }
+  .etat.gris { color: var(--encre-douce); } .etat.bleu { color: var(--petrole); } .etat.vert { color: var(--vert); } .etat.orange { color: var(--orange-fonce); } .etat.rouge { color: var(--rouge); }
+</style>
+</head>
+<body data-version="1.2" data-date="11 novembre 2026">
+
+<section class="couverture">
+  <div class="bandeau">
+    <div class="marque">Jauge<span>o</span></div>
+    <h1 class="titre">Manuel des fonctionnalités</h1>
+    <p class="accroche">Tout ce que fait l'application de gestion des stations-service, écran par écran : qui saisit quoi, comment chaque montant est calculé, ce qui est contrôlé et ce qui est bloqué.</p>
+  </div>
+  <div class="pied">
+    <div><strong>Version <span class="v-version"></span></strong>à jour du <span class="v-date"></span></div>
+    <div><strong>Périmètre décrit</strong>lot 1 complet, lot 2 jusqu'au sprint M12, table des banques</div>
+    <div><strong>Document vivant</strong>mis à jour à chaque livraison</div>
+  </div>
+</section>
+
+<section class="sommaire">
+  <h1>Sommaire</h1>
+  <ol id="sommaire"></ol>
+</section>
+
+<!-- ============================================================ -->
+<h1 class="chapitre">À propos de ce manuel</h1>
+<p class="resume">Ce manuel décrit ce que Jaugeo fait réellement aujourd'hui, en langage métier. Il sert de référence aux utilisateurs, aux formateurs et à l'équipe projet.</p>
+
+<h2>Comment le lire</h2>
+<p>Chaque chapitre correspond à une entrée du menu de l'application ou à un sujet transversal. Il suit toujours le même plan : à quoi sert l'écran, comment on s'en sert pas à pas, les règles de calcul et de contrôle, puis qui a le droit de faire quoi.</p>
+<p>Quatre types d'encadrés reviennent dans tout le document :</p>
+<div class="regle"><p>Une formule ou une règle appliquée par l'application, telle qu'elle est programmée.</p></div>
+<div class="exemple"><p>Un exemple chiffré pour vérifier que la règle est bien comprise. Les chiffres des exemples sont fictifs.</p></div>
+<div class="attention"><p>Un blocage, un effet irréversible ou une erreur fréquente.</p></div>
+<div class="astuce"><p>Une précision utile, une limite connue ou un réglage possible.</p></div>
+<p>Les noms des boutons sont écrits ainsi : <span class="bouton">Enregistrer</span>. Les noms entre parenthèses en majuscules, comme <code>JOURNEE_SAISIR</code>, sont les permissions techniques ; le chapitre « Accès et sécurité » dit quel rôle possède quelle permission.</p>
+
+<h2>Ce que le manuel ne couvre pas</h2>
+<ul>
+  <li>L'installation et l'exploitation technique des serveurs (voir le fichier README du dépôt et le dossier <code>deploy/recette</code>).</li>
+  <li>Les fonctions prévues mais pas encore livrées ; elles sont listées au chapitre « Limites connues et fonctions à venir ».</li>
+  <li>Les règles encore à confirmer avec le client sont signalées par la mention « à confirmer ».</li>
+</ul>
+
+<h2>Journal des mises à jour</h2>
+<p>Une ligne est ajoutée à chaque livraison qui change une fonctionnalité. La ligne la plus récente est en haut.</p>
+<table>
+  <thead><tr><th style="width:16%">Version</th><th style="width:20%">Date</th><th>Ce qui a changé dans le manuel</th></tr></thead>
+  <tbody>
+    <tr><td class="fort">1.2</td><td>11 novembre 2026</td><td>Réception d'une citerne : le fournisseur se choisit dans la liste des fournisseurs actifs déclarés par la logistique, au lieu d'être tapé (chapitre « La journée d'exploitation »).</td></tr>
+    <tr><td class="fort">1.1</td><td>11 novembre 2026</td><td>Nouvelle section « Lire, trier et filtrer les listes » (chapitre « Présentation générale ») : chiffres clés en tête des écrans, tri par colonne, recherche, filtres en puces et pastilles d'état, désormais communs à la trésorerie, aux stocks, à l'approvisionnement, aux clients, aux cartes, aux créances, au personnel, aux lubrifiants, aux prix, à la clôture mensuelle, à la page Réseau et à la vue de la Direction.</td></tr>
+    <tr><td class="fort">1.0</td><td>11 novembre 2026</td><td>Première édition. Décrit le lot 1 (sprints S0 à S6), le lot 2 livré (M4 stocks, M5 trésorerie, M6 clients, M8 approvisionnement, M9 personnel, M12 clôture mensuelle), la page Utilisateurs en cartes et le choix de la banque d'un versement dans la table des banques du Sénégal.</td></tr>
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<h1 class="chapitre">Présentation générale</h1>
+<p class="resume">Jaugeo remplace le classeur Excel de suivi des stations. Chaque station y saisit sa journée ; le siège contrôle, rapproche et pilote.</p>
+
+<h2>À quoi sert l'application</h2>
+<p>Jaugeo suit, pour chaque station du réseau et pour chaque jour :</p>
+<ul>
+  <li><strong>ce qui a été vendu</strong> : les litres sortis de chaque pistolet, valorisés au prix en vigueur ;</li>
+  <li><strong>ce qui reste en cuve</strong> : le stock mesuré à la jauge, comparé au stock calculé ;</li>
+  <li><strong>ce qui a été livré</strong> : les citernes reçues, contrôlées contre leur bon de livraison ;</li>
+  <li><strong>l'argent</strong> : ce que le gérant doit verser, ce qu'il a versé à la banque, ce qu'il a dépensé, ce que les clients en compte doivent.</li>
+</ul>
+<p>À partir de ces saisies quotidiennes, le siège obtient les synthèses mensuelles, la marge, les alertes et les contrôles qui se faisaient à la main dans le classeur.</p>
+
+<h2>Le réseau</h2>
+<p>Le réseau compte aujourd'hui 6 stations : une station routière et cinq stations de pêche qui vendent de l'essence pirogue. Chaque station possède ses cuves, ses pompes et ses pistolets ; 14 pistolets sont enregistrés au total. Les carburants suivis en cuve sont le gasoil, le super et l'essence pirogue.</p>
+
+<h2>Le principe : tout part de la journée</h2>
+<p>L'unité de travail est la <strong>journée d'exploitation</strong> d'une station, de 00 h 00 à 24 h 00. Le gérant y saisit tout ce qui s'est passé : index des pistolets, jaugeages, livraisons, bons à crédit, dépenses. À la clôture, Jaugeo fige les ventes, l'écart de stock et le montant à verser. Un superviseur valide ensuite la journée. Les autres écrans (stocks, trésorerie, clients, synthèses, clôture mensuelle) exploitent ces journées clôturées.</p>
+
+<h2>Vocabulaire</h2>
+<table>
+  <thead><tr><th style="width:27%">Terme</th><th>Signification dans Jaugeo</th></tr></thead>
+  <tbody>
+    <tr><td class="fort">Journée</td><td>La journée d'exploitation d'une station. Une seule par station et par date.</td></tr>
+    <tr><td class="fort">Index</td><td>Le compteur (totalisateur) d'un pistolet. La différence entre l'index d'arrivée et l'index de départ donne les litres sortis.</td></tr>
+    <tr><td class="fort">Remise en cuve</td><td>Litres passés par le pistolet mais reversés dans la cuve (essai, étalonnage). Ils sont retirés des ventes.</td></tr>
+    <tr><td class="fort">Jaugeage</td><td>Mesure de la hauteur de carburant dans une cuve. La hauteur est convertie en litres par le barème de la cuve.</td></tr>
+    <tr><td class="fort">Barème</td><td>Tableau du certificat de jaugeage d'une cuve : pour chaque hauteur, le volume correspondant.</td></tr>
+    <tr><td class="fort">BL</td><td>Bon de livraison d'une citerne.</td></tr>
+    <tr><td class="fort">Dépotage</td><td>Déchargement d'une citerne dans une cuve de la station.</td></tr>
+    <tr><td class="fort">Complément citerne</td><td>Somme due par le transporteur ou le fournisseur quand la quantité reçue est inférieure au BL au-delà de la tolérance.</td></tr>
+    <tr><td class="fort">Bon</td><td>Vente à crédit à un client en compte.</td></tr>
+    <tr><td class="fort">Montant à verser</td><td>Les espèces que le gérant doit déposer à la banque pour une journée.</td></tr>
+    <tr><td class="fort">BV</td><td>Bordereau de versement remis par la banque lors d'un dépôt d'espèces.</td></tr>
+    <tr><td class="fort">Arrêté de caisse</td><td>Comptage des espèces du gérant par un contrôleur. L'écart négatif devient un manquant.</td></tr>
+    <tr><td class="fort">Manquant</td><td>Somme que le gérant doit au réseau après un arrêté de caisse déficitaire.</td></tr>
+    <tr><td class="fort">Lettrage</td><td>Rapprochement d'un crédit du relevé bancaire avec le versement correspondant.</td></tr>
+    <tr><td class="fort">CMUP</td><td>Coût moyen unitaire pondéré : valeur moyenne d'un article en stock (lubrifiants, boutique).</td></tr>
+    <tr><td class="fort">Périmètre</td><td>Les stations qu'un utilisateur a le droit de voir : tout le réseau, ou une liste de stations.</td></tr>
+  </tbody>
+</table>
+
+<h2>Lire, trier et filtrer les listes</h2>
+<p>Tous les écrans qui affichent des listes (versements, cuves, tournées, factures, clients, cartes, employés, régularisations, etc.) se présentent de la même façon. Ce qui est appris sur un écran vaut pour tous les autres.</p>
+<h3>Les chiffres clés en tête d'écran</h3>
+<p>Au-dessus de la liste, des cartes résument ce que l'on vient chercher : par exemple l'encours total des clients, les cuves à réapprovisionner ou l'écart net des pompistes. Chaque carte porte un pictogramme, un libellé, le chiffre et, en dessous, une précision sur son mode de calcul.</p>
+<ul>
+  <li>Une carte <strong>rouge</strong> signale un problème à traiter (montant échu, manquant, cuve sous le seuil) ; <strong>orange</strong>, un point à surveiller ; <strong>verte</strong>, une situation normale.</li>
+  <li>Une carte <strong>entièrement colorée</strong> met en avant le chiffre principal de l'écran ou une anomalie qui demande une action.</li>
+</ul>
+<h3>Trier une liste</h3>
+<ol class="etapes">
+  <li>Cliquer sur le titre d'une colonne (par exemple <span class="bouton">Montant</span>) : la liste est rangée dans l'ordre croissant de cette colonne ; une petite flèche indique la colonne et le sens du tri.</li>
+  <li>Cliquer une seconde fois sur le même titre : l'ordre s'inverse.</li>
+  <li>Cliquer sur une autre colonne : le tri repart dans l'ordre croissant sur cette colonne.</li>
+</ol>
+<div class="regle"><p>Les textes sont rangés dans l'ordre alphabétique français, sans tenir compte des majuscules ni des accents, et les nombres contenus dans un texte sont compris comme des nombres : « BV 9 » vient avant « BV 10 ». Les cases vides (« — ») sont toujours placées en fin de liste, quel que soit le sens du tri.</p></div>
+<div class="astuce"><p>Chaque écran s'ouvre sur l'ordre le plus utile : les dates les plus récentes d'abord pour les historiques (versements, factures, tournées, régularisations, changements de prix), les cuves les plus urgentes d'abord pour l'autonomie, les stations à surveiller d'abord sur la page Réseau, les clients qui doivent le plus d'abord dans la balance âgée. Le tri choisi n'est pas mémorisé : il revient à cet ordre à la prochaine ouverture de l'écran.</p></div>
+<h3>Rechercher</h3>
+<p>Le champ marqué d'une loupe filtre la liste au fur et à mesure de la frappe. La recherche ne tient compte ni des majuscules ni des accents, et chaque mot tapé doit se retrouver quelque part dans la ligne, dans n'importe quel ordre.</p>
+<div class="exemple"><p>Dans la liste des tournées, taper <code>nia citerne</code> ne garde que les tournées qui passent par la station de Niandane <em>et</em> dont un champ (transporteur, dépôt, immatriculation) contient « citerne ». Taper <code>senegal</code> trouve aussi « Sénégal ».</p></div>
+<h3>Filtrer par état</h3>
+<p>Quand une liste mélange plusieurs états (versements à vérifier ou vérifiés, factures à régler ou échues, cartes actives ou bloquées, employés actifs ou sortis…), une rangée de puces permet de n'en afficher qu'un. Chaque puce indique, après son libellé, le nombre de lignes concernées, par exemple <span class="bouton">Échues · 3</span>. La puce <span class="bouton">Tous</span> (ou <span class="bouton">Toutes</span>) annule le filtre. Les puces n'apparaissent que si la liste contient au moins deux états différents.</p>
+<p>À droite de la barre de recherche, un résumé rappelle combien de lignes sont affichées et, quand c'est utile, leur total (par exemple « 12 versement(s) · 4 350 000 F »). Ce total porte sur les lignes <strong>affichées</strong>, filtres compris.</p>
+<div class="attention"><p>Un filtre ou une recherche masque des lignes, il ne les supprime pas. Si une liste paraît incomplète, vérifier d'abord le champ de recherche et la puce sélectionnée. Quand aucune ligne ne correspond, l'écran l'indique par un message plutôt que par un tableau vide.</p></div>
+<h3>Les pastilles d'état</h3>
+<p>Dans les lignes, l'état d'un élément (statut d'une facture, d'une tournée, d'une carte, niveau d'alerte d'une station, conformité d'un contrôle) est affiché dans une pastille de couleur : <strong>vert</strong> pour ce qui est terminé ou conforme, <strong>orange</strong> pour ce qui attend une action, <strong>rouge</strong> pour une anomalie ou un retard, <strong>bleu</strong> pour une information (programmé, en route), <strong>gris</strong> pour ce qui est annulé ou inactif.</p>
+<p>Sur un téléphone, les tableaux larges défilent horizontalement : faire glisser le tableau vers la gauche pour voir les colonnes de droite. Certaines colonnes secondaires sont masquées sur les petits écrans.</p>
+
+<h2>Sur quel appareil</h2>
+<p>Jaugeo s'utilise dans un navigateur, sur ordinateur, tablette ou téléphone. Tous les écrans s'adaptent à la largeur de l'appareil. En station, la tablette continue de fonctionner pendant une coupure de réseau pour les saisies essentielles de la journée (voir le chapitre « Saisie hors ligne »).</p>
+
+<!-- ============================================================ -->
+<h1 class="chapitre">Accès et sécurité</h1>
+<p class="resume">Chaque personne a son compte nominatif. Son rôle décide de ce qu'elle peut faire ; son périmètre décide des stations qu'elle voit.</p>
+
+<h2>Se connecter</h2>
+<ol class="etapes">
+  <li>Ouvrir l'adresse de l'application et saisir son <strong>identifiant</strong> et son <strong>mot de passe</strong>.</li>
+  <li>À la première connexion, ou après une réinitialisation, le mot de passe est <strong>provisoire</strong> : l'application impose de le changer avant de donner accès à quoi que ce soit.</li>
+  <li>Une fois connecté, le menu de gauche n'affiche que les écrans autorisés par le rôle.</li>
+</ol>
+<div class="attention"><p>Après <strong>5 mots de passe erronés</strong>, le compte est verrouillé pendant <strong>15 minutes</strong>. Pendant ce délai, même le bon mot de passe est refusé. L'administrateur peut réinitialiser le mot de passe.</p></div>
+<div class="astuce"><p>La session dure 15 minutes et se renouvelle toute seule tant que l'application est utilisée, pendant 8 heures au plus. Au-delà, il faut se reconnecter. Si l'on ouvre une adresse sans être connecté, l'application renvoie à la page de connexion puis revient à la page demandée.</p></div>
+
+<h2>Mon compte et déconnexion</h2>
+<p>Le rond aux initiales, en haut à droite, ouvre un menu avec <span class="bouton">Mon compte</span> et <span class="bouton">Se déconnecter</span>. La page « Mon compte » rappelle l'identité, le rôle et le périmètre de l'utilisateur, et permet de changer son mot de passe.</p>
+
+<h2>Le périmètre</h2>
+<p>Un compte a l'un des deux périmètres suivants :</p>
+<ul>
+  <li><strong>Réseau</strong> : il voit toutes les stations. C'est le cas des comptes du siège.</li>
+  <li><strong>Stations</strong> : il ne voit que les stations qui lui sont attribuées. Un gérant ne voit que sa station ; un superviseur ne voit que les siennes.</li>
+</ul>
+<p>Le périmètre s'applique partout : listes, tableaux de bord, journées, trésorerie. Ouvrir directement l'adresse d'une journée d'une autre station est refusé.</p>
+
+<h2>Les huit rôles</h2>
+<table>
+  <thead><tr><th style="width:26%">Rôle</th><th>Ce qu'il fait dans Jaugeo</th></tr></thead>
+  <tbody>
+    <tr><td class="fort">Administrateur</td><td>Crée les comptes, tient le référentiel (stations, cuves, pompes, produits, banques), consulte le journal d'audit, gère le personnel.</td></tr>
+    <tr><td class="fort">Direction générale</td><td>Fixe les prix, accorde ou refuse les bons hors règle, valide les dépenses au-delà du plafond, peut valider les journées, lit la marge et clôture les mois.</td></tr>
+    <tr><td class="fort">Contrôleur de gestion</td><td>Analyse les écarts, commente les synthèses, clôture les mois, saisit le budget, arrête les caisses.</td></tr>
+    <tr><td class="fort">Comptable / trésorier</td><td>Vérifie les versements, importe et rapproche les relevés, gère les clients, la facturation, les relances et les cartes, arrête les caisses.</td></tr>
+    <tr><td class="fort">Responsable approvisionnement</td><td>Commande les tournées de citernes, gère fournisseurs et transporteurs, contrôle les factures fournisseur, règle les compléments citerne, annonce les entrées d'articles.</td></tr>
+    <tr><td class="fort">Superviseur réseau</td><td>Valide ou renvoie les journées de ses stations, décide des dépenses au-delà du plafond, arrête les caisses, gère le personnel.</td></tr>
+    <tr><td class="fort">Gérant de station</td><td>Saisit et clôture la journée, enregistre les versements bancaires, gère le personnel et le planning de sa station.</td></tr>
+    <tr><td class="fort">Pompiste / caissier</td><td>Peut saisir dans la journée de sa station (index, feuilles de caisse) ; ne peut pas clôturer.</td></tr>
+  </tbody>
+</table>
+
+<h2>Qui possède quelle permission</h2>
+<p>Le tableau ci-dessous donne les permissions de chaque rôle telles qu'elles sont installées. Abréviations des colonnes : Adm. administrateur, Dir. Direction, CdG contrôleur de gestion, Cpt. comptable, Log. logistique, Sup. superviseur, Gér. gérant, Pomp. pompiste.</p>
+<table class="etroit">
+  <thead><tr><th>Permission</th><th>Ce qu'elle autorise</th><th>Adm.</th><th>Dir.</th><th>CdG</th><th>Cpt.</th><th>Log.</th><th>Sup.</th><th>Gér.</th><th>Pomp.</th></tr></thead>
+  <tbody>
+    <tr><td class="fort">REFERENTIEL_CONSULTER</td><td>Consulter stations, journées, stocks, trésorerie, clients, synthèses, prix (dans son périmètre)</td><td class="oui">●</td><td class="oui">●</td><td class="oui">●</td><td class="oui">●</td><td class="oui">●</td><td class="oui">●</td><td class="oui">●</td><td class="oui">●</td></tr>
+    <tr><td class="fort">REFERENTIEL_GERER</td><td>Créer et modifier stations, cuves, pompes, pistolets, produits, barèmes, banques</td><td class="oui">●</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+    <tr><td class="fort">UTILISATEUR_GERER</td><td>Créer les comptes, réinitialiser les mots de passe</td><td class="oui">●</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+    <tr><td class="fort">AUDIT_CONSULTER</td><td>Lire le journal d'audit</td><td class="oui">●</td><td class="oui">●</td><td class="oui">●</td><td></td><td></td><td></td><td></td><td></td></tr>
+    <tr><td class="fort">TABLEAU_BORD_RESEAU</td><td>Page Réseau et page Approvisionnement</td><td class="oui">●</td><td class="oui">●</td><td class="oui">●</td><td class="oui">●</td><td class="oui">●</td><td class="oui">●</td><td></td><td></td></tr>
+    <tr><td class="fort">PRIX_MODIFIER</td><td>Programmer ou annuler un changement de prix</td><td></td><td class="oui">●</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+    <tr><td class="fort">JOURNEE_SAISIR</td><td>Saisir dans une journée ouverte</td><td></td><td></td><td></td><td></td><td></td><td></td><td class="oui">●</td><td class="oui">●</td></tr>
+    <tr><td class="fort">JOURNEE_CLOTURER</td><td>Clôturer une journée</td><td></td><td></td><td></td><td></td><td></td><td></td><td class="oui">●</td><td></td></tr>
+    <tr><td class="fort">JOURNEE_VALIDER</td><td>Valider ou renvoyer une journée clôturée</td><td></td><td class="oui">●</td><td></td><td></td><td></td><td class="oui">●</td><td></td><td></td></tr>
+    <tr><td class="fort">RECEPTION_VALIDER</td><td>Tournées, fournisseurs, transporteurs, compléments citerne, entrées d'articles</td><td></td><td></td><td></td><td></td><td class="oui">●</td><td></td><td></td><td></td></tr>
+    <tr><td class="fort">VERSEMENT_SAISIR</td><td>Enregistrer un versement bancaire</td><td></td><td></td><td></td><td></td><td></td><td></td><td class="oui">●</td><td></td></tr>
+    <tr><td class="fort">VERSEMENT_VALIDER</td><td>Vérifier ou rejeter un versement, rapprocher les relevés, gérer les manquants</td><td></td><td></td><td></td><td class="oui">●</td><td></td><td></td><td></td><td></td></tr>
+    <tr><td class="fort">DEPENSE_VALIDER</td><td>Autoriser ou refuser une dépense au-delà du plafond</td><td></td><td class="oui">●</td><td></td><td></td><td></td><td class="oui">●</td><td></td><td></td></tr>
+    <tr><td class="fort">CAISSE_CONTROLER</td><td>Arrêter une caisse, fixer le plafond d'espèces</td><td></td><td></td><td class="oui">●</td><td class="oui">●</td><td></td><td class="oui">●</td><td></td><td></td></tr>
+    <tr><td class="fort">CLIENT_GERER</td><td>Clients, contrats, règlements, factures, relances, cartes</td><td></td><td></td><td></td><td class="oui">●</td><td></td><td></td><td></td><td></td></tr>
+    <tr><td class="fort">CREDIT_DEROGER</td><td>Accorder ou refuser un bon en attente</td><td></td><td class="oui">●</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+    <tr><td class="fort">CLOTURE_MENSUELLE</td><td>Compte d'exploitation, clôture du mois, régularisations, budget</td><td></td><td class="oui">●</td><td class="oui">●</td><td></td><td></td><td></td><td></td><td></td></tr>
+    <tr><td class="fort">PERSONNEL_GERER</td><td>Employés, affectations, planning</td><td class="oui">●</td><td></td><td></td><td></td><td></td><td class="oui">●</td><td class="oui">●</td><td></td></tr>
+  </tbody>
+</table>
+<div class="astuce"><p>Le menu se compose tout seul : une entrée n'apparaît que si le rôle possède la permission nécessaire. Les boutons d'action suivent la même règle : un comptable voit la page Prix mais pas le bouton de changement de prix.</p></div>
+
+<h2>Traçabilité</h2>
+<p>Toute création, modification ou suppression est enregistrée dans le journal d'audit avec son auteur, sa date et les valeurs avant et après (voir le chapitre « Journal d'audit »). Toute suppression demande une confirmation à l'écran avant d'être exécutée.</p>
+
+<!-- ============================================================ -->
+<h1 class="chapitre">Tableau de bord et page Réseau</h1>
+<p class="resume">La première page après la connexion résume la situation. Son contenu dépend du rôle.</p>
+
+<h2>Le tableau de bord général</h2>
+<div class="ou"><strong>Où :</strong> menu Pilotage → Tableau de bord. C'est la page d'accueil de tous les rôles sauf la Direction.</div>
+<p>Il salue l'utilisateur, rappelle son rôle et son périmètre, puis présente, pour les stations de ce périmètre :</p>
+<ul>
+  <li><strong>La trésorerie</strong> : le solde non versé de l'ensemble des stations, et des puces de couleur : stations en retard de versement, versements à vérifier, stations au-delà du plafond d'espèces, manquants ouverts avec leur montant. Un clic sur une puce ouvre l'écran correspondant. En dessous, un tableau donne pour chaque station son solde non versé, la date de son dernier versement et celle de son dernier arrêté de caisse, avec l'écart constaté.</li>
+  <li><strong>Les stocks et écarts</strong> : des puces signalent les écarts hors tolérance, les cuves à réapprovisionner, les cuves avec de l'eau et les compléments citerne à régler. Le tableau donne pour chaque cuve son dernier jaugeage, son stock, son autonomie en jours et son écart du mois ; s'il y a des cuves en alerte, seules celles-ci sont listées.</li>
+  <li><strong>Trois indicateurs</strong> : stations actives, régions couvertes, carburants commercialisés.</li>
+  <li><strong>Les prix en vigueur</strong> par produit. Quand le prix n'est pas le même partout, la fourchette est affichée. Un prix manquant dans une station est signalé, ainsi que la date du prochain changement programmé. Un clic ouvre la page Prix.</li>
+  <li><strong>Vos stations</strong> : une carte par station, qui ouvre sa fiche.</li>
+</ul>
+<p>Les stations sont désignées par leur nom, précédé d'une icône de pompe.</p>
+
+<h2>La vue de la Direction</h2>
+<div class="ou"><strong>Où :</strong> page d'accueil des comptes de rôle Direction générale.</div>
+<p>La Direction voit une page de synthèse, pour une date choisie :</p>
+<ul>
+  <li><strong>Quatre tuiles</strong> : les ventes (avec la marge sur carburants et son taux), les litres vendus, le montant versé en banque et l'argent dû au réseau.</li>
+  <li><strong>Argent dû au réseau</strong> : notamment la caisse non versée des gérants, les manquants des gérants et les compléments citerne à recouvrer.</li>
+  <li><strong>Risques</strong> : la valeur des écarts de stock du mois, les cuves à réapprovisionner, l'eau en fond de cuve.</li>
+  <li><strong>Décisions en attente</strong> : journées clôturées à valider, dépenses au-delà du plafond, versements à vérifier par la comptabilité, changements de prix programmés.</li>
+  <li><strong>Stations</strong> : l'activité et la caisse de chaque station, avec sa caisse non versée et ses jours non clôturés.</li>
+  <li><strong>Ventes par jour</strong> : un graphique des ventes quotidiennes par produit, et le tableau des ventes par produit.</li>
+</ul>
+
+<h2>La page Réseau</h2>
+<div class="ou"><strong>Où :</strong> menu Pilotage → Réseau. <strong>Qui :</strong> administrateur, Direction, contrôle de gestion, comptabilité, logistique, superviseur (permission TABLEAU_BORD_RESEAU). Le superviseur n'y voit que ses stations.</div>
+<p>Chaque station reçoit un <strong>niveau</strong> : <span class="etat vert">Normal</span>, <span class="etat orange">Alerte</span> ou <span class="etat rouge">Enquête</span>, avec les motifs qui l'expliquent : écart de stock hors tolérance, journées non clôturées, journées à valider, manquant de caisse.</p>
+<p>Pour chaque station, la page affiche les litres vendus la veille et sur le mois, les ventes, les versements, les écarts de stock en valeur et le solde de caisse du gérant. Une carte géographique situe les stations, colorées selon leur niveau.</p>
+<div class="astuce"><p>La position des stations sur la carte est pour l'instant celle de leur localité. Elle sera précise quand les coordonnées exactes de chaque station seront renseignées sur leur fiche.</p></div>
+
+<!-- ============================================================ -->
+<h1 class="chapitre">Référentiel : stations, produits et prix</h1>
+<p class="resume">Le référentiel décrit le réseau : les stations et leurs équipements, les produits vendus et leurs prix. Tout le reste de l'application s'appuie dessus.</p>
+
+<h2>Stations</h2>
+<div class="ou"><strong>Où :</strong> menu Référentiel → Stations. <strong>Consulter :</strong> tous les rôles. <strong>Modifier :</strong> administrateur (REFERENTIEL_GERER).</div>
+<p>La liste donne les stations du périmètre. La fiche d'une station porte son code, son nom, son type, sa région, sa localité, ses coordonnées, son mode d'exploitation, sa date d'ouverture et son état actif ou non. Elle se découpe en quatre sections.</p>
+
+<h3>Cuves</h3>
+<p>Chaque cuve a un code, un produit, une capacité en litres et un <strong>creux de sécurité</strong> (les litres du fond de cuve qu'on ne peut pas vendre). On y règle aussi :</p>
+<ul>
+  <li>le <strong>seuil d'eau</strong> en millimètres, au-delà duquel une alerte demande de purger la cuve (20 mm par défaut) ;</li>
+  <li>le <strong>seuil de réapprovisionnement</strong> en litres, en dessous duquel la cuve est signalée à réapprovisionner.</li>
+</ul>
+
+<h3>Barème de jaugeage</h3>
+<p>Le barème convertit une hauteur mesurée à la jauge en litres. Pour l'enregistrer :</p>
+<ol class="etapes">
+  <li>Ouvrir le barème de la cuve et indiquer le numéro et la date du certificat.</li>
+  <li>Copier le tableau du certificat dans Excel et le <strong>coller</strong> dans la zone prévue, en centimètres ou en millimètres.</li>
+  <li>Jaugeo contrôle le tableau avant de l'enregistrer : les volumes doivent être croissants, sans hauteur en double, et cohérents avec la capacité de la cuve.</li>
+</ol>
+<div class="regle"><p>Entre deux lignes du barème, le volume est calculé par <strong>interpolation</strong> : une hauteur à mi-chemin entre deux lignes donne un volume à mi-chemin entre les deux volumes.</p></div>
+<div class="attention"><p>Une cuve sans barème ne peut pas être jaugée en hauteur, et sa journée ne peut pas être clôturée. Une hauteur au-delà de la dernière ligne du barème est refusée.</p></div>
+
+<h3>Pompes et pistolets</h3>
+<p>Une pompe porte un ou plusieurs pistolets. Chaque pistolet est relié à une cuve (donc à un produit) et possède un <strong>index de mise en service</strong>, qui sert d'index de départ à sa première journée.</p>
+
+<h3>Historique des équipements</h3>
+<p>On y enregistre les événements de la vie des équipements : remplacement ou remise à zéro d'un totalisateur, étalonnage, pose de scellés, nettoyage, maintenance. L'historique ne se modifie pas : on ajoute un nouvel événement.</p>
+<ul>
+  <li>Un <strong>remplacement</strong> ou une <strong>remise à zéro de totalisateur</strong> se saisit avec l'index avant et l'index après. La journée suivante part du nouvel index.</li>
+  <li>Une alerte signale une vérification proche ou dépassée.</li>
+</ul>
+<div class="attention"><p>Un changement de compteur ne peut pas être daté dans une journée déjà clôturée.</p></div>
+
+<h3>Prix de la station</h3>
+<p>La dernière section rappelle les prix en vigueur dans la station, produit par produit.</p>
+
+<h2>Produits</h2>
+<div class="ou"><strong>Où :</strong> menu Référentiel → Produits. <strong>Modifier :</strong> administrateur.</div>
+<p>Deux familles de produits existent :</p>
+<ul>
+  <li>les <strong>carburants suivis en cuve</strong> : gasoil, super, essence pirogue. Ils se vendent au pistolet et se contrôlent à la jauge ;</li>
+  <li>les <strong>articles sans suivi en cuve</strong> : lubrifiants, articles de boutique, gaz. Ils se vendent à l'unité ou au litre et leur stock est tenu au coût moyen (voir « Lubrifiants et boutique »).</li>
+</ul>
+
+<h2>Prix de vente</h2>
+<div class="ou"><strong>Où :</strong> menu Référentiel → Prix. <strong>Consulter :</strong> tous les rôles. <strong>Modifier :</strong> Direction uniquement (PRIX_MODIFIER).</div>
+<p>La page affiche une grille : une ligne par station, une colonne par produit, avec le prix en vigueur et, s'il y en a un, le prochain changement programmé. L'historique des changements est consultable.</p>
+<h3>Programmer un changement de prix</h3>
+<ol class="etapes">
+  <li>Cliquer sur le bouton de changement de prix.</li>
+  <li>Choisir la <strong>date et l'heure d'effet</strong> (heure de Dakar), saisir le <strong>motif</strong> et la <strong>référence</strong> (arrêté, note de service).</li>
+  <li>Choisir les stations concernées, ou tout le réseau.</li>
+  <li>Saisir le nouveau prix de chaque produit concerné, puis enregistrer.</li>
+</ol>
+<ul>
+  <li>Deux prix ne peuvent jamais s'appliquer en même temps à un produit dans une station : le nouveau prix met fin au précédent à l'heure dite.</li>
+  <li>Une variation de <strong>plus de 20 %</strong> doit être confirmée expressément, pour éviter une faute de frappe.</li>
+  <li>Un changement programmé peut être <strong>annulé</strong> tant qu'il n'est pas entré en vigueur.</li>
+</ul>
+<div class="attention"><p>Un changement de prix ne peut pas prendre effet pendant une journée déjà clôturée : les ventes de cette journée sont figées.</p></div>
+<div class="astuce"><p>Si un prix change au milieu d'une journée, Jaugeo demande au gérant l'index de chaque pistolet au moment du changement et calcule la vente en deux tranches (voir « La journée d'exploitation »). Le prix de vente des lubrifiants et articles de boutique se fixe sur la même page.</p></div>
+
+<!-- ============================================================ -->
+<h1 class="chapitre">La journée d'exploitation</h1>
+<p class="resume">C'est l'écran central de la station. Le gérant y saisit tout ce qui s'est passé dans la journée ; Jaugeo calcule les ventes, l'écart de stock et le montant à verser.</p>
+<div class="ou"><strong>Où :</strong> menu Exploitation → Journées, puis la journée voulue. <strong>Saisir :</strong> gérant, pompiste (JOURNEE_SAISIR). <strong>Clôturer :</strong> gérant (JOURNEE_CLOTURER). <strong>Valider ou renvoyer :</strong> superviseur, Direction (JOURNEE_VALIDER).</div>
+
+<h2>Le cycle d'une journée</h2>
+<table>
+  <thead><tr><th style="width:20%">État</th><th>Ce que cela signifie</th><th style="width:30%">Qui peut agir</th></tr></thead>
+  <tbody>
+    <tr><td><span class="etat gris">En saisie</span></td><td>La journée est ouverte. Tout est modifiable.</td><td>Gérant, pompiste</td></tr>
+    <tr><td><span class="etat bleu">Clôturée</span></td><td>Les ventes, l'écart de stock et le montant à verser sont figés. Plus aucune saisie.</td><td>Superviseur : valider ou renvoyer</td></tr>
+    <tr><td><span class="etat vert">Validée</span></td><td>Le superviseur a contrôlé la journée. Elle compte dans la clôture mensuelle.</td><td>—</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li>Il y a <strong>une seule journée par station et par date</strong>.</li>
+  <li>La journée suivante ne s'ouvre <strong>qu'après la clôture de la précédente</strong>, et jamais à l'avance (pas de journée datée de demain).</li>
+  <li>Les journées se suivent sans trou : un jour sans activité se clôture à zéro.</li>
+</ul>
+
+<h2>Ouvrir la journée</h2>
+<p>Depuis la liste des journées de la station, le bouton d'ouverture crée la journée qui suit la dernière clôturée. L'<strong>index de départ</strong> de chaque pistolet est repris automatiquement de l'index d'arrivée de la veille et <strong>ne se modifie pas</strong>. De même, le stock d'ouverture de chaque cuve reprend le jaugeage de fermeture de la veille.</p>
+
+<h2>Relever les index et calculer les ventes</h2>
+<p>La fiche présente les pistolets regroupés par pompe, avec une icône de pompe. Pour chaque pistolet, le gérant saisit l'<strong>index d'arrivée</strong> (lu sur le totalisateur en fin de journée) et, s'il y en a eu, la <strong>remise en cuve</strong>. La vente s'affiche en direct pendant la saisie.</p>
+<div class="regle">
+  <span class="formule">litres vendus = (index d'arrivée − index de départ) − remise en cuve</span>
+  <span class="formule">vente = litres vendus × prix en vigueur, arrondie au franc</span>
+</div>
+<div class="exemple"><p>Pistolet gasoil : départ 125 400, arrivée 126 150, remise en cuve 20 L. Litres vendus = 750 − 20 = 730 L. À 755 F le litre, la vente est de 551 150 F.</p></div>
+<h3>Quand le prix change en cours de journée</h3>
+<p>Si un changement de prix prend effet pendant la journée, Jaugeo demande l'<strong>index intermédiaire</strong> de chaque pistolet du produit concerné, relevé à l'heure du changement. La vente est alors calculée en deux tranches : les litres d'avant au prix d'avant, les litres d'après au nouveau prix.</p>
+
+<h2>Jauger les cuves</h2>
+<p>Pour chaque cuve, marquée d'une icône de cuve, le gérant saisit le jaugeage de <strong>fermeture</strong> : la hauteur en millimètres, que le barème convertit en litres, ou directement le volume. Le jaugeage d'<strong>ouverture</strong> n'est demandé que pour la toute première journée d'une cuve ; ensuite il reprend la fermeture de la veille.</p>
+<p>Le champ <strong>Eau (mm)</strong> reçoit la hauteur d'eau relevée à la pâte à eau :</p>
+<ul>
+  <li>le volume d'eau est lu sur le barème et <strong>déduit</strong> du volume jaugé quand le jaugeage est saisi en hauteur ; un volume saisi directement est considéré comme déjà net ;</li>
+  <li>la hauteur d'eau doit rester inférieure à la hauteur jaugée ;</li>
+  <li>au-delà du seuil de la cuve (20 mm par défaut), une alerte demande de purger la cuve et de prévenir la logistique. Elle n'empêche pas la clôture.</li>
+</ul>
+<div class="regle">
+  <span class="formule">stock théorique = stock mesuré la veille + réceptions du jour − litres sortis des pistolets</span>
+  <span class="formule">écart de stock = stock mesuré − stock théorique</span>
+  <p>L'écart est valorisé au prix du jour. Négatif, c'est une perte ; positif, un excédent.</p>
+</div>
+<p>Jaugeo juge l'écart <strong>cumulé du mois</strong>, rapporté aux litres vendus :</p>
+<table>
+  <thead><tr><th>Écart cumulé du mois</th><th>Niveau</th><th>Conséquence</th></tr></thead>
+  <tbody>
+    <tr><td>Dans la tolérance : 0,5 % pour le gasoil, 0,6 % pour le super et l'essence pirogue</td><td><span class="etat vert">Normal</span></td><td>Aucune</td></tr>
+    <tr><td>Entre la tolérance et 2 %</td><td><span class="etat orange">Alerte</span></td><td>Une observation est exigée pour clôturer</td></tr>
+    <tr><td>Au-delà de 2 %</td><td><span class="etat rouge">Enquête</span></td><td>Une observation est exigée ; la station passe au niveau Enquête sur la page Réseau</td></tr>
+  </tbody>
+</table>
+
+<h2>Réceptionner une citerne</h2>
+<p>Quand une citerne est livrée dans la journée, le gérant ajoute une <strong>réception</strong> sur la cuve concernée.</p>
+<ol class="etapes">
+  <li>Si la livraison vient d'une tournée commandée par la logistique, la choisir dans le champ <strong>Livraison attendue</strong> : le numéro de BL, le fournisseur, le transporteur, le chauffeur, l'immatriculation, les scellés et les quantités du BL sont pré-remplis. Sinon, les saisir à la main (réception hors tournée).</li>
+  <li>Le <strong>fournisseur / dépôt</strong> se choisit dans la liste des fournisseurs actifs déclarés par la logistique (Approvisionnement, onglet Fournisseurs) ; il ne se tape pas. Tant que la logistique n'a déclaré aucun fournisseur, le champ reste une saisie libre.</li>
+  <li>Saisir ce qui est mesuré sur place : la <strong>jauge avant</strong> et la <strong>jauge après</strong> dépotage, la <strong>quantité reçue</strong>, la <strong>température</strong> du produit et la <strong>densité à 15 °C</strong> portée sur le BL.</li>
+  <li>Indiquer l'état des <strong>scellés à l'arrivée</strong> : intacts, rompus ou non vérifiés.</li>
+  <li>Si le BL indique aussi sa <strong>quantité à 15 °C</strong>, la saisir.</li>
+  <li>Enregistrer. Un aperçu en direct montre le facteur de correction, la quantité reçue à 15 °C et l'écart avec le BL.</li>
+</ol>
+<ul>
+  <li>Les litres reçus entrent dans le stock de la cuve. Le stock reçoit toujours les <strong>litres réellement mesurés</strong> ; la correction à 15 °C sert seulement à juger la livraison.</li>
+  <li>Un numéro de BL ne peut être saisi qu'une fois pour un même fournisseur. Choisir le fournisseur dans la liste rend ce contrôle fiable : « SAR » et « S.A.R » ne peuvent plus passer pour deux fournisseurs différents.</li>
+  <li>Une réception déjà enregistrée peut être corrigée tant que la journée est en saisie.</li>
+</ul>
+<h3>Correction à 15 °C</h3>
+<p>Le volume d'un carburant varie avec la température. Pour comparer équitablement ce qui a été chargé au dépôt et ce qui est reçu en station, on ramène les deux quantités à 15 °C.</p>
+<div class="regle">
+  <p>Le facteur de correction est calculé selon la norme ASTM D1250, table 54B, à 5 décimales, à partir de la densité à 15 °C et de la température mesurée. La densité doit être comprise entre 0,6105 et 1,0750 ; sinon la réception est refusée.</p>
+  <p>Si le BL donne sa quantité à 15 °C, l'écart de livraison se juge à 15 °C. Sinon, il se juge à température ambiante.</p>
+</div>
+<h3>Manquant et complément citerne</h3>
+<div class="regle">
+  <span class="formule">manquant = quantité du BL − quantité reçue</span>
+  <p>Si le manquant dépasse la <strong>tolérance de transport</strong> (0,3 % du BL par défaut, ou la tolérance du contrat du transporteur), <strong>tout le manquant</strong> est dû et donne un <strong>complément citerne</strong>, valorisé au prix du jour et figé à la clôture.</p>
+</div>
+<p>Le complément est imputé automatiquement :</p>
+<ul>
+  <li><strong>scellés intacts</strong> à l'arrivée : le manquant vient du chargement, il est imputé au <strong>fournisseur</strong> ;</li>
+  <li><strong>scellés rompus ou non vérifiés</strong> : il est imputé au <strong>transporteur</strong>.</li>
+</ul>
+<p>Le gérant peut forcer l'une ou l'autre imputation. La logistique enregistre ensuite le règlement du complément (voir « Stocks »).</p>
+<div class="exemple"><p>BL de 10 000 L, 9 950 L reçus : manquant de 50 L, soit 0,5 %, supérieur à 0,3 %. Les 50 L sont dus. À 755 F le litre, le complément citerne vaut 37 750 F.</p></div>
+
+<h2>Ventes à crédit : les bons</h2>
+<p>La section des ventes à crédit reçoit les <strong>bons</strong> des clients en compte servis dans la journée.</p>
+<ol class="etapes">
+  <li>Choisir le <strong>client</strong>, le <strong>produit</strong>, saisir le <strong>numéro du bon</strong>, les <strong>litres</strong> et, si le client a déclaré ses engins, l'<strong>immatriculation</strong> du véhicule ou de la pirogue.</li>
+  <li>Jaugeo calcule le montant et affiche, avant l'envoi, toute alerte de blocage.</li>
+  <li>Enregistrer.</li>
+</ol>
+<div class="regle">
+  <span class="formule">montant dû par le client = litres × (prix à l'ouverture de la journée − remise contractuelle du client)</span>
+  <span class="formule">montant déduit de la recette = litres × prix à l'ouverture de la journée</span>
+  <p>La remise accordée au client ne pèse donc pas sur le gérant.</p>
+</div>
+<div class="exemple"><p>100 L de gasoil à 755 F pour un client qui a 20 F de remise au litre. Le client doit 73 500 F. La recette de la station déduit 75 500 F. Les 2 000 F de remise apparaissent dans la synthèse mensuelle.</p></div>
+<ul>
+  <li>Le numéro de bon est unique par station.</li>
+  <li>Chaque client est recouvré soit par la <strong>Direction</strong>, soit par le <strong>gérant</strong> ; les deux types de bons sont déduits du montant à verser.</li>
+  <li>Un client inactif ne peut plus recevoir de bon.</li>
+</ul>
+<h3>Bon en attente de dérogation</h3>
+<p>Quatre contrôles s'appliquent à la saisie d'un bon :</p>
+<table>
+  <thead><tr><th style="width:18%">Contrôle</th><th>Ce qui est vérifié</th></tr></thead>
+  <tbody>
+    <tr><td class="fort">Plafond</td><td>L'encours du client, ce bon compris, ne dépasse pas son plafond d'encours.</td></tr>
+    <tr><td class="fort">Échéance</td><td>Le client n'a pas de facture ou de reprise de créance échue impayée. Ne s'applique que si un délai de paiement est fixé sur sa fiche.</td></tr>
+    <tr><td class="fort">Engin</td><td>Si le client a déclaré ses véhicules ou pirogues, l'immatriculation du bon en fait partie.</td></tr>
+    <tr><td class="fort">Contrat</td><td>La date du bon tombe dans la période de validité du contrat, quand elle est renseignée.</td></tr>
+  </tbody>
+</table>
+<p>Un bon qui ne respecte pas l'une de ces règles n'est pas refusé : il est enregistré <span class="etat orange">En attente</span>, avec le motif du blocage. La Direction l'<span class="etat vert">accorde</span> ou le <span class="etat rouge">refuse</span>, avec un motif obligatoire.</p>
+<div class="attention"><p>La journée ne peut pas être clôturée tant qu'un bon est en attente. Un bon <strong>refusé</strong> reste déduit de la recette, mais passe à la charge du gérant, qui se fait payer par le client.</p></div>
+<h3>Créances recouvrées à la station</h3>
+<p>Quand un client vient payer en espèces à la station, le gérant enregistre le <strong>recouvrement</strong> dans la même section. Les espèces encaissées s'ajoutent au montant à verser.</p>
+
+<h2>Pleins payés par carte carburant prépayée</h2>
+<p>Un client porteur d'une carte Jaugeo paie son plein avec le solde de sa carte.</p>
+<ol class="etapes">
+  <li>Scanner le <strong>QR code</strong> de la carte avec l'appareil photo de la tablette ou du téléphone, ou taper son numéro. Jaugeo affiche le porteur, le client et le solde.</li>
+  <li>Choisir le produit et saisir les litres.</li>
+  <li>Enregistrer : la carte est débitée au prix du jour, diminué de la remise contractuelle du client.</li>
+</ol>
+<ul>
+  <li>La carte est utilisable dans toutes les stations.</li>
+  <li>Le plein est refusé si la carte est bloquée ou annulée, si le client est inactif ou si le solde est insuffisant.</li>
+  <li>La valeur à la pompe du plein est déduite des espèces à verser. Retirer le plein d'une journée en saisie recrédite la carte.</li>
+</ul>
+<div class="astuce"><p>La lecture du QR code par l'appareil photo fonctionne sur Chrome et Edge pour Android. Ailleurs, on tape le numéro, ou une douchette le saisit comme un clavier.</p></div>
+
+<h2>Lubrifiants et boutique</h2>
+<p>La section « Lubrifiants et boutique » reçoit les quantités vendues de chaque article dans la journée. Elle a son propre bouton d'enregistrement.</p>
+<ul>
+  <li>Le prix appliqué est le prix de vente en vigueur. Un article sans prix ne peut pas être vendu.</li>
+  <li>La quantité vendue ne peut pas dépasser le stock disponible de la station.</li>
+  <li>Un article vendu à l'unité se saisit sans décimale.</li>
+  <li>Le montant de ces ventes s'ajoute au montant à verser.</li>
+</ul>
+
+<h2>Encaissements Wave, Orange Money et carte bancaire</h2>
+<p>Le gérant saisit le <strong>total du jour</strong> encaissé par Wave, par Orange Money et par carte bancaire. Ces sommes n'étant pas passées par sa caisse, elles sont <strong>déduites des espèces à verser</strong>.</p>
+<div class="attention"><p>La clôture est refusée si les encaissements électroniques dépassent les ventes de la journée.</p></div>
+
+<h2>Dépenses de la station</h2>
+<p>Le gérant enregistre les dépenses payées sur la caisse : nature, libellé, bénéficiaire, montant, et la photo du justificatif.</p>
+<table>
+  <thead><tr><th>Nature de dépense</th><th>Plafond par dépense</th></tr></thead>
+  <tbody>
+    <tr><td>Électricité, eau</td><td>Sans plafond</td></tr>
+    <tr><td>Gardiennage, entretien</td><td>50 000 F</td></tr>
+    <tr><td>Fournitures</td><td>25 000 F</td></tr>
+    <tr><td>Transport, divers</td><td>10 000 F</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li>Sous le plafond, la dépense est <span class="etat vert">autorisée</span> d'office et déduite du montant à verser.</li>
+  <li>Au-delà du plafond, elle est <span class="etat orange">à valider</span> : un superviseur ou la Direction l'autorise ou la refuse. Le refus exige un motif.</li>
+  <li>Une dépense refusée n'est pas déduite : elle reste à la charge du gérant.</li>
+  <li>Le justificatif est une photo ou un PDF (JPEG, PNG, WebP ou PDF, 5 Mo au plus). Jaugeo vérifie le type réel du fichier.</li>
+</ul>
+<div class="attention"><p>La journée ne peut pas être clôturée tant qu'une dépense attend une décision. Par défaut, un justificatif manquant bloque aussi la clôture (réglage <code>jaugeo.depenses.justificatif-obligatoire</code>). Les plafonds ci-dessus sont à confirmer avec le client.</p></div>
+
+<h2>Feuilles de caisse par pompiste</h2>
+<p>Cette section n'apparaît que dans les stations où les feuilles de caisse sont activées. La journée s'y découpe en trois postes : matin, soir, nuit. Elle est décrite en détail au chapitre « Personnel ».</p>
+
+<h2>La recette : le montant à verser</h2>
+<p>La section « Recette » récapitule l'argent de la journée, ligne par ligne, et donne le montant que le gérant doit déposer à la banque.</p>
+<div class="regle">
+  <span class="formule">montant à verser = ventes de carburant</span>
+  <span class="formule">&nbsp;&nbsp;+ ventes de lubrifiants et boutique</span>
+  <span class="formule">&nbsp;&nbsp;− bons (Direction et gérant)</span>
+  <span class="formule">&nbsp;&nbsp;− dépenses autorisées</span>
+  <span class="formule">&nbsp;&nbsp;− compléments citerne</span>
+  <span class="formule">&nbsp;&nbsp;− encaissements Wave, Orange Money et carte bancaire</span>
+  <span class="formule">&nbsp;&nbsp;− pleins payés par carte carburant prépayée</span>
+  <span class="formule">&nbsp;&nbsp;+ créances recouvrées en espèces à la station</span>
+</div>
+<div class="exemple"><p>Ventes de carburant 900 000 F, boutique 35 000 F, bons 120 000 F, dépenses 15 000 F, Wave et Orange Money 60 000 F, créance recouvrée 40 000 F. Montant à verser = 900 000 + 35 000 − 120 000 − 15 000 − 60 000 + 40 000 = 780 000 F.</p></div>
+<p>La section rappelle aussi le <strong>solde de caisse du gérant</strong> : ce qu'il détenait à l'ouverture, plus le montant à verser, moins les versements du jour. Une alerte s'affiche si ce solde dépasse le plafond d'espèces de la station.</p>
+<div class="astuce"><p>Les compléments citerne sont déduits du montant à verser, comme dans le classeur Excel. Ce point est à confirmer avec le client.</p></div>
+
+<h2>Clôturer la journée</h2>
+<p>Le bouton <span class="bouton">Clôturer</span> affiche d'abord un récapitulatif. La clôture est refusée, avec le motif affiché, dans les cas suivants :</p>
+<table>
+  <thead><tr><th style="width:24%">Sujet</th><th>Ce qui bloque la clôture</th></tr></thead>
+  <tbody>
+    <tr><td class="fort">Index</td><td>Un index d'arrivée manquant ou inférieur au départ ; un débit impossible (plus de 80 litres par minute sur 24 heures) ; une remise en cuve excessive ; un index intermédiaire manquant le jour d'un changement de prix.</td></tr>
+    <tr><td class="fort">Prix</td><td>Un produit vendu sans prix en vigueur.</td></tr>
+    <tr><td class="fort">Stock</td><td>Un jaugeage de fermeture manquant ; une cuve sans barème ; une hauteur hors barème ; un écart hors tolérance sans observation.</td></tr>
+    <tr><td class="fort">Crédit</td><td>Un bon en attente de décision ; des litres sur bons et sur cartes supérieurs aux litres sortis des pompes.</td></tr>
+    <tr><td class="fort">Dépenses</td><td>Une dépense en attente de décision ; un justificatif manquant.</td></tr>
+    <tr><td class="fort">Boutique</td><td>Un stock d'article insuffisant ou un prix d'article disparu.</td></tr>
+    <tr><td class="fort">Encaissements</td><td>Des encaissements électroniques supérieurs aux ventes.</td></tr>
+    <tr><td class="fort">Feuilles de caisse</td><td>Dans une station qui en tient : aucun poste saisi, ou des postes qui ne totalisent pas les litres de la journée.</td></tr>
+  </tbody>
+</table>
+<p>À la clôture, Jaugeo <strong>fige</strong> : les ventes, l'écart de stock de chaque cuve, les compléments citerne, les pénalités de transport, la sortie de stock des articles au coût moyen, le dû et l'écart de chaque pompiste, et le montant à verser.</p>
+
+<h2>Valider ou renvoyer</h2>
+<ul>
+  <li><strong>Valider</strong> : le superviseur (ou la Direction) contrôle la journée clôturée et la valide. <strong>Celui qui a clôturé ne peut pas valider</strong> sa propre journée.</li>
+  <li><strong>Renvoyer</strong> : si une erreur est constatée, le superviseur renvoie la journée au gérant avec un <strong>motif obligatoire</strong>. Elle repasse en saisie ; ce qui avait été figé est retiré et sera recalculé à la prochaine clôture.</li>
+</ul>
+<div class="attention"><p>Le renvoi est refusé si la journée suivante est déjà ouverte, si un complément citerne ou une pénalité de la journée a déjà été réglé, ou si le mois est clôturé.</p></div>
+
+<!-- ============================================================ -->
+<h1 class="chapitre">Stocks</h1>
+<p class="resume">La page Stocks donne au siège et aux stations la vue d'ensemble des cuves : écarts du mois, autonomie, compléments citerne.</p>
+<div class="ou"><strong>Où :</strong> menu Exploitation → Stocks. <strong>Consulter :</strong> tous les rôles, dans leur périmètre.</div>
+
+<h2>Onglet Analyse mensuelle</h2>
+<p>Pour un mois choisi, chaque cuve affiche son stock d'ouverture, ses réceptions, ses sorties, son stock théorique, son stock mesuré, son écart du mois en litres, en pourcentage et en valeur, et son niveau (normal, alerte, enquête) selon les tolérances décrites au chapitre précédent. C'est l'écran de travail du contrôleur de gestion pour suivre les pertes.</p>
+
+<h2>Onglet Autonomie</h2>
+<p>Pour chaque cuve : le stock actuel, l'autonomie en jours, l'état de réapprovisionnement et la hauteur d'eau relevée.</p>
+<div class="regle">
+  <span class="formule">autonomie (jours) = stock au-dessus du creux de sécurité ÷ ventes moyennes des 7 dernières journées clôturées</span>
+  <p>Une cuve est <strong>à réapprovisionner</strong> quand son stock passe sous son seuil en litres ou, si aucun seuil n'est fixé, quand son autonomie passe sous 3 jours. Le calcul repose sur le dernier jaugeage connu.</p>
+</div>
+
+<h2>Onglet Compléments citerne</h2>
+<p>La liste des compléments nés des réceptions avec manquant : station, BL, litres manquants, montant, base de calcul (15 °C ou température ambiante), « à la charge du » fournisseur ou transporteur, et statut <span class="etat orange">À régler</span> ou <span class="etat vert">Réglé</span>.</p>
+<p>La logistique (RECEPTION_VALIDER) enregistre le règlement d'un complément avec sa référence et sa date.</p>
+<div class="attention"><p>Une journée dont un complément a été réglé ne peut plus être renvoyée au gérant.</p></div>
+
+<!-- ============================================================ -->
+<h1 class="chapitre">Approvisionnement</h1>
+<p class="resume">Jaugeo propose les commandes de carburant, suit chaque citerne du dépôt jusqu'à la station, contrôle les factures des fournisseurs et note les transporteurs.</p>
+<div class="ou"><strong>Où :</strong> menu Exploitation → Approvisionnement. <strong>Consulter :</strong> le siège (TABLEAU_BORD_RESEAU). <strong>Agir :</strong> logistique (RECEPTION_VALIDER) ; les factures fournisseur aussi par le comptable (VERSEMENT_VALIDER).</div>
+
+<h2>Onglet Propositions</h2>
+<p>Pour chaque station et chaque produit, Jaugeo estime le stock d'aujourd'hui (dernier stock connu moins les ventes moyennes des jours écoulés), puis le stock à l'arrivée d'une citerne commandée maintenant. Il affiche l'autonomie, la date de rupture estimée et les livraisons déjà en route. Les lignes à commander sont en tête, classées par date de rupture.</p>
+<div class="regle">
+  <p>Une commande est proposée quand l'autonomie, livraisons en cours comprises, ne dépasse pas le <strong>délai de livraison du dépôt principal + la marge de sécurité</strong> (2 jours par défaut), ou quand le stock passe sous le seuil de réapprovisionnement des cuves.</p>
+  <span class="formule">quantité proposée = 95 % de la capacité des cuves − stock à l'arrivée − livraisons en cours</span>
+  <p>arrondie au millier de litres inférieur. En dessous de 1 000 L, rien n'est proposé.</p>
+</div>
+<div class="exemple"><p>Cuve de 20 000 L, 3 500 L en stock, 1 500 L vendus par jour, dépôt à 1 jour. L'autonomie est de 2,3 jours pour 1 + 2 = 3 jours à couvrir : la commande est proposée. Stock à l'arrivée : 2 000 L. Quantité proposée : 19 000 − 2 000 = 17 000 L.</p></div>
+<p>Un bouton prépare la tournée à partir des lignes cochées.</p>
+<div class="astuce"><p>Si la capacité d'une cuve est inconnue, la commande est proposée sans quantité. Sans vente sur les 7 derniers jours, l'autonomie est inconnue et seul le seuil déclenche la proposition. Tant qu'aucun fournisseur n'est marqué « dépôt principal », le délai vaut 0 jour.</p></div>
+
+<h2>Onglet Tournées</h2>
+<p>Une tournée est le voyage d'une citerne, qui peut livrer plusieurs stations. Elle est numérotée <code>TO2026-00007</code>.</p>
+<table>
+  <thead><tr><th style="width:18%">État</th><th>Ce qui se passe</th></tr></thead>
+  <tbody>
+    <tr><td><span class="etat gris">Commandée</span></td><td>La logistique indique le dépôt de chargement, le transporteur, la citerne, le chauffeur, les dates prévues de chargement et de livraison, et une ou plusieurs livraisons (station, produit, quantité ; 20 au plus). Les livraisons restent modifiables.</td></tr>
+    <tr><td><span class="etat bleu">Chargée</span></td><td>La logistique saisit la date de chargement, les scellés et, pour chaque livraison, le numéro de BL, la quantité du BL et sa quantité à 15 °C si le BL la donne. Les livraisons ne changent plus.</td></tr>
+    <tr><td><span class="etat orange">En route</span></td><td>Le départ de la citerne est enregistré.</td></tr>
+    <tr><td><span class="etat vert">Dépotée</span></td><td>Toutes les livraisons de la tournée ont été réceptionnées en station par les gérants.</td></tr>
+    <tr><td><span class="etat rouge">Annulée</span></td><td>Possible avec un motif, tant qu'aucune livraison n'est réceptionnée.</td></tr>
+  </tbody>
+</table>
+<p>Contrôles à la commande : la station est active et possède une cuve en service du produit ; un même produit n'est livré qu'une fois par station dans la tournée ; le total ne dépasse pas la capacité de la citerne ; la citerne appartient bien au transporteur.</p>
+<p>Une livraison est <strong>à l'heure</strong> si elle est réceptionnée au plus tard à la date de livraison prévue.</p>
+
+<h2>Onglet Factures fournisseur</h2>
+<p>Une facture se saisit avec une ligne par BL : numéro de BL, produit, quantité facturée, prix unitaire. Jaugeo contrôle chaque ligne :</p>
+<table>
+  <thead><tr><th style="width:18%">Contrôle</th><th>Ce qui est comparé</th></tr></thead>
+  <tbody>
+    <tr><td class="fort">BL</td><td>Le BL doit avoir été réceptionné dans une station, pour le même produit. Un BL ne se facture qu'une fois.</td></tr>
+    <tr><td class="fort">Quantité</td><td>La quantité facturée est comparée à celle du BL, à 15 °C si le fournisseur facture à 15 °C, sinon à température ambiante. Un écart au-delà de 0,1 % est signalé.</td></tr>
+    <tr><td class="fort">Manquant</td><td>Un manquant imputé au fournisseur est signalé comme <strong>avoir à demander</strong> et déduit du montant attendu.</td></tr>
+    <tr><td class="fort">Prix</td><td>Le prix facturé est comparé au prix d'achat convenu à la date de réception. L'absence de prix convenu est signalée.</td></tr>
+  </tbody>
+</table>
+<div class="regle"><span class="formule">montant attendu = (quantité du BL − manquant du fournisseur) × prix d'achat convenu</span></div>
+<p>La facture reçoit ensuite une décision : <strong>bon à payer</strong> (un motif est exigé si le contrôle a relevé des anomalies ; la facture devient définitive) ou <strong>litige</strong> (motif obligatoire ; la facture reste corrigeable). Une facture saisie par erreur s'annule avec un motif.</p>
+<div class="astuce"><p>Jaugeo s'arrête au bon à payer : le paiement effectif des fournisseurs n'est pas suivi.</p></div>
+
+<h2>Onglet Transporteurs</h2>
+<p>La fiche d'un transporteur porte son nom, son téléphone, la référence et les dates de son contrat, sa <strong>tolérance de manquant</strong> (de 0 à 5 %), sa <strong>pénalité forfaitaire</strong> par livraison hors tolérance, et ses citernes (immatriculation et capacité).</p>
+<ul>
+  <li>La tolérance du contrat remplace la tolérance du réseau (0,3 %) pour calculer le complément citerne de ses livraisons.</li>
+  <li>À la clôture de la journée, une livraison de tournée dont le manquant dépasse la tolérance et revient au transporteur donne lieu à la <strong>pénalité</strong> de son contrat. Elle s'ajoute au complément citerne. Elle est hors recette : elle ne change pas le montant à verser du gérant. La logistique enregistre son règlement.</li>
+</ul>
+<div class="regle">
+  <p><strong>Note sur 5</strong>, calculée sur les livraisons réceptionnées des 180 derniers jours :</p>
+  <span class="formule">note = 5 × (0,4 × part des livraisons à l'heure + 0,4 × part des livraisons dans la tolérance + 0,2 × points du taux de manquant)</span>
+  <p>Le taux de manquant donne tous ses points à 0 % et aucun à partir de deux fois la tolérance.</p>
+</div>
+<div class="exemple"><p>10 livraisons, 8 à l'heure, 9 dans la tolérance, taux de manquant de 0,3 % pour une tolérance de 0,3 %. Note = 5 × (0,4 × 0,8 + 0,4 × 0,9 + 0,2 × 0,5) = 3,9.</p></div>
+
+<h2>Onglet Fournisseurs</h2>
+<p>La fiche d'un fournisseur porte son nom, son téléphone, son adresse, son <strong>délai de livraison</strong> en jours, s'il est le <strong>dépôt principal</strong> (un seul l'est à la fois) et s'il facture à 15 °C ou à température ambiante.</p>
+<p>On y saisit aussi les <strong>prix d'achat convenus</strong> par produit, chacun à partir d'une date. Le prix en vigueur est le plus récent dont la date est passée. Ces prix servent au contrôle des factures et au calcul de la marge.</p>
+
+<!-- ============================================================ -->
+<h1 class="chapitre">Lubrifiants et boutique</h1>
+<p class="resume">Les articles qui ne sont pas en cuve (lubrifiants, articles de boutique, gaz) ont leur stock par station, valorisé au coût moyen.</p>
+<div class="ou"><strong>Où :</strong> menu Exploitation → Lubrifiants et boutique. <strong>Consulter :</strong> tous les rôles, dans leur périmètre.</div>
+
+<h2>Onglet Stock</h2>
+<p>Pour la station choisie : la valeur totale du stock au coût moyen, les entrées à confirmer, et pour chaque article son stock, son CMUP et son prix de vente.</p>
+<h3>Faire entrer des articles en stock</h3>
+<ol class="etapes">
+  <li>La <strong>logistique annonce</strong> l'entrée : article, quantité, coût d'achat unitaire, fournisseur et référence (BL, facture, ou « stock initial » pour la mise en place).</li>
+  <li>Le <strong>gérant confirme</strong> à la réception. Si la quantité reçue diffère de l'annonce, il en donne la raison (casse, manquant, erreur de livraison).</li>
+  <li>L'article n'est en stock <strong>qu'à la confirmation</strong> du gérant.</li>
+</ol>
+<p>Une entrée annoncée qui ne sera pas livrée s'annule avec un motif. Une entrée reçue ou annulée ne peut plus être modifiée.</p>
+<div class="regle">
+  <span class="formule">nouveau CMUP = (stock × CMUP + quantité reçue × coût d'achat) ÷ (stock + quantité reçue)</span>
+  <p>arrondi au centime.</p>
+</div>
+<div class="exemple"><p>23 bidons en stock à 3 500 F, entrée de 10 bidons à 3 900 F. Nouveau CMUP = (23 × 3 500 + 10 × 3 900) ÷ 33 = 3 621,21 F.</p></div>
+<h3>Ce qui se passe à la vente</h3>
+<p>Les ventes se saisissent dans la fiche journée. À la clôture, chaque vente sort du stock au CMUP du moment, qui est figé sur la vente : c'est ce coût qui servira au calcul de la marge. Si la journée est renvoyée, les articles rentrent en stock à leur CMUP de sortie.</p>
+
+<h2>Onglet Inventaire</h2>
+<p>Chaque semaine, Jaugeo propose au comptage <strong>un quart des articles</strong>, les plus anciennement comptés, plus tout article non compté depuis 30 jours. Un article compté depuis moins de 7 jours n'est pas reproposé.</p>
+<ol class="etapes">
+  <li>Le gérant ou le superviseur compte physiquement les articles proposés et saisit les quantités.</li>
+  <li>L'écart avec le stock attendu s'affiche en direct. Le stock attendu tient compte des ventes déjà saisies dans une journée encore ouverte.</li>
+  <li>Tout écart exige une explication (casse, vol, vente non saisie).</li>
+</ol>
+<p>L'écart est valorisé au CMUP. Le stock prend la quantité comptée ; le CMUP ne change pas.</p>
+
+<h2>Onglet Mouvements</h2>
+<p>Le journal, mois par mois, de chaque entrée, sortie de ventes et écart d'inventaire, avec sa valeur, le stock et le CMUP qui en résultent. Le mois se résume en trois montants : valeur des entrées, ventes au coût moyen, écarts d'inventaire.</p>
+
+<h2>Qui fait quoi</h2>
+<table>
+  <thead><tr><th>Action</th><th>Rôle</th></tr></thead>
+  <tbody>
+    <tr><td>Créer un article</td><td>Administrateur (page Produits)</td></tr>
+    <tr><td>Fixer le prix de vente d'un article</td><td>Direction (page Prix)</td></tr>
+    <tr><td>Annoncer ou annuler une entrée</td><td>Logistique</td></tr>
+    <tr><td>Confirmer une réception, saisir les ventes</td><td>Gérant</td></tr>
+    <tr><td>Compter les articles</td><td>Gérant ou superviseur</td></tr>
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<h1 class="chapitre">Personnel de station</h1>
+<p class="resume">Chaque station tient la liste de ses employés et le planning de ses postes. Les stations qui l'activent suivent en plus la caisse de chaque pompiste, poste par poste.</p>
+<div class="ou"><strong>Où :</strong> menu Exploitation → Personnel. <strong>Gérer :</strong> gérant, superviseur, administrateur (PERSONNEL_GERER). <strong>Consulter :</strong> tous les rôles, dans leur périmètre.</div>
+
+<h2>Onglet Employés</h2>
+<p>La fiche d'un employé porte son prénom, son nom, sa fonction (pompiste, caissier, chef de piste, gérant, gardien, autre), son matricule, son téléphone, sa date d'entrée, sa date de sortie et, s'il en a un, son compte Jaugeo.</p>
+<ul>
+  <li>Le matricule est unique dans le réseau.</li>
+  <li>Un employé dont la <strong>date de sortie</strong> est renseignée n'est plus actif : il disparaît du planning et des feuilles à saisir, mais son historique reste.</li>
+  <li><strong>Changer un employé de station</strong> clôt son affectation en cours et en ouvre une nouvelle, datée du jour. La fiche garde l'historique de ses passages.</li>
+</ul>
+<p>C'est aussi dans cet onglet que le superviseur ou l'administrateur <strong>active ou désactive les feuilles de caisse</strong> de la station. Elles sont désactivées par défaut.</p>
+
+<h2>Onglet Planning</h2>
+<p>Le planning se tient par semaine : pour chaque employé actif et chaque jour, le poste tenu parmi <strong>matin, soir, nuit</strong>.</p>
+<ul>
+  <li><span class="bouton">Reconduire</span> recopie une semaine sur les suivantes (de 1 à 8), en remplaçant ce qui s'y trouvait.</li>
+  <li>Avec la <strong>rotation</strong>, chacun passe au poste suivant à chaque semaine.</li>
+</ul>
+<div class="exemple"><p>Awa est du matin et Moussa du soir cette semaine. Avec la rotation, la semaine suivante Awa est du soir et Moussa du matin.</p></div>
+<p>Le planning sert à préparer les feuilles de caisse : à l'ouverture d'un poste dans la journée, les pompistes prévus sont proposés.</p>
+
+<h2>Feuilles de caisse par pompiste</h2>
+<p>Dans une station qui tient des feuilles, la fiche journée reçoit une section « Feuilles de caisse par pompiste », avec un bouton par poste. À chaque relève de poste :</p>
+<ol class="etapes">
+  <li>Ouvrir le poste (matin, soir ou nuit).</li>
+  <li>Pour chaque pompiste du poste, saisir l'<strong>index de fin de poste</strong> de chaque pistolet qu'il a tenu, et la remise en cuve éventuelle. L'index de début n'est pas ressaisi : c'est l'index de fin du poste précédent, ou l'index de départ de la journée pour le premier poste.</li>
+  <li>Saisir ce que le pompiste <strong>remet</strong> : espèces, paiements Wave, Orange Money ou carte, bons clients, pleins par carte carburant.</li>
+  <li>Le dû, le remis et l'écart s'affichent pendant la saisie.</li>
+</ol>
+<div class="regle">
+  <span class="formule">litres du poste = index de fin − index de début − remise en cuve</span>
+  <span class="formule">dû = litres × prix en vigueur à l'ouverture de la journée, arrondi au franc</span>
+  <span class="formule">écart = remis − dû</span>
+  <p>Un écart négatif est un manquant ; positif, un excédent.</p>
+</div>
+<div class="exemple"><p>Awa tient deux pistolets le matin : 300 L et 200 L de gasoil à 755 F. Elle doit 377 500 F. Elle remet 370 000 F en espèces et 5 000 F par Wave : manquant de 2 500 F.</p></div>
+<h3>Contrôles</h3>
+<ul>
+  <li>Un pistolet ne figure que sur une feuille par poste ; un pompiste n'a qu'une feuille par poste ; il doit être un employé actif de la station.</li>
+  <li>Pour chaque pistolet, les postes doivent <strong>totaliser les litres du relevé de la journée</strong>. Un pistolet absent des feuilles doit n'avoir rien vendu.</li>
+  <li>Dans une station qui tient des feuilles, la journée ne se clôture pas tant qu'aucun poste n'est saisi ou qu'un de ces contrôles échoue.</li>
+</ul>
+<div class="astuce"><p>L'écart du pompiste est un <strong>suivi</strong> : le gérant reste seul redevable du montant à verser. Aucune dette n'est ouverte au nom du pompiste. Ce choix, comme le relevé d'index à chaque relève et le pompiste unique par pistolet, reste à confirmer avec le client.</p></div>
+
+<h2>Onglet Écarts de caisse</h2>
+<p>Pour un mois : le nombre de feuilles clôturées, le dû, le remis, les manquants, les excédents et l'écart net de chaque employé, les plus gros manquants en tête. La fiche de l'employé liste ses feuilles du mois, avec un lien vers chaque journée. Seules les feuilles des journées clôturées comptent.</p>
+
+<!-- ============================================================ -->
+<h1 class="chapitre">Trésorerie</h1>
+<p class="resume">La trésorerie suit l'argent de chaque station : ce que le gérant doit verser, ce qu'il a déposé à la banque, ce qu'il détient encore, et le contrôle de tout cela par le siège.</p>
+<div class="ou"><strong>Où :</strong> menu Exploitation → Trésorerie. Les onglets visibles dépendent du rôle.</div>
+
+<h2>Onglet Caisse du gérant</h2>
+<p>Pour une station et un mois, le <strong>livre de caisse</strong> donne jour par jour : les ventes, les bons, les dépenses, les compléments, les encaissements Wave, Orange Money et carte, les pleins par carte carburant, le montant à verser, ce qui a été versé, l'arrêté éventuel et le <strong>solde non versé</strong>.</p>
+<div class="regle"><span class="formule">solde non versé du jour = solde de la veille + montant à verser du jour − versements du jour</span></div>
+<p>En haut de page, cinq indicateurs résument le mois : solde au début du mois, montant à verser du mois, versements, écarts aux arrêtés, solde non versé. Un clic sur un jour ouvre la journée correspondante. Une journée encore en saisie n'entre dans la caisse qu'à sa clôture.</p>
+<div class="astuce"><p>Une station est signalée <strong>en retard de versement</strong> quand son solde non versé dépasse les recettes des 3 derniers jours (délai réglable). Ce seuil est à confirmer avec le client.</p></div>
+
+<h2>Enregistrer un versement bancaire</h2>
+<div class="ou"><strong>Qui :</strong> gérant (VERSEMENT_SAISIR).</div>
+<ol class="etapes">
+  <li>Dans l'onglet Caisse du gérant, cliquer sur <span class="bouton">Enregistrer un versement</span>. Le montant proposé est le solde non versé.</li>
+  <li>Saisir la <strong>date du dépôt</strong> (jamais dans le futur).</li>
+  <li>Choisir la <strong>banque</strong> dans la liste. Seules les banques actives de la compagnie sont proposées.</li>
+  <li>Saisir le <strong>numéro du bordereau (BV)</strong> exactement comme sur le bordereau, et le <strong>montant</strong> en francs entiers.</li>
+  <li>Indiquer si besoin le déposant et une observation.</li>
+  <li>Joindre la <strong>photo du bordereau</strong> : sans elle, la comptabilité ne peut pas vérifier le versement.</li>
+</ol>
+<ul>
+  <li>Un même numéro de bordereau ne peut être saisi qu'une fois pour une banque.</li>
+  <li>Un versement se corrige ou se retire tant qu'il n'est pas vérifié.</li>
+  <li>Un versement ne peut pas être daté à la date d'un arrêté de caisse ou avant, ni dans un mois clôturé.</li>
+</ul>
+
+<h2>Les banques</h2>
+<div class="ou"><strong>Où :</strong> bouton <span class="bouton">Banques</span> en haut de la page Trésorerie. <strong>Qui :</strong> administrateur (REFERENTIEL_GERER).</div>
+<p>La table des banques est pré-remplie avec les <strong>29 banques agréées au Sénégal</strong> (liste de la BCEAO mise à jour au 29 juin 2026). Chaque banque a un sigle, un nom et un état <strong>actif</strong>.</p>
+<ul>
+  <li>Un interrupteur active ou désactive chaque banque. <strong>Seules les banques actives sont proposées</strong> à la saisie d'un versement. Toutes sont actives au départ : il revient à l'administrateur de ne garder que celles où la compagnie dépose ses recettes.</li>
+  <li>Désactiver une banque ne modifie pas les versements déjà enregistrés. En correction d'un versement, sa banque reste proposée même si elle a été désactivée depuis.</li>
+  <li>Une banque absente de la liste s'ajoute avec son sigle et son nom.</li>
+</ul>
+
+<h2>Onglet Versements à vérifier</h2>
+<div class="ou"><strong>Qui :</strong> comptable (VERSEMENT_VALIDER).</div>
+<p>La liste des versements saisis par les gérants et pas encore contrôlés. Pour chacun, le comptable ouvre la photo du bordereau et :</p>
+<ul>
+  <li>le marque <span class="etat vert">Vérifié</span> : impossible sans la photo du bordereau ;</li>
+  <li>ou le <span class="etat rouge">rejette</span> avec un <strong>motif obligatoire</strong>. Un versement rejeté ne compte plus dans la caisse du gérant.</li>
+</ul>
+<div class="attention"><p>Celui qui a saisi un versement ne peut pas le vérifier lui-même. Un versement vérifié ou rejeté ne peut plus être modifié.</p></div>
+
+<h2>Onglet Dépenses à valider</h2>
+<div class="ou"><strong>Qui :</strong> superviseur, Direction (DEPENSE_VALIDER).</div>
+<p>La liste des dépenses au-delà du plafond, avec leur montant, leur plafond et la présence du justificatif. Le décideur <span class="bouton">autorise</span> ou <span class="bouton">refuse</span> ; le refus exige un motif. Tant que la décision n'est pas prise, la journée de la station ne peut pas être clôturée.</p>
+
+<h2>Arrêter la caisse et plafond d'espèces</h2>
+<div class="ou"><strong>Qui :</strong> superviseur, comptable, contrôleur de gestion (CAISSE_CONTROLER).</div>
+<h3>Arrêté de caisse</h3>
+<p>Le contrôleur compte les espèces détenues par le gérant en fin de journée et saisit le montant compté.</p>
+<ul>
+  <li>Un arrêté de type <strong>Reprise</strong> fixe le solde de départ de la caisse, à la mise en service.</li>
+  <li>Un arrêté de type <strong>Contrôle</strong> compare les espèces comptées au solde théorique.</li>
+</ul>
+<div class="regle">
+  <span class="formule">écart = espèces comptées − solde théorique</span>
+  <p>Un écart négatif ouvre un <strong>manquant au nom du gérant</strong>. Les espèces comptées deviennent le nouveau solde. Une observation est exigée dès qu'il y a un écart.</p>
+</div>
+<div class="attention"><p>Un arrêté fige le passé : aucun versement ne peut plus être ajouté, modifié ou retiré à sa date ou avant.</p></div>
+<h3>Plafond d'espèces</h3>
+<p>Le bouton <span class="bouton">Plafond d'espèces</span> fixe pour la station le montant maximal d'espèces non versées. Au-delà, une alerte s'affiche sur la fiche journée, le livre de caisse, le tableau de bord et la vue Direction. Rien n'est bloqué. Laisser le champ vide retire le plafond.</p>
+
+<h2>Onglet Manquants</h2>
+<p>La liste des manquants de caisse, avec leur montant, leur reste dû et leur statut <span class="etat rouge">Ouvert</span> ou <span class="etat vert">Soldé</span>. Le comptable gère chaque manquant depuis sa fiche :</p>
+<ul>
+  <li><strong>Reconnaissance de dette</strong> : référence du document signé et date.</li>
+  <li><strong>Échéancier</strong> mensuel : de 1 à 24 échéances, arrondies à la centaine de francs, la dernière ajustant le total. Il peut être refait ; les règlements déjà reçus restent imputés.</li>
+  <li><strong>Règlements</strong> partiels ou complets : remboursement, retenue ou perte. Ils s'imputent dans l'ordre des échéances. Une référence est exigée, sauf pour une perte. On ne peut pas régler plus que le reste dû.</li>
+</ul>
+<p>Le manquant est soldé quand le cumul des règlements atteint son montant. Les échéances échues non honorées sont signalées « en retard ».</p>
+
+<h2>Onglet Rapprochement</h2>
+<div class="ou"><strong>Qui :</strong> comptes de périmètre réseau ; importer, lettrer et paramétrer demandent VERSEMENT_VALIDER.</div>
+<p>Le rapprochement vérifie que chaque versement déclaré par un gérant figure bien au relevé de la banque.</p>
+<h3>1. Paramétrer le format du relevé (une fois par banque)</h3>
+<p>Chaque banque exporte ses relevés avec ses propres colonnes. Bouton <span class="bouton">Formats</span> puis <span class="bouton">Nouveau format</span> :</p>
+<table>
+  <thead><tr><th style="width:26%">Champ</th><th>Ce qu'il faut mettre</th></tr></thead>
+  <tbody>
+    <tr><td class="fort">Code, Libellé</td><td>Un nom libre, par exemple « BIS » et « BIS compte recettes ».</td></tr>
+    <tr><td class="fort">Nature</td><td>Banque, Wave, Orange Money ou Carte bancaire.</td></tr>
+    <tr><td class="fort">Séparateur</td><td>Celui du fichier CSV : point-virgule, virgule, tabulation ou barre verticale. Sans effet pour un fichier Excel.</td></tr>
+    <tr><td class="fort">Format des dates</td><td><code>dd/MM/yyyy</code> pour 05/11/2026 ; <code>yyyy-MM-dd</code> pour 2026-11-05.</td></tr>
+    <tr><td class="fort">Lignes d'en-tête</td><td>Le nombre de lignes à ignorer avant la première opération.</td></tr>
+    <tr><td class="fort">Colonnes</td><td>Le numéro de colonne de la date, du libellé, de la référence (facultative) et du crédit. 1 = colonne A.</td></tr>
+  </tbody>
+</table>
+<h3>2. Importer le relevé</h3>
+<p>Bouton <span class="bouton">Importer un relevé</span> : choisir le format, puis le fichier (CSV ou Excel, 5 Mo au plus ; pour Excel, la première feuille).</p>
+<ul>
+  <li>Seules les lignes avec un montant <strong>au crédit</strong> sont importées ; débits, soldes et totaux sont ignorés.</li>
+  <li>Le même fichier ne peut pas être importé deux fois ; si deux relevés se chevauchent, les opérations déjà connues sont ignorées.</li>
+  <li>Un bilan s'affiche : opérations importées, doublons ignorés, lignes sans crédit, rapprochements automatiques.</li>
+</ul>
+<h3>3. Le lettrage automatique</h3>
+<p>Il se lance à chaque import d'un relevé bancaire, et à la demande avec le bouton <span class="bouton">Lettrage automatique</span>.</p>
+<div class="regle">
+  <p>Pour chaque crédit, Jaugeo cherche les versements <strong>du même montant</strong>, non rejetés et pas encore rapprochés, déposés entre <strong>7 jours avant et 1 jour après</strong> la date du crédit. Il ne lettre que si le cas est certain :</p>
+  <ul>
+    <li>le numéro du bordereau (4 caractères au moins) figure dans le libellé ou la référence du crédit, et un seul versement correspond ;</li>
+    <li>sinon, un seul versement de ce montant existe dans la fenêtre, et aucun autre crédit ne peut y prétendre.</li>
+  </ul>
+</div>
+<h3>4. Finir à la main</h3>
+<p>Le tableau « Relevé bancaire » liste les crédits du mois. Pour chacun, la colonne Versement montre : le versement rapproché (avec la mention « auto » ou « manuel », et une icône pour défaire le rapprochement) ; ou une liste de versements possibles à choisir puis à lier ; ou « Aucun versement de ce montant ». Plus bas, « Versements non retrouvés au relevé » liste les bordereaux saisis sans crédit correspondant.</p>
+<p>Le mois est rapproché quand il ne reste aucun crédit à rapprocher et que les versements non retrouvés sont expliqués. Le <strong>taux de rapprochement</strong> est le montant des versements rapprochés rapporté au montant versé dans le mois.</p>
+<h3>Wave, Orange Money et carte bancaire</h3>
+<p>Les relevés des opérateurs s'importent de la même façon, en indiquant la station titulaire du compte marchand. Ils ne se lettrent pas : pour chaque station, jour et mode, le montant déclaré par le gérant est comparé au total du relevé, et l'écart est affiché. Hors de la période couverte par un relevé, la ligne indique « relevé non importé ».</p>
+
+<!-- ============================================================ -->
+<h1 class="chapitre">Clients en compte</h1>
+<p class="resume">Les clients en compte achètent à crédit, sur bons. Leur fiche porte le contrat, les règles de crédit et tout l'historique.</p>
+<div class="ou"><strong>Où :</strong> menu Exploitation → Clients en compte. <strong>Gérer :</strong> comptable (CLIENT_GERER). <strong>Consulter :</strong> tous les rôles.</div>
+
+<h2>La fiche client</h2>
+<p>Un client a un nom, un mode de recouvrement (<strong>Direction</strong> ou <strong>gérant</strong>), un plafond d'encours facultatif et un état actif ou non. La fiche comporte six onglets.</p>
+<table>
+  <thead><tr><th style="width:20%">Onglet</th><th>Contenu</th></tr></thead>
+  <tbody>
+    <tr><td class="fort">Comptes</td><td>La créance du client par station, et son <strong>relevé</strong> sur une période : reprise d'ouverture, bons, règlements, solde.</td></tr>
+    <tr><td class="fort">Contrat</td><td>Adresse, e-mail, NINEA, référence et dates du contrat, <strong>délai de paiement</strong> en jours (compté depuis la date de facture), caution bancaire (montant, banque, échéance).</td></tr>
+    <tr><td class="fort">Engins et prix</td><td>Les véhicules et pirogues autorisés (type, immatriculation, libellé) et les <strong>prix contractuels</strong> : une remise au litre par produit, à partir d'une date. Une remise à 0 met fin à la précédente.</td></tr>
+    <tr><td class="fort">Factures</td><td>Les factures du client et leur reste dû.</td></tr>
+    <tr><td class="fort">Cartes</td><td>Ses cartes carburant prépayées.</td></tr>
+    <tr><td class="fort">Relances</td><td>L'historique des relances, avec leurs lettres.</td></tr>
+  </tbody>
+</table>
+<p>Le montant <strong>échu</strong> (dû et dont l'échéance est passée) s'affiche en rouge sur la fiche.</p>
+
+<h2>Créances et règlements</h2>
+<ul>
+  <li>La <strong>reprise de créance</strong> enregistre ce que le client devait à la mise en service.</li>
+  <li>Les <strong>bons</strong> saisis dans les journées augmentent la créance.</li>
+  <li>Les <strong>règlements</strong> la diminuent : espèces à la station (saisies par le gérant dans la journée), espèces au siège, virement, chèque ou compensation (saisis par le comptable).</li>
+</ul>
+<div class="regle"><p>Les règlements soldent d'abord les dettes les plus anciennes : reprises de créance et factures par date, puis bons non encore facturés. Un règlement supérieur à la créance est refusé.</p></div>
+<div class="attention"><p>Une reprise de créance ou un règlement ne peut pas être daté dans un mois clôturé.</p></div>
+
+<!-- ============================================================ -->
+<h1 class="chapitre">Créances et factures</h1>
+<p class="resume">La comptabilité facture périodiquement les bons, suit ce qui est échu et relance les clients. La Direction y décide des bons hors règle.</p>
+<div class="ou"><strong>Où :</strong> menu Exploitation → Créances et factures. <strong>Agir :</strong> comptable (CLIENT_GERER) ; bons en attente : Direction (CREDIT_DEROGER).</div>
+
+<h2>Onglet Balance âgée</h2>
+<p>À la date choisie, la balance répartit ce que doit chaque client en cinq tranches : <strong>non facturé, 0 à 30 jours, 31 à 60 jours, 61 à 90 jours, plus de 90 jours</strong>. L'ancienneté se compte depuis la date de la facture ou de la reprise. La balance affiche aussi le montant échu de chaque client et le total du réseau.</p>
+<h3>Relancer un client</h3>
+<p>Trois niveaux existent : <strong>rappel, relance, mise en demeure</strong>. Jaugeo propose le niveau suivant celui déjà envoyé. Un client sans montant échu n'est pas relancé.</p>
+<ol class="etapes">
+  <li>Cliquer sur le bouton de relance du client, au niveau proposé.</li>
+  <li>Choisir le mode : courrier, e-mail, téléphone ou visite, et ajouter un commentaire.</li>
+  <li>Pour un courrier ou un e-mail, la <strong>lettre PDF</strong> se télécharge aussitôt, avec la liste des documents échus et leur reste dû.</li>
+</ol>
+
+<h2>Onglet Factures</h2>
+<h3>Facturer une période</h3>
+<ol class="etapes">
+  <li>Choisir la période (par défaut le mois précédent), tous les clients ou un seul, et la date de facture.</li>
+  <li>Jaugeo émet <strong>une facture par client</strong>, toutes stations confondues, numérotée <code>FA2026-00012</code>.</li>
+  <li>La facture se télécharge en PDF : en-tête de la société, détail des bons (date, station, numéro, véhicule, litres, prix net, remise), total et échéance.</li>
+</ol>
+<div class="regle">
+  <p>Sont facturés les bons de la période, validés ou accordés, non encore facturés. Les bons en attente et ceux d'une journée encore en saisie attendent la facturation suivante.</p>
+  <span class="formule">échéance de la facture = date de facture + délai de paiement du client</span>
+</div>
+<ul>
+  <li>La date de facture ne peut pas précéder la fin de la période ni être dans le futur.</li>
+  <li>Une facture s'<strong>annule</strong> avec un motif : ses bons redeviennent à facturer.</li>
+  <li>Un bon facturé ne peut plus être modifié ni supprimé.</li>
+</ul>
+
+<h2>Onglet Bons en attente</h2>
+<p>La liste des bons enregistrés hors règle (plafond, échéance, engin, contrat), avec leur motif de blocage. La Direction <span class="bouton">accorde</span> la dérogation ou <span class="bouton">refuse</span> le bon, avec un motif obligatoire. La décision, son auteur et sa date sont conservés sur le bon.</p>
+<div class="attention"><p>Tant qu'un bon est en attente, la journée de sa station ne peut pas être clôturée : la décision doit être rapide.</p></div>
+
+<!-- ============================================================ -->
+<h1 class="chapitre">Cartes carburant prépayées</h1>
+<p class="resume">Un client peut recevoir des cartes nominatives, rechargées au siège, avec lesquelles ses chauffeurs ou pêcheurs paient leurs pleins dans toutes les stations.</p>
+<div class="ou"><strong>Où :</strong> menu Exploitation → Cartes carburant. <strong>Gérer :</strong> comptable (CLIENT_GERER). <strong>Consulter :</strong> tous les rôles.</div>
+
+<h2>Émettre une carte</h2>
+<ol class="etapes">
+  <li>Choisir le client, saisir le nom du <strong>porteur</strong> et, si besoin, son véhicule ou sa pirogue.</li>
+  <li>Jaugeo attribue un numéro unique : les lettres <strong>JC</strong> suivies de 10 chiffres. Le dernier chiffre est une clé de contrôle qui détecte les fautes de frappe.</li>
+  <li><strong>Imprimer</strong> la carte : format carte bancaire (85,6 × 54 mm), avec son QR code.</li>
+</ol>
+
+<h2>Recharger, bloquer, annuler</h2>
+<ul>
+  <li><strong>Recharger</strong> : montant, date, mode (espèces au siège, virement, chèque, Wave, Orange Money) et référence.</li>
+  <li><strong>Bloquer</strong> une carte perdue ou volée ; elle peut être débloquée ensuite.</li>
+  <li><strong>Annuler</strong> une carte : possible seulement si son solde est nul.</li>
+</ul>
+<p>La fiche de la carte liste tous ses mouvements : chaque recharge et chaque plein, avec le solde qui en résulte.</p>
+<p>L'utilisation de la carte en station est décrite au chapitre « La journée d'exploitation ».</p>
+
+<!-- ============================================================ -->
+<h1 class="chapitre">Synthèses mensuelles</h1>
+<p class="resume">Les synthèses reprennent, mois par mois, les tableaux d'analyse du classeur Excel. Elles servent au contrôle de gestion.</p>
+<div class="ou"><strong>Où :</strong> menu Exploitation → Synthèses mensuelles. <strong>Consulter :</strong> tous les rôles, dans leur périmètre.</div>
+
+<h2>Onglet Ventes et recettes</h2>
+<p>Une ligne par station, avec les mêmes colonnes que la feuille d'analyse du classeur :</p>
+<table>
+  <thead><tr><th style="width:9%">Col.</th><th style="width:34%">Intitulé</th><th>Contenu</th></tr></thead>
+  <tbody>
+    <tr><td class="fort">E</td><td>Recettes du mois</td><td>Ventes des journées clôturées du mois.</td></tr>
+    <tr><td class="fort">F</td><td>Solde caisse ouverture</td><td>Espèces détenues par le gérant au début du mois.</td></tr>
+    <tr><td class="fort">G</td><td>Créances début</td><td>Ce que les clients devaient au début du mois.</td></tr>
+    <tr><td class="fort">H</td><td>Total à verser</td><td>H = E + F + G. Tout ce dont la station doit rendre compte.</td></tr>
+    <tr><td class="fort">I</td><td>Versements bancaires</td><td>Les versements du mois.</td></tr>
+    <tr><td class="fort">J</td><td>Solde caisse gérant</td><td>Espèces détenues par le gérant à la fin du mois.</td></tr>
+    <tr><td class="fort">K</td><td>Créances fin</td><td>Ce que les clients doivent à la fin du mois.</td></tr>
+    <tr><td class="fort">L</td><td>Dépenses autorisées</td><td>Dépenses déduites des recettes.</td></tr>
+    <tr><td class="fort">M</td><td>Compléments citerne</td><td>Manquants de livraison déduits.</td></tr>
+    <tr><td class="fort">N</td><td>Hors caisse</td><td>Encaissements Wave, Orange Money et carte bancaire, pleins par carte prépayée, remises contractuelles.</td></tr>
+    <tr><td class="fort">O</td><td>Règlements au siège</td><td>Règlements de clients reçus directement au siège.</td></tr>
+    <tr><td class="fort">Q</td><td>Total versements</td><td>Q = I + J + K + L + M + N + O. Tout ce qui justifie H.</td></tr>
+    <tr><td class="fort">R</td><td>Écart sur versement</td><td>R = Q − H.</td></tr>
+  </tbody>
+</table>
+<div class="regle"><p>Si tout est justifié, R vaut zéro. Un R non nul est égal à la somme des écarts constatés aux arrêtés de caisse du mois : un manquant donne un R négatif.</p></div>
+
+<h2>Onglet Stocks</h2>
+<p>Par station et par produit : stock de début, réceptions, ventes, stock théorique, stock mesuré et écart du mois, avec le total du réseau par produit.</p>
+
+<h2>Observations et exports</h2>
+<ul>
+  <li>Le contrôleur de gestion peut ajouter une <strong>observation</strong> sur chaque mois.</li>
+  <li>Les deux synthèses s'exportent en <strong>Excel</strong> (les formules sont conservées dans le fichier) et en <strong>PDF</strong>.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h1 class="chapitre">Clôture mensuelle, marge et budget</h1>
+<p class="resume">Chaque mois se clôture station par station. La clôture fige le compte d'exploitation et verrouille le mois.</p>
+<div class="ou"><strong>Où :</strong> menu Pilotage → Clôture mensuelle. <strong>Qui :</strong> contrôleur de gestion, Direction (CLOTURE_MENSUELLE). Les gérants, les superviseurs et la logistique ne voient ni la marge ni le budget.</div>
+
+<h2>Onglet Compte d'exploitation</h2>
+<p>Il se lit de haut en bas, pour une station ou pour le réseau, sur les journées clôturées du mois.</p>
+<table>
+  <thead><tr><th style="width:42%">Ligne</th><th>Calcul</th></tr></thead>
+  <tbody>
+    <tr><td class="fort">Chiffre d'affaires carburants</td><td>Ventes des journées clôturées, par produit.</td></tr>
+    <tr><td>− Coût d'achat des carburants vendus</td><td>Litres vendus chaque jour × prix d'achat convenu en vigueur ce jour-là.</td></tr>
+    <tr><td class="fort">= Marge sur carburants</td><td></td></tr>
+    <tr><td>+ Marge sur lubrifiants et boutique</td><td>Ventes d'articles − coût de sortie au CMUP.</td></tr>
+    <tr><td>− Remises accordées aux clients</td><td>Remises des contrats sur les bons.</td></tr>
+    <tr><td class="fort">= Marge brute</td><td>Avec son taux en pourcentage du chiffre d'affaires.</td></tr>
+    <tr><td>± Écarts de stock</td><td>Écart mesuré − théorique du mois, au prix d'achat de fin de mois. Négatif = perte.</td></tr>
+    <tr><td>− Dépenses d'exploitation</td><td>Dépenses autorisées des journées.</td></tr>
+    <tr><td>± Régularisations sur mois clos</td><td>Régularisations saisies dans ce mois.</td></tr>
+    <tr><td class="fort">= Résultat</td><td></td></tr>
+  </tbody>
+</table>
+<div class="exemple"><p>500 L vendus à 700 F, soit 350 000 F. Prix d'achat convenu 600 F, soit 300 000 F de coût. Marge de 50 000 F, soit 14,29 %.</p></div>
+<div class="astuce"><p>Le prix d'achat retenu est celui du fournisseur principal s'il en a un pour le produit, sinon celui des autres fournisseurs. Si un jour de vente n'a aucun prix convenu en vigueur, le coût du produit est inconnu : la marge n'est pas inventée, elle ne couvre que les produits dont le coût est connu, et un avertissement nomme le produit.</p></div>
+
+<h2>Onglet Clôture</h2>
+<p>L'écran liste, station par station, ce qui manque pour clôturer. Un bouton clôture d'un coup toutes les stations prêtes. Les quatre conditions sont :</p>
+<ol class="etapes">
+  <li>le mois est terminé ;</li>
+  <li>toutes les journées de la station dans le mois sont <strong>validées</strong>, jusqu'au dernier jour du mois ;</li>
+  <li>tous les versements déposés dans le mois sont <strong>vérifiés ou rejetés</strong> par la comptabilité ;</li>
+  <li>le mois précédent est clos, si la station y avait des journées.</li>
+</ol>
+<p>Une station en retard ne bloque pas les autres.</p>
+<div class="attention">
+  <p><strong>La clôture ne se défait pas.</strong> Elle a deux effets :</p>
+  <ul>
+    <li>le compte d'exploitation est figé : un prix d'achat modifié après coup ne change plus le mois clos ;</li>
+    <li>le mois est verrouillé pour la station. Sont refusés, pour une date dans ce mois : l'ouverture ou le renvoi d'une journée ; la saisie, la modification, la suppression ou la vérification d'un versement ; un arrêté de caisse ; une reprise de créance ou un règlement client.</li>
+  </ul>
+</div>
+
+<h2>Onglet Régularisations</h2>
+<p>Une erreur découverte sur un mois clos se corrige par une <strong>régularisation</strong>. Elle vise un mois clôturé d'une station et porte un poste (chiffre d'affaires, coût d'achat, stock, dépenses, autre), un montant qui augmente ou diminue le résultat, un motif obligatoire et une référence de pièce facultative.</p>
+<ul>
+  <li>Elle s'ajoute au résultat du <strong>mois en cours</strong>, sur une ligne à part. Le mois clos ne change pas.</li>
+  <li>Elle ne se modifie pas et ne se supprime pas : une erreur se corrige par une régularisation contraire.</li>
+  <li>Un mois encore ouvert ne se régularise pas : on corrige directement la journée ou l'écriture.</li>
+</ul>
+<div class="exemple"><p>Une facture d'électricité de 15 000 F de septembre arrive en octobre, septembre étant clos. La régularisation diminue de 15 000 F le résultat d'octobre.</p></div>
+
+<h2>Onglet Budget</h2>
+<ul>
+  <li><strong>Saisie</strong> par station et par année : pour chaque carburant, les litres et le chiffre d'affaires de chaque mois ; pour la station, les dépenses de chaque mois. Un total annuel se répartit en douze mois égaux d'un clic, puis chaque mois s'ajuste.</li>
+  <li><strong>Réel contre budget</strong> : litres, chiffre d'affaires et dépenses, mois par mois, pour une station ou pour le réseau, avec l'écart en pourcentage. Dépasser un budget de dépenses est signalé comme défavorable.</li>
+  <li>Le cumul ne compte que les mois terminés, pour comparer des périodes complètes.</li>
+</ul>
+
+<h2>Exports</h2>
+<p><strong>Excel</strong> : le compte d'exploitation du mois, une colonne par station et une pour le réseau, et le réel contre budget de l'année. <strong>PDF</strong> : le compte d'exploitation du mois, en A4 paysage.</p>
+
+<!-- ============================================================ -->
+<h1 class="chapitre">Utilisateurs</h1>
+<p class="resume">L'administrateur crée un compte nominatif par personne et lui attribue un rôle et un périmètre.</p>
+<div class="ou"><strong>Où :</strong> menu Administration → Utilisateurs. <strong>Qui :</strong> administrateur (UTILISATEUR_GERER).</div>
+
+<h2>La liste</h2>
+<p>Chaque compte est présenté sur une carte : initiales, nom, identifiant, rôle, périmètre (« Tout le réseau » ou le nom des stations), coordonnées, dernière connexion et état.</p>
+<table>
+  <thead><tr><th style="width:26%">État</th><th>Signification</th></tr></thead>
+  <tbody>
+    <tr><td><span class="etat vert">Actif</span></td><td>Le compte fonctionne normalement.</td></tr>
+    <tr><td><span class="etat orange">Provisoire</span></td><td>Le mot de passe provisoire n'a pas encore été changé.</td></tr>
+    <tr><td><span class="etat rouge">Verrouillé</span></td><td>Trop de mots de passe erronés ; le verrou tombe après 15 minutes.</td></tr>
+    <tr><td><span class="etat gris">Désactivé</span></td><td>Le compte ne peut plus se connecter.</td></tr>
+  </tbody>
+</table>
+<p>Trois outils aident à retrouver un compte : la <strong>recherche</strong> (nom, identifiant, e-mail, téléphone, sans tenir compte des majuscules ni des accents), le filtre par <strong>rôle</strong> et les filtres par <strong>état</strong>, avec le nombre de comptes de chaque état.</p>
+
+<h2>Créer un compte</h2>
+<ol class="etapes">
+  <li>Cliquer sur le bouton de création et saisir l'identifiant, le nom complet, l'e-mail et le téléphone.</li>
+  <li>Choisir le <strong>rôle</strong> puis le <strong>périmètre</strong> ; pour un périmètre « Stations », choisir les stations accessibles.</li>
+  <li>Cliquer sur <span class="bouton">Créer le compte</span>.</li>
+  <li>Jaugeo affiche <strong>une seule fois</strong> un mot de passe provisoire de 12 caractères. Le copier et le transmettre à la personne, puis cliquer sur <span class="bouton">J'ai transmis le mot de passe</span>.</li>
+</ol>
+<div class="attention"><p>Le mot de passe provisoire n'est jamais réaffiché. S'il est perdu, il faut réinitialiser le mot de passe.</p></div>
+
+<h2>Modifier et réinitialiser</h2>
+<ul>
+  <li><span class="bouton">Modifier</span> : changer le nom, les coordonnées, le rôle, le périmètre, ou désactiver le compte.</li>
+  <li><span class="bouton">Réinitialiser</span> : après confirmation, un nouveau mot de passe provisoire est affiché une seule fois ; la personne devra le changer à sa prochaine connexion.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h1 class="chapitre">Journal d'audit</h1>
+<p class="resume">Le journal d'audit garde la trace de toute modification faite dans l'application.</p>
+<div class="ou"><strong>Où :</strong> menu Administration → Journal d'audit. <strong>Qui :</strong> administrateur, Direction, contrôleur de gestion (AUDIT_CONSULTER).</div>
+<p>Chaque création, modification ou suppression est enregistrée automatiquement avec :</p>
+<ul>
+  <li>son <strong>auteur</strong> (l'identifiant du compte) ;</li>
+  <li>sa <strong>date et son heure</strong> ;</li>
+  <li>l'objet concerné (station, prix, journée, versement, client, etc.) ;</li>
+  <li>les valeurs <strong>avant</strong> et <strong>après</strong>.</li>
+</ul>
+<div class="astuce"><p>Le journal ne peut être ni modifié ni effacé, même par l'administrateur. Les mots de passe n'y figurent jamais. Les simples connexions ne sont pas des événements d'audit.</p></div>
+
+<!-- ============================================================ -->
+<h1 class="chapitre">Saisie hors ligne</h1>
+<p class="resume">En station, la tablette continue de fonctionner pendant une coupure de réseau pour les saisies essentielles de la journée.</p>
+
+<h2>Ce qui fonctionne sans réseau</h2>
+<p>Pendant une coupure, le gérant peut continuer à saisir les <strong>index</strong>, les <strong>jaugeages</strong> et lancer la <strong>clôture</strong>. Ces saisies sont gardées dans la tablette, même si elle est éteinte puis rallumée, et partent toutes seules au retour du réseau, dans l'ordre où elles ont été faites.</p>
+<ul>
+  <li>Un <strong>indicateur</strong> dans la barre du haut montre que le réseau est coupé et combien de saisies sont en attente. La fiche journée liste ces saisies en attente.</li>
+  <li>Une saisie envoyée deux fois n'est <strong>jamais enregistrée deux fois</strong>.</li>
+  <li>Au retour du réseau, le serveur refait tous les contrôles. Une saisie refusée (journée modifiée entre-temps par quelqu'un d'autre, clôture impossible) est signalée au gérant, qui choisit de la <strong>réessayer</strong> ou de l'<strong>abandonner</strong>.</li>
+</ul>
+<div class="attention"><p>La tablette doit avoir été connectée au réseau à l'ouverture de la session : on ne peut pas se connecter à Jaugeo sans réseau. Les autres saisies (versements, feuilles de caisse par pompiste, bons, dépenses) demandent du réseau.</p></div>
+
+<!-- ============================================================ -->
+<h1 class="chapitre">Paramètres et valeurs par défaut</h1>
+<p class="resume">Les seuils et tolérances utilisés par les contrôles. Ceux marqués « écran » se changent dans l'application ; les autres se changent dans la configuration du serveur, sans développement.</p>
+<table>
+  <thead><tr><th>Paramètre</th><th style="width:24%">Valeur par défaut</th><th style="width:30%">Où le changer</th></tr></thead>
+  <tbody>
+    <tr><td>Durée de session</td><td>15 min, renouvelée 8 h</td><td>Configuration</td></tr>
+    <tr><td>Verrouillage du compte</td><td>5 échecs, 15 min</td><td>Configuration</td></tr>
+    <tr><td>Confirmation d'une variation de prix</td><td>Au-delà de 20 %</td><td>Fixé dans l'application</td></tr>
+    <tr><td>Débit maximal d'un pistolet</td><td>80 L/min</td><td>Réglage technique</td></tr>
+    <tr><td>Tolérance de stock</td><td>0,5 % gasoil ; 0,6 % super et essence pirogue</td><td>Par produit</td></tr>
+    <tr><td>Seuil d'enquête sur écart de stock</td><td>2 %</td><td>Configuration</td></tr>
+    <tr><td>Tolérance de transport</td><td>0,3 % du BL</td><td>Configuration ; contrat du transporteur (écran)</td></tr>
+    <tr><td>Seuil d'eau en fond de cuve</td><td>20 mm</td><td>Fiche cuve (écran)</td></tr>
+    <tr><td>Seuil de réapprovisionnement</td><td>Aucun</td><td>Fiche cuve (écran)</td></tr>
+    <tr><td>Alerte d'autonomie sans seuil</td><td>3 jours</td><td>Configuration</td></tr>
+    <tr><td>Marge de sécurité des commandes</td><td>2 jours</td><td>Configuration</td></tr>
+    <tr><td>Remplissage visé d'une cuve</td><td>95 % de la capacité</td><td>Configuration</td></tr>
+    <tr><td>Écart toléré entre facture fournisseur et BL</td><td>0,1 %</td><td>Configuration</td></tr>
+    <tr><td>Période de notation des transporteurs</td><td>180 jours</td><td>Configuration</td></tr>
+    <tr><td>Plafonds de dépenses</td><td>50 000 / 25 000 / 10 000 F selon la nature</td><td>Par nature de dépense</td></tr>
+    <tr><td>Justificatif de dépense obligatoire</td><td>Oui</td><td>Configuration</td></tr>
+    <tr><td>Retard de versement</td><td>3 jours de recettes</td><td>Configuration</td></tr>
+    <tr><td>Plafond d'espèces non versées</td><td>Aucun</td><td>Trésorerie, onglet Caisse (écran)</td></tr>
+    <tr><td>Fenêtre de lettrage d'un versement</td><td>7 jours avant, 1 jour après</td><td>Fixée dans l'application</td></tr>
+    <tr><td>Taille d'une pièce jointe ou d'un relevé</td><td>5 Mo</td><td>Fixée dans l'application</td></tr>
+    <tr><td>Échéances d'un manquant</td><td>1 à 24</td><td>Fixé dans l'application</td></tr>
+    <tr><td>Délai de paiement et plafond d'un client</td><td>Aucun</td><td>Fiche client (écran)</td></tr>
+    <tr><td>Tranches de la balance âgée</td><td>30, 60, 90 jours</td><td>Fixées dans l'application</td></tr>
+    <tr><td>Raison sociale et adresse sur factures et lettres</td><td>À paramétrer</td><td>Configuration</td></tr>
+    <tr><td>Banques proposées aux versements</td><td>Les 29 banques, toutes actives</td><td>Trésorerie, bouton Banques (écran)</td></tr>
+    <tr><td>Feuilles de caisse par pompiste</td><td>Désactivées</td><td>Personnel, onglet Employés (écran)</td></tr>
+    <tr><td>Inventaire tournant</td><td>¼ des articles par semaine, 30 jours au plus</td><td>Fixé dans l'application</td></tr>
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<h1 class="chapitre">Limites connues et fonctions à venir</h1>
+<p class="resume">Ce que l'application ne fait pas encore, ou fait avec une restriction qu'il faut connaître.</p>
+
+<h2>Limites connues</h2>
+<ul>
+  <li><strong>Feuilles de caisse le jour d'un changement de prix</strong> : tous les postes sont valorisés au prix d'ouverture de la journée. L'écart des pompistes est faussé de la différence de prix ce jour-là ; la recette de la journée reste juste.</li>
+  <li><strong>Feuilles de caisse hors ligne</strong> : elles ne se saisissent pas sans réseau.</li>
+  <li><strong>Feuilles de caisse et totaux de la journée</strong> : les bons, paiements électroniques et pleins par carte déclarés sur les feuilles ne sont pas rapprochés des totaux de la journée.</li>
+  <li><strong>Compte du pompiste</strong> : un pompiste connecté peut saisir toutes les feuilles de sa station, pas seulement la sienne.</li>
+  <li><strong>Marge</strong> : le coût d'achat vient des prix convenus, pas des factures fournisseur. Un écart entre prix convenu et prix facturé n'apparaît pas dans la marge.</li>
+  <li><strong>Compte d'exploitation</strong> : les dépenses y figurent en un seul total ; les pénalités des transporteurs, les compléments citerne et les manquants de caisse n'y figurent pas (ce sont des sommes à recouvrer, suivies ailleurs).</li>
+  <li><strong>Budget</strong> : il se saisit à la main, il ne s'importe pas depuis Excel.</li>
+  <li><strong>Fournisseurs</strong> : le suivi s'arrête au bon à payer ; le paiement n'est pas suivi.</li>
+  <li><strong>Rapprochement bancaire</strong> : il compare le montant, la date et le numéro de bordereau, pas la banque du versement.</li>
+  <li><strong>Capacités et barèmes des cuves</strong> : ils sont provisoires tant que les certificats de jaugeage réels ne sont pas collectés ; les écarts de stock ne sont pas probants d'ici là.</li>
+</ul>
+
+<h2>Règles à confirmer avec le client</h2>
+<ul>
+  <li>Les compléments citerne sont déduits du montant à verser.</li>
+  <li>Les plafonds de dépenses par nature et le caractère obligatoire du justificatif.</li>
+  <li>Le prix d'un bon est le prix en vigueur à l'ouverture de la journée.</li>
+  <li>Les tolérances de stock, la tolérance de transport, le débit maximal d'un pistolet, le seuil de retard de versement.</li>
+  <li>Pour les feuilles de caisse : relevé à chaque relève, un pompiste par pistolet, écart en simple suivi.</li>
+</ul>
+
+<h2>Fonctions à venir</h2>
+<table>
+  <thead><tr><th style="width:26%">Module</th><th>Ce qu'il apportera</th></tr></thead>
+  <tbody>
+    <tr><td class="fort">M13 — Alertes</td><td>Notifications par e-mail, SMS ou WhatsApp (écart de stock, eau, réapprovisionnement, versement, journée non clôturée, client hors plafond), avec abonnements par rôle.</td></tr>
+    <tr><td class="fort">Lot A — Export comptable</td><td>Export des écritures vers le logiciel comptable, à partir des mois clôturés. Attend le choix du logiciel et du format.</td></tr>
+    <tr><td class="fort">Lot B — Paie</td><td>Variables de paie à partir des postes tenus et des écarts de caisse. Attend le choix de la solution de paie.</td></tr>
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<h1 class="chapitre">Aide-mémoire : qui fait quoi</h1>
+<p class="resume">Les gestes courants, classés par rôle, avec le chapitre où ils sont décrits.</p>
+<table>
+  <thead><tr><th style="width:21%">Rôle</th><th>Au quotidien</th><th style="width:30%">Périodiquement</th></tr></thead>
+  <tbody>
+    <tr><td class="fort">Gérant</td><td>Ouvrir la journée ; relever les index ; jauger les cuves et l'eau ; réceptionner les citernes ; saisir bons, pleins par carte, ventes boutique, encaissements électroniques et dépenses ; clôturer ; déposer à la banque et enregistrer le versement avec la photo du bordereau.</td><td>Confirmer les entrées d'articles ; compter l'inventaire de la semaine ; tenir le planning.</td></tr>
+    <tr><td class="fort">Pompiste</td><td>Saisir les index et, dans les stations concernées, les feuilles de caisse de son poste.</td><td>—</td></tr>
+    <tr><td class="fort">Superviseur</td><td>Valider ou renvoyer les journées clôturées ; décider des dépenses au-delà du plafond.</td><td>Arrêter les caisses ; suivre les écarts de stock et de caisse de ses stations.</td></tr>
+    <tr><td class="fort">Comptable</td><td>Vérifier les versements ; enregistrer les règlements des clients ; recharger les cartes.</td><td>Importer les relevés et rapprocher ; facturer le mois ; relancer les clients échus ; gérer les manquants.</td></tr>
+    <tr><td class="fort">Logistique</td><td>Suivre les propositions de commande ; commander, charger et faire partir les tournées ; annoncer les entrées d'articles.</td><td>Contrôler les factures fournisseur ; régler compléments et pénalités ; tenir les prix d'achat.</td></tr>
+    <tr><td class="fort">Contrôleur de gestion</td><td>Surveiller la page Réseau et les écarts.</td><td>Commenter les synthèses ; clôturer les mois ; régulariser ; saisir et suivre le budget.</td></tr>
+    <tr><td class="fort">Direction</td><td>Consulter sa vue de synthèse ; accorder ou refuser les bons en attente ; décider des dépenses au-delà du plafond.</td><td>Fixer les prix ; lire la marge et le résultat.</td></tr>
+    <tr><td class="fort">Administrateur</td><td>Créer les comptes et réinitialiser les mots de passe.</td><td>Tenir à jour stations, cuves, barèmes, pompes, produits et banques ; consulter l'audit.</td></tr>
+  </tbody>
+</table>
+
+<script>
+  // Version et date de la couverture
+  document.querySelectorAll('.v-version').forEach(function (e) { e.textContent = document.body.dataset.version })
+  document.querySelectorAll('.v-date').forEach(function (e) { e.textContent = document.body.dataset.date })
+  // Sommaire construit à partir des titres
+  var sommaire = document.getElementById('sommaire')
+  var chapitre = 0
+  document.querySelectorAll('h1.chapitre, h1.chapitre ~ h2').forEach(function (t, i) {
+    t.id = 't' + i
+    var li = document.createElement('li')
+    var a = document.createElement('a')
+    a.href = '#' + t.id
+    if (t.tagName === 'H1') { chapitre++; li.className = 'n1'; a.textContent = chapitre + '. ' + t.textContent }
+    else { li.className = 'n2'; a.textContent = t.textContent }
+    li.appendChild(a)
+    sommaire.appendChild(li)
+  })
+</script>
+</body>
+</html>

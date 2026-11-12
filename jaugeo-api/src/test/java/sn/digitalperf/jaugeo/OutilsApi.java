@@ -2,19 +2,23 @@ package sn.digitalperf.jaugeo;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder;
 
 /**
  * Outils communs aux tests d'integration. Toutes les classes partagent le meme contexte Spring,
@@ -41,6 +45,21 @@ public final class OutilsApi {
 
     public static MockHttpServletRequestBuilder avec(MockHttpServletRequestBuilder req, String jeton) {
         return req.header("Authorization", "Bearer " + jeton).contentType(MediaType.APPLICATION_JSON);
+    }
+
+    /** Photo de bordereau minimale (en-tete PNG) jointe aux versements des tests. */
+    public static final byte[] PHOTO_BV = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13};
+
+    /** Creation d'un versement : donnees (JSON) et photo du bordereau, obligatoire, dans le meme envoi. */
+    public static MockMultipartHttpServletRequestBuilder versement(String jeton, String json) {
+        return versementSansPhoto(jeton, json).file(new MockMultipartFile("fichier", "bv.png", MediaType.IMAGE_PNG_VALUE, PHOTO_BV));
+    }
+
+    public static MockMultipartHttpServletRequestBuilder versementSansPhoto(String jeton, String json) {
+        MockMultipartHttpServletRequestBuilder req = multipart("/api/v1/tresorerie/versements")
+                .file(new MockMultipartFile("versement", "", MediaType.APPLICATION_JSON_VALUE, json.getBytes(StandardCharsets.UTF_8)));
+        req.header("Authorization", "Bearer " + jeton);
+        return req;
     }
 
     /** Jeton admin ; au premier appel, remplace le mot de passe initial impose. */
